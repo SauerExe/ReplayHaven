@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, RefreshCw, Server, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, KeyRound, RefreshCw } from 'lucide-react';
 import { useVault } from '../data/store';
+import { SettingsSection } from './SettingsSection';
 export function ServerSettings() {
   const { server, refreshServer, connectServer, updateAnalysisSettings, toast } = useVault();
   const [token, setToken] = useState('');
@@ -17,18 +18,15 @@ export function ServerSettings() {
     }
   }
   return (
-    <section id="analysis" className="settings-section">
-      <h2>
-        <Sparkles size={19} /> KI & Aufnahme-Server
-      </h2>
-      <p>
-        Dein Windows-Client analysiert auf dem Gaming-PC. Die AgentBox nimmt Video und Ergebnis
-        entgegen.
-      </p>
-      <div className="server-status-card">
-        <Server size={23} />
-        <div>
+    <SettingsSection
+      id="analysis"
+      title="KI & Aufnahme-Server"
+      description="Dein Windows-Client analysiert auf dem Gaming-PC. Die AgentBox nimmt Video und Ergebnis entgegen."
+    >
+      <div className={`server-status-card${server.connected ? ' online' : ''}`}>
+        <div className="server-status-text">
           <strong>
+            <span className="server-status-dot" />
             {server.connected
               ? 'Archiv-Server verbunden'
               : server.authRequired
@@ -67,7 +65,10 @@ export function ServerSettings() {
           }}
         >
           <label className="field">
-            Server-Zugangsschlüssel
+            <span className="server-login-label">
+              <KeyRound size={14} />
+              Server-Zugangsschlüssel
+            </span>
             <input
               type="password"
               autoComplete="off"
@@ -76,36 +77,101 @@ export function ServerSettings() {
               placeholder="Schlüssel aus der Server-Einrichtung"
             />
           </label>
-          <button disabled={busy} className="button secondary">
+          <button disabled={busy} className="button primary">
             <Check size={16} />
             Verbinden
           </button>
+          <p className="server-login-hint">
+            Das Setup-Skript zeigt den Schlüssel einmalig an. Er bleibt in diesem Browser.
+          </p>
         </form>
       )}
       {server.connected && (
         <>
-          <div className="setting-row">
-            <div>
-              <h3>
-                {server.provider === 'local'
-                  ? 'Zusätzliche KI auf dem Server'
-                  : server.provider === 'gemini'
-                    ? 'Zusätzliche Gemini API'
-                    : 'Analyse auf deinem Gaming-PC'}
-              </h3>
-              <p>
-                {server.configured
-                  ? server.model
-                  : 'Deine AgentBox benötigt dafür kein eigenes KI-Modell. Analyse und Pause steuerst du im Windows-Client.'}
-              </p>
+          <div className="settings-card">
+            <div className="setting-row">
+              <div>
+                <h3>
+                  {server.provider === 'local'
+                    ? 'Zusätzliche KI auf dem Server'
+                    : server.provider === 'gemini'
+                      ? 'Zusätzliche Gemini API'
+                      : 'Analyse auf deinem Gaming-PC'}
+                </h3>
+                <p>
+                  {server.configured
+                    ? server.model
+                    : 'Deine AgentBox benötigt dafür kein eigenes KI-Modell. Analyse und Pause steuerst du im Windows-Client.'}
+                </p>
+              </div>
+              <span className="demo-label">
+                {server.configured ? 'Optionaler Anbieter' : 'Client-Modus'}
+              </span>
             </div>
-            <span className="demo-label">
-              {server.configured ? 'Optionaler Anbieter' : 'Client-Modus'}
-            </span>
+            {server.configured && (
+              <div className="setting-row">
+                <div>
+                  <h3>Neue Aufnahmen auf dem Server analysieren</h3>
+                  <p>Gilt für Uploads ohne angekündigtes Client-Ergebnis.</p>
+                </div>
+                <div className="switch-field">
+                  <span className="switch-state">{server.settings.autoAnalyze ? 'An' : 'Aus'}</span>
+                  <button
+                    className="switch"
+                    role="switch"
+                    aria-label="Neue Aufnahmen automatisch analysieren"
+                    aria-checked={server.settings.autoAnalyze}
+                    disabled={busy}
+                    onClick={() => void change('autoAnalyze', !server.settings.autoAnalyze)}
+                  >
+                    <span />
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="setting-row">
+              <div>
+                <h3>KI-Titel automatisch übernehmen</h3>
+                <p>Selbst bearbeitete Titel bleiben erhalten.</p>
+              </div>
+              <div className="switch-field">
+                <span className="switch-state">{server.settings.autoTitle ? 'An' : 'Aus'}</span>
+                <button
+                  className="switch"
+                  role="switch"
+                  aria-label="KI-Titel automatisch übernehmen"
+                  aria-checked={server.settings.autoTitle}
+                  disabled={busy}
+                  onClick={() => void change('autoTitle', !server.settings.autoTitle)}
+                >
+                  <span />
+                </button>
+              </div>
+            </div>
+            {server.provider === 'gemini' && (
+              <div className="setting-row">
+                <div>
+                  <h3>Ton in die Server-Analyse einbeziehen</h3>
+                  <p>Kann auch Mikrofon und Voice-Chat enthalten. Gilt für folgende Analysen.</p>
+                </div>
+                <div className="switch-field">
+                  <span className="switch-state">
+                    {server.settings.includeAudio ? 'An' : 'Aus'}
+                  </span>
+                  <button
+                    className="switch"
+                    role="switch"
+                    aria-label="Ton in die Analyse einbeziehen"
+                    aria-checked={server.settings.includeAudio}
+                    disabled={busy}
+                    onClick={() => void change('includeAudio', !server.settings.includeAudio)}
+                  >
+                    <span />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <Link className="text-link" to="/devices">
-            Windows-Client und Geräte öffnen →
-          </Link>
           {server.provider === 'gemini' && (
             <div className="notice">
               <p>
@@ -114,60 +180,11 @@ export function ServerSettings() {
               </p>
             </div>
           )}
-          {server.configured && (
-            <div className="setting-row">
-              <div>
-                <h3>Neue Aufnahmen auf dem Server analysieren</h3>
-                <p>Gilt für Uploads ohne angekündigtes Client-Ergebnis.</p>
-              </div>
-              <button
-                className="switch"
-                role="switch"
-                aria-label="Neue Aufnahmen automatisch analysieren"
-                aria-checked={server.settings.autoAnalyze}
-                disabled={busy}
-                onClick={() => void change('autoAnalyze', !server.settings.autoAnalyze)}
-              >
-                <span />
-              </button>
-            </div>
-          )}
-          <div className="setting-row">
-            <div>
-              <h3>KI-Titel automatisch übernehmen</h3>
-              <p>Selbst bearbeitete Titel bleiben erhalten.</p>
-            </div>
-            <button
-              className="switch"
-              role="switch"
-              aria-label="KI-Titel automatisch übernehmen"
-              aria-checked={server.settings.autoTitle}
-              disabled={busy}
-              onClick={() => void change('autoTitle', !server.settings.autoTitle)}
-            >
-              <span />
-            </button>
-          </div>
-          {server.provider === 'gemini' && (
-            <div className="setting-row">
-              <div>
-                <h3>Ton in die Server-Analyse einbeziehen</h3>
-                <p>Kann auch Mikrofon und Voice-Chat enthalten. Gilt für folgende Analysen.</p>
-              </div>
-              <button
-                className="switch"
-                role="switch"
-                aria-label="Ton in die Analyse einbeziehen"
-                aria-checked={server.settings.includeAudio}
-                disabled={busy}
-                onClick={() => void change('includeAudio', !server.settings.includeAudio)}
-              >
-                <span />
-              </button>
-            </div>
-          )}
+          <Link className="text-link" to="/devices">
+            Windows-Client und Geräte öffnen <ArrowRight size={15} />
+          </Link>
         </>
       )}
-    </section>
+    </SettingsSection>
   );
 }
