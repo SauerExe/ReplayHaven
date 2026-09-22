@@ -10,8 +10,8 @@ Voraussetzung: ein Linux-Rechner, NAS oder Mini-PC mit [Docker Engine und Compos
 
 ```bash
 mkdir -p replayhaven && cd replayhaven
-curl -fsSLO https://raw.githubusercontent.com/OWNER/replayhaven/main/compose.yaml
-curl -fsSL  https://raw.githubusercontent.com/OWNER/replayhaven/main/.env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/compose.yaml
+curl -fsSL  https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/.env.example -o .env
 nano .env        # REPLAYHAVEN_ACCESS_TOKEN und REPLAYHAVEN_PUBLIC_ORIGIN eintragen
 docker compose up -d
 ```
@@ -21,8 +21,8 @@ Den Zugangsschlüssel erzeugst du mit `openssl rand -hex 24`. Als Serveradresse 
 **Variante B – aus dem Quellcode:**
 
 ```bash
-git clone https://github.com/OWNER/replayhaven.git
-cd replayhaven
+git clone https://github.com/SauerExe/ReplayHaven.git
+cd ReplayHaven
 bash setup-server.sh
 ```
 

@@ -21,7 +21,7 @@ LABEL org.opencontainers.image.title="ReplayHaven" \
       org.opencontainers.image.description="Self-hosted game clip archive: web UI, upload API, SQLite and FFmpeg" \
       org.opencontainers.image.version="${REPLAYHAVEN_VERSION}" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.source="https://github.com/OWNER/replayhaven"
+      org.opencontainers.image.source="https://github.com/SauerExe/ReplayHaven"
 RUN apk add --no-cache ffmpeg tini ca-certificates
 WORKDIR /app
 COPY package.json package-lock.json ./

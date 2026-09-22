@@ -31,8 +31,8 @@ You need Docker Engine with the Compose plugin ([install guide](https://docs.doc
 
 ```bash
 mkdir -p replayhaven && cd replayhaven
-curl -fsSLO https://raw.githubusercontent.com/OWNER/replayhaven/main/compose.yaml
-curl -fsSL  https://raw.githubusercontent.com/OWNER/replayhaven/main/.env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/compose.yaml
+curl -fsSL  https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/.env.example -o .env
 # edit .env: REPLAYHAVEN_ACCESS_TOKEN (openssl rand -hex 24) and REPLAYHAVEN_PUBLIC_ORIGIN (http://<server-ip>:8787)
 docker compose up -d
 ```
@@ -40,7 +40,7 @@ docker compose up -d
 **From source:**
 
 ```bash
-git clone https://github.com/OWNER/replayhaven.git && cd replayhaven
+git clone https://github.com/SauerExe/ReplayHaven.git && cd ReplayHaven
 bash setup-server.sh
 ```
 
@@ -50,7 +50,7 @@ Then open the server address in a browser, go to **Einstellungen → KI & Server
 
 ### 2. Gaming PC
 
-1. Install `ReplayHaven-Client-Setup.exe` from the [latest release](https://github.com/OWNER/replayhaven/releases/latest) or from the server's Geräte page. The installer is not code-signed yet, so SmartScreen asks for confirmation.
+1. Install `ReplayHaven-Client-Setup.exe` from the [latest release](https://github.com/SauerExe/ReplayHaven/releases/latest) or from the server's Geräte page. The installer is not code-signed yet, so SmartScreen asks for confirmation.
 2. Pick your recording folder (subfolders included), enter the server address and the access key.
 3. Install [Ollama](https://ollama.com/download/windows), then click **Modell laden** once to pull Qwen3-VL 4B (about 3.3 GB).
 4. Click **Analyse & Upload starten**. New recordings are analysed after they finish writing and appear in the library within a minute or two.
@@ -121,7 +121,7 @@ npm run dev:all        # web UI on http://localhost:5173, server on 127.0.0.1:87
 
 ### Releasing
 
-Tag a commit as `vX.Y.Z` and push the tag. The release workflow builds the Windows installer, publishes the multi-arch server image to `ghcr.io/OWNER/replayhaven` and creates a GitHub release with installer, pinned `compose.yaml`, env template, setup script and checksums.
+Tag a commit as `vX.Y.Z` and push the tag. The release workflow builds the Windows installer, publishes the multi-arch server image to `ghcr.io/sauerexe/replayhaven` and creates a GitHub release with installer, pinned `compose.yaml`, env template, setup script and checksums.
 
 ## Status and limitations
 

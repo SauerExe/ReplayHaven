@@ -6,7 +6,7 @@ Node.js 24, Fastify, SQLite und FFmpeg in einem Container. Der Prozess läuft al
 
 | Datei             | Zweck                                                                                 |
 | ----------------- | ------------------------------------------------------------------------------------- |
-| `compose.yaml`    | Startet das Image `ghcr.io/OWNER/replayhaven` mit Datenvolume und Port 8787           |
+| `compose.yaml`    | Startet das Image `ghcr.io/sauerexe/replayhaven` mit Datenvolume und Port 8787        |
 | `.env`            | Deine Einstellungen: Zugangsschlüssel, Browseradresse, optional Image und KI-Anbieter |
 | `.env.example`    | Vorlage mit allen Variablen                                                           |
 | `setup-server.sh` | Erzeugt `.env`, baut bei Bedarf aus dem Quellcode und startet den Server              |

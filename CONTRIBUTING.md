@@ -5,8 +5,8 @@ Thanks for helping with ReplayHaven. Bug reports, small fixes and larger feature
 ## Setup
 
 ```bash
-git clone https://github.com/OWNER/replayhaven.git
-cd replayhaven
+git clone https://github.com/SauerExe/ReplayHaven.git
+cd ReplayHaven
 npm ci
 npm run dev:all
 ```

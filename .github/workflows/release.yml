@@ -81,9 +81,10 @@ jobs:
           set -euo pipefail
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           VERSION="${GITHUB_REF_NAME#v}"
-          # Ready-to-run compose file and env template, pinned to this release.
-          sed "s|ghcr.io/OWNER/replayhaven:latest|${IMAGE}:${VERSION}|" compose.yaml > assets/compose.yaml
-          sed "s|OWNER/replayhaven|${GITHUB_REPOSITORY}|g" .env.example > assets/env.example
+          # Ready-to-run compose file, pinned to this release's image, plus the env template.
+          sed -E "s#^( *image: ).*#\1${IMAGE}:${VERSION}#" compose.yaml > assets/compose.yaml
+          grep -q "^ *image: ${IMAGE}:${VERSION}$" assets/compose.yaml
+          cp .env.example assets/env.example
           cp setup-server.sh assets/setup-server.sh
           (cd assets && sha256sum ReplayHaven-Client-Setup.exe compose.yaml env.example setup-server.sh > SHA256SUMS.txt)
           {
