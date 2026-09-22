@@ -6,7 +6,7 @@ import { canContinue, filterClips, relativeDate, time } from '../data/repository
 import { Artwork, ClipCard, CollectionCard, EmptyState, Section } from '../components/Cards';
 import { useActions } from '../components/Actions';
 export default function Home() {
-  const { state } = useVault();
+  const { state, gameInfo } = useVault();
   const action = useActions();
   const recent = filterClips(state.clips, {});
   const featured =
@@ -106,18 +106,26 @@ export default function Home() {
             {[...new Set(recent.filter((c) => c.server && c.gameName).map((c) => c.gameName!))].map(
               (name) => {
                 const recordings = recent.filter((c) => c.server && c.gameName === name);
+                // Cover und Genre kommen von Steam, wenn der Name exakt passt; sonst bleibt es
+                // beim Vorschaubild einer Aufnahme und dem Ordnernamen.
+                const info = gameInfo[name];
                 return (
                   <Link
                     className="game-card"
                     key={`recording:${name}`}
                     to={`/library?game=${encodeURIComponent(`name:${name}`)}`}
                   >
-                    <Artwork src={recordings.find((c) => c.thumbnail)?.thumbnail || ''} />
+                    <Artwork
+                      src={info?.cover || recordings.find((c) => c.thumbnail)?.thumbnail || ''}
+                    />
                     <div className="game-card-shade" />
                     <div className="game-card-bottom">
                       <div>
-                        <h3>{name}</h3>
-                        <p>{recordings.length} Aufnahmen</p>
+                        <h3>{info?.name || name}</h3>
+                        <p>
+                          {recordings.length} Aufnahmen
+                          {info?.genre ? ` · ${info.genre.split(', ')[0]}` : ''}
+                        </p>
                       </div>
                       <span className="game-arrow">
                         <ArrowRight size={17} />

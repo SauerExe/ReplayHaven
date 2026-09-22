@@ -13,6 +13,7 @@ function settings() {
     server: $('server').value,
     token: $('token').value,
     game: $('game').value,
+    playerName: $('player-name').value,
     includeExisting: $('include-existing').checked,
     analyze: $('analyze').checked,
     frames: Number($('frames').value),
@@ -75,6 +76,7 @@ window.vault.onStatus(render);
 void run(async () => {
   const { config, status } = await call('load');
   for (const key of ['folder', 'server', 'game']) $(key).value = config[key];
+  $('player-name').value = config.playerName || '';
   $('include-existing').checked = config.includeExisting;
   $('analyze').checked = config.analyze;
   $('frames').value = String(config.frames);

@@ -4,6 +4,10 @@ import { mkdir, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ServerConfig } from './config';
 const moduleRequire = createRequire(typeof __filename === 'string' ? __filename : import.meta.url);
+/** Länge des Schlussfensters, in dem der gespeicherte Moment erfahrungsgemäß liegt. */
+export const TAIL_SECONDS = 30;
+/** Bildbreite der Analysebilder. 640 und 1280 kosten dieselben Kontext-Token (.docs/06-recherche.md). */
+const FRAME_WIDTH = 1280;
 export function runFile(executable: string, args: string[], timeout = 120000): Promise<string> {
   return new Promise((resolve, reject) =>
     execFile(
@@ -178,10 +182,17 @@ export class MediaProcessor {
     );
     return output;
   }
-  async frames(original: string, directory: string, duration: number, count = 48) {
-    const folder = join(directory, 'frames');
-    await mkdir(folder, { recursive: true });
-    const interval = Math.max(0.25, duration / count);
+  /** Bildausschnitt, der bei Instant-Replay den eigentlichen Moment enthält. */
+  private async sample(
+    original: string,
+    folder: string,
+    prefix: string,
+    start: number,
+    span: number,
+    count: number,
+    duration: number,
+  ) {
+    const interval = Math.max(0.25, span / count);
     await runFile(
       this.ffmpeg,
       [
@@ -191,24 +202,79 @@ export class MediaProcessor {
         '-y',
         '-protocol_whitelist',
         'file,pipe',
+        ...(start > 0 ? ['-ss', start.toFixed(3)] : []),
         '-i',
         original,
+        '-t',
+        span.toFixed(3),
         '-vf',
-        `fps=1/${interval}:start_time=0,scale=640:-2`,
+        `fps=1/${interval}:start_time=0,scale=${FRAME_WIDTH}:-2`,
         '-frames:v',
         String(count),
         '-q:v',
         '5',
-        join(folder, '%03d.jpg'),
+        join(folder, `${prefix}%03d.jpg`),
       ],
       120000,
     );
-    const names = (await readdir(folder)).filter((n) => /^\d{3}\.jpg$/.test(n)).sort();
+    const pattern = new RegExp(`^${prefix}\\d{3}\\.jpg$`);
+    const names = (await readdir(folder)).filter((n) => pattern.test(n)).sort();
     return Promise.all(
       names.map(async (name, i) => ({
-        seconds: Math.min(duration, i * interval),
+        seconds: Math.min(duration, start + i * interval),
         base64: (await readFile(join(folder, name))).toString('base64'),
       })),
     );
+  }
+  /**
+   * Ein einzelnes Bild in voller Auflösung als Beleg für die Zusammenfassung. Die Analysebilder
+   * laufen mit FRAME_WIDTH, hier zählt Lesbarkeit von Killfeed und Meldungen (.docs/06-recherche.md:
+   * 1280 px kosten dieselben Token wie 640, 1920 px knapp das Doppelte — deshalb nur ein Bild).
+   */
+  async frameAt(original: string, directory: string, seconds: number) {
+    const file = join(directory, 'focus.jpg');
+    await runFile(this.ffmpeg, [
+      '-nostdin',
+      '-v',
+      'error',
+      '-y',
+      '-protocol_whitelist',
+      'file,pipe',
+      '-ss',
+      Math.max(0, seconds).toFixed(3),
+      '-i',
+      original,
+      '-frames:v',
+      '1',
+      '-vf',
+      "scale=w='min(1920,iw)':h=-2",
+      '-q:v',
+      '3',
+      file,
+    ]);
+    return (await readFile(file)).toString('base64');
+  }
+  async frames(original: string, directory: string, duration: number, count = 48) {
+    const folder = join(directory, 'frames');
+    await mkdir(folder, { recursive: true });
+    // Aufnahmen aus NVIDIA, OBS und Game Bar enden mit dem Moment, für den sie gespeichert
+    // wurden. Zwei Drittel der Bilder liegen deshalb im Schluss, der Rest hält den Vorlauf
+    // als Kontext fest. Kürzere Clips sind komplett Schluss.
+    const tailStart = Math.max(0, duration - TAIL_SECONDS);
+    const tailCount = tailStart > 0 ? Math.max(1, Math.round((count * 2) / 3)) : count;
+    const leadCount = count - tailCount;
+    const lead = leadCount
+      ? await this.sample(original, folder, 'lead', 0, tailStart, leadCount, duration)
+      : [];
+    const tail = await this.sample(
+      original,
+      folder,
+      'tail',
+      tailStart,
+      duration - tailStart,
+      tailCount,
+      duration,
+    );
+    return [...lead, ...tail].sort((a, b) => a.seconds - b.seconds);
   }
 }

@@ -36,10 +36,28 @@ export async function listVideos(folder: string): Promise<string[]> {
   }
   return output;
 }
+/**
+ * Spielname für die Bibliothek: eigene Angabe, sonst der Ordnername. Die Schätzung der KI ist
+ * bewusst keine Quelle mehr. Im Durchlauf über die echte Sammlung am 2026-09-22 war sie in
+ * jedem einzelnen Fall falsch und lieferte "Sieg", "Kettenverbunden", "Multiplayer", "Steam",
+ * "Runde 3/5 Abstimmungsergebnisse" und sogar das Tag "Kein Ereignis" als Spielnamen.
+ * Aufnahmen aus NVIDIAs Auffangprofilen heißen dadurch "Desktop" — unschön, aber ehrlich und
+ * im Archiv mit einem Klick zu ändern.
+ *
+ * Mehrfache Leerzeichen werden zusammengezogen: NVIDIA legt Ordner wie
+ * "Call of Duty  Black Ops 7" an, die sonst als eigenes Spiel neben der einfachen Schreibweise
+ * stehen.
+ */
+export function gameLabel(configured: string, path: string) {
+  const name = configured.trim() || basename(dirname(path));
+  return name.replace(/\s+/g, ' ').trim();
+}
 export class FolderUploader {
   state: AgentState = { id: randomUUID(), receipts: {}, uploaded: 0 };
   private observed = new Map<string, { fingerprint: string; since: number }>();
   private retryAt = new Map<string, number>();
+  /** Dauerhaft abgelehnte Aufnahmen samt Grund — je Fingerabdruck, damit ein Ersatz erneut zählt. */
+  readonly rejected = new Map<string, { fingerprint: string; reason: string }>();
   error = '';
   constructor(readonly options: WatchOptions) {}
   async initialize() {
@@ -81,6 +99,7 @@ export class FolderUploader {
       const before = await stat(path);
       const fingerprint = `${before.size}:${before.mtimeMs}`;
       if (this.state.receipts[path]?.fingerprint === fingerprint || before.size === 0) continue;
+      if (this.rejected.get(path)?.fingerprint === fingerprint) continue;
       queued++;
       this.options.onQueued?.(queued);
       if (this.options.isPaused?.() || this.options.signal?.aborted) continue;
@@ -92,8 +111,20 @@ export class FolderUploader {
       if (now - observed.since < this.options.stableMs || (this.retryAt.get(path) || 0) > now)
         continue;
       try {
-        if (before.size > 2 * 1024 ** 3) throw new Error('Eine Aufnahme ist größer als 2 GB.');
-        await this.options.probe?.(path);
+        // Größe, Länge und Lesbarkeit sind Eigenschaften der Datei, keine vorübergehende
+        // Störung. Sie hier gesondert zu behandeln verhindert eine Dauerschleife im
+        // Minutentakt, deren Meldung jeden echten Fehler überschreibt.
+        try {
+          if (before.size > 2 * 1024 ** 3) throw new Error('Eine Aufnahme ist größer als 2 GB.');
+          await this.options.probe?.(path);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : 'Aufnahme nicht verwertbar.';
+          this.rejected.set(path, { fingerprint, reason });
+          this.observed.delete(path);
+          queued--;
+          this.options.onStatus?.(`Übersprungen: ${basename(path)} — ${reason}`);
+          continue;
+        }
         const game = this.options.game || basename(dirname(path));
         let analysis: ClientAnalysis | undefined;
         const cachePath = join(
@@ -126,7 +157,7 @@ export class FolderUploader {
           headers: {
             ...this.headers(),
             'x-device-name': encodeURIComponent(hostname()),
-            'x-game-name': encodeURIComponent(analysis?.result.game || game),
+            'x-game-name': encodeURIComponent(gameLabel(this.options.game, path)),
             'x-client-analysis': analysis ? '1' : '0',
             'x-recorded-at': new Date(before.mtimeMs).toISOString(),
           },

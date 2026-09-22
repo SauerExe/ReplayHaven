@@ -17,6 +17,8 @@ export interface ServerConfig {
   releaseDir?: string;
   /** External download for the Windows client, used when no local installer is mounted. */
   clientDownloadUrl?: string;
+  /** Spielinfos (Name, Beschreibung, Cover) bei Steam nachschlagen. */
+  gameMetadata: boolean;
 }
 export function loadConfig(): ServerConfig {
   const provider = process.env.REPLAYHAVEN_AI_PROVIDER || 'none';
@@ -45,6 +47,11 @@ export function loadConfig(): ServerConfig {
     ffprobe: process.env.REPLAYHAVEN_FFPROBE,
     releaseDir: process.env.REPLAYHAVEN_RELEASE_DIR || 'release',
     clientDownloadUrl,
+    // Der Server fragt dafuer nur den Spielnamen bei Steam an, nichts ueber Aufnahmen oder
+    // Nutzer. Wer keine ausgehenden Verbindungen will, setzt die Variable auf 0.
+    gameMetadata: !['0', 'false', 'off'].includes(
+      (process.env.REPLAYHAVEN_GAME_METADATA || '1').toLowerCase(),
+    ),
   };
 }
 export function aiConfigured(config: ServerConfig) {

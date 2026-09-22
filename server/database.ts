@@ -24,6 +24,23 @@ export interface AgentDevice {
   analysisLocation?: string;
   paused?: boolean;
 }
+export interface StoredGame {
+  key: string;
+  /** Der Name, wie er in der Bibliothek steht — also der Ordnername der Aufnahmen. */
+  label: string;
+  checkedAt: string;
+  /** Fehlt, wenn es zu diesem Namen keinen exakten Treffer gibt. */
+  info?: {
+    name: string;
+    appId: number;
+    description: string;
+    genre: string;
+    released: string;
+    source: string;
+    /** Dateiname des heruntergeladenen Covers unterhalb von `covers/`. */
+    cover?: string;
+  };
+}
 export class VaultDatabase {
   readonly db: DatabaseSync;
   constructor(directory: string) {
@@ -32,7 +49,27 @@ export class VaultDatabase {
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS clips(id TEXT PRIMARY KEY, hash TEXT NOT NULL UNIQUE, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS settings(id TEXT PRIMARY KEY, data TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY, data TEXT NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS games(key TEXT PRIMARY KEY, data TEXT NOT NULL);`);
+  }
+  /**
+   * Nachgeschlagene Spielinfos. Ein Eintrag ohne `info` merkt sich, dass für diesen Namen
+   * nichts zu finden war — sonst fragt der Server bei jedem Upload erneut nach.
+   */
+  games(): StoredGame[] {
+    return (this.db.prepare('SELECT data FROM games').all() as { data: string }[]).map((r) =>
+      JSON.parse(r.data),
+    );
+  }
+  game(key: string): StoredGame | undefined {
+    const row = this.db.prepare('SELECT data FROM games WHERE key=?').get(key) as
+      { data: string } | undefined;
+    return row ? JSON.parse(row.data) : undefined;
+  }
+  putGame(entry: StoredGame) {
+    this.db
+      .prepare('INSERT INTO games(key, data) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET data=?')
+      .run(entry.key, JSON.stringify(entry), JSON.stringify(entry));
   }
   list(): StoredClip[] {
     return (

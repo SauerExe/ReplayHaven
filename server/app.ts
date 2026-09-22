@@ -14,6 +14,7 @@ import type { ServerConfig } from './config';
 import { VaultDatabase, publicClip } from './database';
 import type { StoredClip } from './database';
 import { MediaProcessor } from './media';
+import { GameLibrary } from './games';
 import { createProvider } from './providers';
 import type { AnalysisProvider } from './providers';
 import { AnalysisWorker } from './worker';
@@ -32,6 +33,10 @@ export async function buildServer(
   const app = Fastify({ logger: false, bodyLimit: 1024 * 1024, requestTimeout: 30 * 60000 });
   const db = new VaultDatabase(config.dataDir);
   const media = overrides.media || new MediaProcessor(config);
+  const coverDir = join(config.dataDir, 'covers');
+  const games = new GameLibrary(db, coverDir, config.gameMetadata);
+  // Bereits archivierte Spiele einmal nachziehen, nicht nur kuenftige Uploads.
+  games.backfill(db.list().map((c) => c.gameName || ''));
   const worker = new AnalysisWorker(
     db,
     config,
@@ -101,6 +106,30 @@ export async function buildServer(
       () => true,
       () => false,
     );
+  /** Spielinfos für die Kacheln der Bibliothek: Name, Beschreibung, Genre, Cover. */
+  app.get('/api/games', async () =>
+    games.list().map((g) => ({
+      key: g.key,
+      label: g.label,
+      ...(g.info
+        ? {
+            name: g.info.name,
+            description: g.info.description,
+            genre: g.info.genre,
+            released: g.info.released,
+            source: g.info.source,
+            cover: g.info.cover ? `/api/games/${encodeURIComponent(g.key)}/cover` : undefined,
+          }
+        : {}),
+    })),
+  );
+  app.get<{ Params: { key: string } }>('/api/games/:key/cover', async (req, reply) => {
+    const entry = games.list().find((g) => g.key === req.params.key);
+    if (!entry?.info?.cover) return reply.code(404).send({ error: 'Kein Cover vorhanden.' });
+    reply.header('Cache-Control', 'private, max-age=86400');
+    // Der Dateiname stammt aus dem gespeicherten Eintrag, nicht aus der Anfrage.
+    return reply.sendFile(entry.info.cover, coverDir);
+  });
   app.get('/api/status', async () => ({
     connected: true,
     provider: config.provider,
@@ -192,11 +221,14 @@ export async function buildServer(
         }
       };
       const recorded = header('x-recorded-at');
+      const gameNameHeader = header('x-game-name');
+      // Spielinfos im Hintergrund holen; der Upload wartet nicht darauf.
+      if (gameNameHeader) games.schedule(gameNameHeader);
       const clip: StoredClip = {
         id,
         title: file.filename.replace(/\.[^.]+$/, '').slice(0, 120) || 'Neue Aufnahme',
         gameId: 'recording',
-        gameName: header('x-game-name'),
+        gameName: gameNameHeader,
         thumbnail: '',
         duration: 0,
         recordedAt:

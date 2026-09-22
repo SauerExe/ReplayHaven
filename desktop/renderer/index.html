@@ -48,6 +48,12 @@
               id="game"
               maxlength="100"
               placeholder="Sonst wird der Unterordner als Hinweis verwendet" /></label
+          ><label
+            >Dein Spielername <small>(optional)</small
+            ><input
+              id="player-name"
+              maxlength="60"
+              placeholder="Damit die KI erkennt, welche Seite deine ist" /></label
           ><label class="check"
             ><input id="include-existing" type="checkbox" />Vorhandene Aufnahmen beim ersten Start
             mitnehmen</label
@@ -84,19 +90,19 @@
           <div class="model">
             <span class="model-icon">✦</span>
             <div>
-              <strong>Qwen3-VL · 4B</strong>
+              <strong>Qwen3-VL · 8B</strong>
               <p>Ollama · läuft lokal auf deiner GPU</p>
             </div>
             <span id="model-state" class="badge">Ungeprüft</span>
           </div>
           <p class="hint model-hint">
-            Vorsichtiger Einstieg für Grafikkarten ab etwa 8 GB VRAM: kleine Bildpakete, eine
-            Analyse gleichzeitig. Ton wird nicht ausgewertet.
+            Für Grafikkarten ab etwa 10 GB VRAM: kleine Bildpakete, eine Analyse gleichzeitig. Ton
+            wird nicht ausgewertet.
           </p>
           <div class="setup-actions">
             <button id="install-ollama" class="secondary">1. Ollama installieren ↗</button
             ><button id="check-model" class="secondary">Verbindung prüfen</button
-            ><button id="download-model" class="secondary">2. Modell laden · ca. 3,3 GB</button
+            ><button id="download-model" class="secondary">2. Modell laden · ca. 6,1 GB</button
             ><button id="cancel-download" class="secondary" hidden>Download abbrechen</button>
           </div>
           <label class="check"

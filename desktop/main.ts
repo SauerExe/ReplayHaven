@@ -22,6 +22,8 @@ const configSchema = z.object({
   server: z.string().url().max(500),
   token: z.string().max(1000).default(''),
   game: z.string().max(100),
+  // Ohne eigenen Namen kann die KI Kills und Punktestände der falschen Seite zuordnen.
+  playerName: z.string().max(60).default(''),
   includeExisting: z.boolean(),
   analyze: z.boolean(),
   frames: z.union([z.literal(24), z.literal(48)]),
@@ -32,6 +34,7 @@ let config: ClientConfig = {
   server: 'http://localhost:8787',
   token: '',
   game: '',
+  playerName: '',
   includeExisting: false,
   analyze: true,
   frames: 24,
@@ -147,6 +150,7 @@ async function start() {
     media: processor,
     isPaused: () => paused,
     signal: aborter.signal,
+    playerName: config.playerName,
     onProgress: (message) => emit({ message }),
   });
   const stateName = createHash('sha256')

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve, sep } from 'node:path';
-import { FolderUploader } from './watcher';
+import { basename, join, resolve, sep } from 'node:path';
+import { FolderUploader, gameLabel } from './watcher';
 import type { WatchOptions } from './watcher';
 let root: string;
 let options: WatchOptions;
@@ -50,8 +50,9 @@ it('waits for stable files and reuses cached analysis after an interrupted metad
   const fetcher = vi.fn(async (url: string, request: RequestInit) => {
     if (url.endsWith('/client-analysis'))
       return new Response('{}', { status: ++metadataAttempts === 1 ? 503 : 200 });
+    // Der Ordnername gewinnt gegen die Schaetzung der KI; nur Auffangprofile weichen ihr.
     expect((request.headers as Record<string, string>)['x-game-name']).toBe(
-      encodeURIComponent('Erkanntes Spiel'),
+      encodeURIComponent(basename(options.folder)),
     );
     return Response.json({ clip: { id: 'test-id' } });
   });
@@ -98,4 +99,15 @@ it('skips existing recordings by default and leaves new recordings queued while 
   await restarted.scan(400);
   await restarted.scan(411);
   expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+it('takes the game only from the folder or the explicit setting, and tidies spacing', () => {
+  // Gemessen 2026-09-22: jede KI-Schätzung war falsch ("Sieg", "Steam", "Kein Ereignis"),
+  // deshalb ist sie keine Quelle mehr. Doppelte Leerzeichen aus NVIDIA-Ordnern fallen weg.
+  expect(gameLabel('', join('G:', 'Clips', 'Valorant', 'a.mp4'))).toBe('Valorant');
+  expect(gameLabel('', join('G:', 'Clips', 'Call of Duty  Black Ops 7', 'a.mp4'))).toBe(
+    'Call of Duty Black Ops 7',
+  );
+  expect(gameLabel('', join('G:', 'Clips', 'Desktop', 'a.mp4'))).toBe('Desktop');
+  expect(gameLabel('  Mein Spiel ', join('G:', 'Clips', 'Valorant', 'a.mp4'))).toBe('Mein Spiel');
 });

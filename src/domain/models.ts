@@ -129,3 +129,15 @@ export interface ClipFilters {
   status?: string;
   sort?: string;
 }
+
+/** Spielinfos vom Server, nachgeschlagen bei Steam. Ohne exakten Treffer bleibt nur `label`. */
+export interface ServerGame {
+  key: string;
+  label: string;
+  name?: string;
+  description?: string;
+  genre?: string;
+  released?: string;
+  source?: string;
+  cover?: string;
+}

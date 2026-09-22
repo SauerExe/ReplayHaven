@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode, Dispatch, SetStateAction } from 'react';
-import type { Clip, ServerInfo, UploadJob, VaultState } from '../domain/models';
+import type { Clip, ServerGame, ServerInfo, UploadJob, VaultState } from '../domain/models';
 import { deleteClips, repository } from './repository';
 import { api, disconnectedServer, uploadToServer } from './api';
 import { createId } from './id';
@@ -13,6 +13,8 @@ type Store = {
   patchClip: (id: string, patch: Partial<Clip>) => Promise<boolean>;
   storageError: boolean;
   server: ServerInfo;
+  /** Spielinfos vom Server: Name, Beschreibung und Cover je Spielname. */
+  gameInfo: Record<string, ServerGame>;
   refreshServer: () => Promise<void>;
   connectServer: (token: string) => Promise<void>;
   analyzeClip: (id: string) => Promise<void>;
@@ -26,6 +28,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState('');
   const [storageError, setStorageError] = useState(false);
   const [server, setServer] = useState<ServerInfo>(disconnectedServer);
+  const [gameInfo, setGameInfo] = useState<Record<string, ServerGame>>({});
   const stateRef = useRef(state);
   stateRef.current = state;
   const serverRef = useRef(server);
@@ -37,13 +40,21 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const info = await api<ServerInfo>('/status');
       const clips = await api<Clip[]>('/clips');
       setServer(info);
+      // Spielinfos sind Beiwerk: ohne sie zeigt die Bibliothek weiterhin alles, nur ohne Cover.
+      api<ServerGame[]>('/games')
+        .then((list) =>
+          setGameInfo(Object.fromEntries(list.filter((g) => g.name).map((g) => [g.label, g]))),
+        )
+        .catch(() => {});
       setState((s) => ({
         ...s,
         clips: [
           ...clips.map((c) =>
             inFlightPatches.current.has(c.id) ? s.clips.find((old) => old.id === c.id) || c : c,
           ),
-          ...s.clips.filter((c) => !c.server),
+          // Sobald ein Server antwortet, haben Beispiel-Clips ausgedient: sie stehen sonst
+          // dauerhaft zwischen den eigenen Aufnahmen. Eigene Browser-Uploads (local) bleiben.
+          ...s.clips.filter((c) => !c.server && c.local),
         ],
       }));
     } catch (error) {
@@ -281,6 +292,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         patchClip,
         storageError,
         server,
+        gameInfo,
         refreshServer,
         connectServer,
         analyzeClip,
