@@ -1,0 +1,11 @@
+agent.md
+node_modules
+dist
+desktop-bundle
+server-bundle
+release
+artifacts
+test-results
+playwright-report
+package-lock.json
+public/media

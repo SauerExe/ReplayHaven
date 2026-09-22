@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'"
+    />
+    <title>ReplayHaven Client</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <span class="mark">▶</span> Replay<span>Haven</span><small>CLIENT</small>
+      </div>
+      <button id="archive" class="secondary">Archiv öffnen ↗</button>
+    </header>
+    <main>
+      <div class="intro">
+        <span class="eyebrow">DEIN PC ANALYSIERT. DEIN SERVER BEWAHRT.</span>
+        <h1>Vom letzten Moment<br />zum nächsten Highlight.</h1>
+        <p>
+          NVIDIA nimmt auf. Die KI gibt deinen Clips einen Namen.<br />Dein Server hält alles
+          zusammen.
+        </p>
+      </div>
+      <div class="columns">
+        <section class="panel">
+          <div class="section-title">
+            <span>01</span>
+            <h2>Deine Aufnahmen</h2>
+          </div>
+          <label
+            >Aufnahmeordner
+            <div class="input-row">
+              <input id="folder" readonly placeholder="NVIDIA-Aufnahmeordner auswählen" /><button
+                id="pick-folder"
+                class="secondary"
+              >
+                Auswählen
+              </button>
+            </div></label
+          ><label
+            >Spiel <small>(optional)</small
+            ><input
+              id="game"
+              maxlength="100"
+              placeholder="Sonst wird der Unterordner als Hinweis verwendet" /></label
+          ><label class="check"
+            ><input id="include-existing" type="checkbox" />Vorhandene Aufnahmen beim ersten Start
+            mitnehmen</label
+          >
+          <p class="hint">
+            Unterordner werden einbezogen. Originaldateien werden weder verschoben noch gelöscht.
+          </p>
+          <div class="section-title second">
+            <span>02</span>
+            <h2>Dein Archiv-Server</h2>
+          </div>
+          <label
+            >Serveradresse<input
+              id="server"
+              type="url"
+              value="http://localhost:8787"
+              placeholder="http://server-adresse:8787" /></label
+          ><label
+            >Zugangsschlüssel<input
+              id="token"
+              type="password"
+              autocomplete="off"
+              placeholder="Schlüssel vom Archiv-Server"
+          /></label>
+          <p id="token-info" class="hint">
+            Der Schlüssel wird mit deinem Windows-Konto verschlüsselt gespeichert.
+          </p>
+        </section>
+        <section class="panel">
+          <div class="section-title">
+            <span>03</span>
+            <h2>Lokale KI auf deinem PC</h2>
+          </div>
+          <div class="model">
+            <span class="model-icon">✦</span>
+            <div>
+              <strong>Qwen3-VL · 4B</strong>
+              <p>Ollama · läuft lokal auf deiner GPU</p>
+            </div>
+            <span id="model-state" class="badge">Ungeprüft</span>
+          </div>
+          <p class="hint model-hint">
+            Vorsichtiger Einstieg für Grafikkarten ab etwa 8 GB VRAM: kleine Bildpakete, eine
+            Analyse gleichzeitig. Ton wird nicht ausgewertet.
+          </p>
+          <div class="setup-actions">
+            <button id="install-ollama" class="secondary">1. Ollama installieren ↗</button
+            ><button id="check-model" class="secondary">Verbindung prüfen</button
+            ><button id="download-model" class="secondary">2. Modell laden · ca. 3,3 GB</button
+            ><button id="cancel-download" class="secondary" hidden>Download abbrechen</button>
+          </div>
+          <label class="check"
+            ><input id="analyze" type="checkbox" checked />Neue Clips vor dem Upload lokal
+            analysieren</label
+          ><label
+            >Analyseumfang<select id="frames">
+              <option value="24">24 Bilder · weniger GPU-Arbeit</option>
+              <option value="48">48 Bilder · feinere Bildstichprobe</option>
+            </select></label
+          >
+          <div class="notice">
+            Die KI schlägt Titel, Beschreibung, Spiel, Tags und Zeitmarken vor. Schnelle Ereignisse
+            können zwischen den Bildern liegen. Im Archiv bleibt alles bearbeitbar.
+          </div>
+          <p class="hint">
+            Für ungestörtes Spielen kannst du pausieren und die Warteschlange danach starten.
+          </p>
+        </section>
+      </div>
+      <section class="status-panel" aria-live="polite">
+        <div class="status-top">
+          <span class="status-dot" id="status-dot"></span>
+          <h2 id="status-title">Bereit zum Einrichten</h2>
+          <span id="queue">0 ausstehend · 0 archiviert</span>
+        </div>
+        <p id="status-message">Wähle deinen Aufnahmeordner und verbinde deinen Archiv-Server.</p>
+        <div class="controls">
+          <button id="save" class="secondary">Einstellungen speichern</button
+          ><button id="start" class="primary">Analyse & Upload starten</button
+          ><button id="pause" class="secondary" disabled>Pausieren</button>
+        </div>
+      </section>
+      <p id="error" class="error" role="alert"></p>
+    </main>
+    <footer>
+      <span>Deine Aufnahmen bleiben deine.</span
+      ><span>Fenster schließen = im Infobereich weiterlaufen · Beenden über das Tray-Menü</span>
+    </footer>
+    <script src="app.js"></script>
+  </body>
+</html>

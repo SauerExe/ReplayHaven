@@ -1,0 +1,345 @@
+.analysis-panel {
+  margin: 10px 0 36px;
+  background: linear-gradient(125deg, #1c1b2a, #161a24);
+  border: 1px solid #3b334a;
+  border-radius: 13px;
+  padding: 28px;
+}
+.analysis-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 23px;
+}
+.analysis-symbol {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #a78bfa13;
+  border-radius: 11px;
+  color: #bea4ef;
+}
+.analysis-heading h2 {
+  font-size: 19px;
+  letter-spacing: -0.6px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.analysis-heading .eyebrow {
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: #b39dcf;
+}
+.analysis-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 10px;
+  color: #b4a5cc;
+  border: 1px solid #453b55;
+  padding: 6px 9px;
+  border-radius: 5px;
+}
+.analysis-status.working {
+  color: #d0bcf7;
+}
+.analysis-suggestion {
+  background: #11151e80;
+  padding: 17px 18px;
+  border: 1px solid #343344;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 19px;
+}
+.analysis-suggestion > span {
+  width: 100%;
+  font-size: 10px;
+}
+.analysis-suggestion h3 {
+  font-size: 18px;
+  letter-spacing: -0.5px;
+  font-weight: 550;
+  flex: 1;
+}
+.analysis-suggestion .text-button {
+  color: #c2a8ef;
+  font-size: 11px;
+}
+.analysis-description > p,
+.analysis-explanation {
+  font-size: 13px;
+  line-height: 1.9;
+  color: #c4c8d5;
+  max-width: 890px;
+}
+.analysis-description .text-button {
+  font-size: 10px;
+  margin-top: 5px;
+}
+.analysis-tags {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 19px;
+}
+.analysis-tags > .text-button {
+  font-size: 10px;
+  margin-left: 6px;
+}
+.analysis-moments {
+  margin-top: 24px;
+  border-top: 1px solid #ffffff0b;
+  padding-top: 20px;
+}
+.analysis-moments > h3 {
+  font-size: 13px;
+  font-weight: 550;
+  margin-bottom: 12px;
+}
+.moment {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 13px 12px;
+  border-radius: 8px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+}
+.moment:hover {
+  background: #a78bfa08;
+  border-color: #a78bfa24;
+}
+.moment-time {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #bfa5ef;
+  padding: 4px 7px;
+  background: #a78bfa0e;
+  border-radius: 5px;
+}
+.moment strong {
+  font-size: 12px;
+  font-weight: 550;
+  display: block;
+}
+.moment small {
+  display: block;
+  font-size: 11px;
+  color: #9ca5b8;
+  line-height: 1.6;
+  margin-top: 5px;
+}
+.analysis-footnote {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #9693a9;
+  margin-top: 22px;
+}
+.analysis-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid #ffffff0b;
+  padding-top: 18px;
+  margin-top: 19px;
+  flex-wrap: wrap;
+}
+.analysis-actions > span {
+  font-size: 10px;
+  color: #a59aae;
+}
+.analysis-actions .button {
+  font-size: 11px;
+  min-height: 36px;
+}
+.server-status-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 20px;
+  border: 1px solid #343144;
+  background: #a78bfa08;
+  border-radius: 9px;
+  margin: 22px 0;
+}
+.server-status-card > svg {
+  color: #b09bd6;
+}
+.server-status-card > div {
+  flex: 1;
+}
+.server-status-card strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.server-status-card p {
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.server-login {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 18px;
+}
+.server-login .field {
+  flex: 1;
+  margin-bottom: 0;
+}
+.server-login .button {
+  min-height: 45px;
+}
+.settings-section > h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.settings-section > .text-link {
+  margin-top: 16px;
+}
+.settings-section > .notice {
+  margin-top: 20px;
+}
+.device-downloads {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 13px;
+  margin: 24px 0 4px;
+}
+.device-downloads .notice {
+  max-width: 590px;
+  margin: 0;
+}
+.device-downloads .notice p {
+  overflow-wrap: anywhere;
+}
+.device-example .device-card {
+  margin-bottom: 16px;
+}
+.devices-page > .device-card-footer {
+  margin-top: 25px;
+  border: 1px solid #292d38;
+  border-radius: 8px;
+}
+.upload-mode {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  color: #bac1d0;
+  margin-bottom: 18px;
+}
+.upload-mode input {
+  width: 16px;
+  height: 16px;
+  accent-color: #a78bfa;
+}
+.device-card code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.analysis-panel .text-button:disabled {
+  opacity: 0.5;
+}
+@media (max-width: 600px) {
+  .analysis-panel {
+    padding: 19px 16px;
+  }
+  .analysis-heading {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .analysis-heading h2 {
+    font-size: 16px;
+    line-height: 1.4;
+  }
+  .analysis-symbol {
+    width: 34px;
+    height: 34px;
+  }
+  .analysis-status {
+    font-size: 9px;
+    margin-left: 44px;
+  }
+  .analysis-suggestion {
+    padding: 15px 13px;
+    gap: 10px;
+  }
+  .analysis-suggestion h3 {
+    font-size: 16px;
+    flex-basis: 100%;
+  }
+  .analysis-description > p,
+  .analysis-explanation {
+    font-size: 12px;
+  }
+  .analysis-tags {
+    gap: 6px;
+  }
+  .analysis-tags > .text-button {
+    font-size: 9px;
+    margin-left: 0;
+  }
+  .moment {
+    gap: 10px;
+    padding: 11px 0;
+  }
+  .moment-time {
+    font-size: 10px;
+  }
+  .moment strong {
+    font-size: 11px;
+  }
+  .moment small {
+    font-size: 10px;
+  }
+  .analysis-footnote {
+    font-size: 9px;
+  }
+  .analysis-actions {
+    gap: 12px;
+  }
+  .server-status-card {
+    padding: 16px 12px;
+    gap: 10px;
+  }
+  .server-status-card strong {
+    font-size: 12px;
+  }
+  .server-status-card p {
+    font-size: 10px;
+  }
+  .server-login {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .server-login .button {
+    align-self: flex-end;
+    min-height: 37px;
+  }
+  .device-downloads .button {
+    font-size: 10px;
+  }
+  .device-downloads > .notice {
+    max-width: 100%;
+  }
+  .device-downloads .notice p {
+    font-size: 10px;
+  }
+}

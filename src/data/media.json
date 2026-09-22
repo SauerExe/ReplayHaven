@@ -1,0 +1,197 @@
+[
+  {
+    "id": "elden",
+    "appId": 1245620,
+    "name": "ELDEN RING",
+    "color": "#d1b477",
+    "genre": "Action-RPG",
+    "cover": "/media/elden-cover.webp",
+    "screenshots": [
+      "/media/elden-0.webp",
+      "/media/elden-1.webp",
+      "/media/elden-2.webp",
+      "/media/elden-3.webp",
+      "/media/elden-4.webp",
+      "/media/elden-5.webp"
+    ],
+    "movies": [
+      {
+        "name": "ELDEN RING Launch Trailer - DE USK",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1245620/443029/eeb27ee27beb23ff82f1360dcecc78923314ef40/1750650443/hls_264_master.m3u8?t=1646770156"
+      },
+      {
+        "name": "ELDEN RING Pre-order Trailer - DE USK",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1245620/417198/748fabd272c8bfbcce350f0d31ebeb5f07578637/1750650048/hls_264_master.m3u8?t=1646817739"
+      },
+      {
+        "name": "ELDEN RING Official Gameplay Trailer - DE USK",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1245620/390659/2db1ca9ca92d9f39b73a482379c3e3ab6b7f43fd/1750649941/hls_264_master.m3u8?t=1646817771"
+      },
+      {
+        "name": "ELDEN RING 101 Trailer - DE USK",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1245620/442982/2ab456720aa7501504ce718ad48dbb00458e31fd/1750650439/hls_264_master.m3u8?t=1645807695"
+      },
+      {
+        "name": "ELDEN RING CGI Trailer - DE USK",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1245620/423790/a0ca10cc9f50d784c8fb83bf1ecbbd568a071534/1750650188/hls_264_master.m3u8?t=1646817709"
+      }
+    ],
+    "source": "https://store.steampowered.com/app/1245620/"
+  },
+  {
+    "id": "cs2",
+    "appId": 730,
+    "name": "Counter-Strike 2",
+    "color": "#deae71",
+    "genre": "Taktik-Shooter",
+    "cover": "/media/cs2-cover.webp",
+    "screenshots": [
+      "/media/cs2-0.webp",
+      "/media/cs2-1.webp",
+      "/media/cs2-2.webp",
+      "/media/cs2-3.webp",
+      "/media/cs2-4.webp",
+      "/media/cs2-5.webp"
+    ],
+    "movies": [
+      {
+        "name": "Launch Trailer",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/730/612468/aa5a28c78f12232e6b6839034550c28b162fad3e/1748810724/hls_264_master.m3u8?t=1696005467"
+      },
+      {
+        "name": "Moving Beyond Tick Rate",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/730/608984/a3ae9d5b8de21282056059ca5e851a063a253a55/1748810722/hls_264_master.m3u8?t=1696005475"
+      },
+      {
+        "name": "Leveling Up",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/730/607867/ed6e0afecb45c615095cf8d84cec9d31659a3cc7/1748810722/hls_264_master.m3u8?t=1696005483"
+      },
+      {
+        "name": "Responsive Smokes",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/730/607847/d73c6346bc3bf5dbc6d66a8f721bab640fa3d37c/1748810721/hls_264_master.m3u8?t=1696005491"
+      }
+    ],
+    "source": "https://store.steampowered.com/app/730/"
+  },
+  {
+    "id": "cyberpunk",
+    "appId": 1091500,
+    "name": "Cyberpunk 2077",
+    "color": "#e5d65e",
+    "genre": "Open World",
+    "cover": "/media/cyberpunk-cover.webp",
+    "screenshots": [
+      "/media/cyberpunk-0.webp",
+      "/media/cyberpunk-1.webp",
+      "/media/cyberpunk-2.webp",
+      "/media/cyberpunk-3.webp",
+      "/media/cyberpunk-4.webp",
+      "/media/cyberpunk-5.webp"
+    ],
+    "movies": [
+      {
+        "name": "\"Cyberpunk 2077: Ultimate Edition\" — City of Dreams",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/798578/0d0c54b81225b2b7760d1a99b6c5950cb85a1767/1750617872/hls_264_master.m3u8?t=1734434783"
+      },
+      {
+        "name": "028_2_1_UpdateTrailer_EN UK_PEGI 18_16x9_1080",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/637422/43c82075507048624809544dff0a0dec4c7af087/1750617718/hls_264_master.m3u8?t=1701872779"
+      },
+      {
+        "name": "002 BaseGame Accolades Trailer EN-UK PEGI18 16x9 1080",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/632018/9fa3aa10cc15359b99b0514e1bbf755603f0e661/1750617626/hls_264_master.m3u8?t=1700653184"
+      },
+      {
+        "name": "002_EP1_2.0_trailer_EN_UK_PEGI 18_16x9_1080",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/622152/fa78dd9f8c3c57dfd7a6b0ea6e3bb5a1cb7c8a93/1750617442/hls_264_master.m3u8?t=1698157640"
+      },
+      {
+        "name": "095_NWTP_trailer_EN UK_PEGI 18_16x9_1080_",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/625491/caaec76da32ab07ae7bcc7af1bc9534dc8ef6a48/1750617478/hls_264_master.m3u8?t=1699262699"
+      },
+      {
+        "name": "062_BuildVideos_Ninja_EN UK_PEGI 18_16x9_1080__Burned in Subs",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/617916/4fdc027db5638ca8f0b760d9efe5650f4a8d1b0f/1750617322/hls_264_master.m3u8?t=1697117125"
+      },
+      {
+        "name": "044_BuildVideos_Netrunner_EN UK_PEGI 18_16x9_1080__Burned in Subs",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/617870/dff579e293cf89a2800c63a6ac9cd006b0036701/1750617166/hls_264_master.m3u8?t=1697117214"
+      },
+      {
+        "name": "026_BuildVideos_Solo_EN UK_PEGI 18_16x9_1080__Burned in Subs",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/617829/ea28c58ae72c3cec448396a821126ea8ce13df4b/1750616853/hls_264_master.m3u8?t=1697117302"
+      },
+      {
+        "name": "047_CP_ER_trailer_EN UK_PEGI 18 _16x9_1080__",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/493758/c47d31f360812e0047a8b11dcc54ea09074d97d8/1750616556/hls_264_master.m3u8?t=1662480409"
+      },
+      {
+        "name": "171_CPNG_LOBI_EN UK_PEGI 18 _16x9_1080_PC__",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/443828/c00741d0287b71653b879b77c1af1141614741cb/1750616492/hls_264_master.m3u8?t=1697117313"
+      },
+      {
+        "name": "023_CP_Gameplay_Trailer_EN UK_PEGI 18 _16x9_1080__",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/327941/5217ae4ef5744ad10b96a7ba9ce1f50b7592fd5b/1750616179/hls_264_master.m3u8?t=1697117318"
+      },
+      {
+        "name": "025_CP_Launch_Trailer_EN UK_PEGI 18 _16x9_1080__",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1091500/332452/9a3e8e298bd351ae40ac3eca1bca90d57b4a42ca/1750616291/hls_264_master.m3u8?t=1697117322"
+      }
+    ],
+    "source": "https://store.steampowered.com/app/1091500/"
+  },
+  {
+    "id": "forza",
+    "appId": 1551360,
+    "name": "Forza Horizon 5",
+    "color": "#ed82b0",
+    "genre": "Racing",
+    "cover": "/media/forza-cover.webp",
+    "screenshots": [
+      "/media/forza-0.webp",
+      "/media/forza-1.webp",
+      "/media/forza-2.webp",
+      "/media/forza-3.webp",
+      "/media/forza-4.webp",
+      "/media/forza-5.webp"
+    ],
+    "movies": [
+      {
+        "name": "Forza Horizon 5 Accolades Trailer",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1551360/442268/66eddb8cdf196bf7c8d9bb8e8895bd7f60133cc1/1750700745/hls_264_master.m3u8?t=1647525311"
+      },
+      {
+        "name": "Forza Horizon 5 Launch Trailer",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1551360/415818/c7f56150fb05a56618bd5675f8d2770a2c9b1a20/1750700743/hls_264_master.m3u8?t=1636489104"
+      }
+    ],
+    "source": "https://store.steampowered.com/app/1551360/"
+  },
+  {
+    "id": "apex",
+    "appId": 1172470,
+    "name": "Apex Legends",
+    "color": "#ed8b7f",
+    "genre": "Battle Royale",
+    "cover": "/media/apex-cover.webp",
+    "screenshots": [
+      "/media/apex-0.webp",
+      "/media/apex-1.webp",
+      "/media/apex-2.webp",
+      "/media/apex-3.webp",
+      "/media/apex-4.webp",
+      "/media/apex-5.webp"
+    ],
+    "movies": [
+      {
+        "name": "Apex Legends VS Street Fighter 6 Event WW",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1172470/343063211/62821b5e8c30fe0232997e3a83b36292aea323af/1789580842/hls_264_master.m3u8?t=1789582444"
+      },
+      {
+        "name": "Apex Legends: Marked Gameplay Trailer EN  ",
+        "url": "https://video.akamai.steamstatic.com/store_trailers/1172470/1182889611/d98a0365413af7dca2b67039b260d8849a97627d/1785867041/hls_264_master.m3u8?t=1786031865"
+      }
+    ],
+    "source": "https://store.steampowered.com/app/1172470/"
+  }
+]

@@ -1,0 +1,278 @@
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  ArrowRight,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Film,
+  Folder,
+  Heart,
+  Play,
+} from 'lucide-react';
+import type { Clip, Collection } from '../domain/models';
+import { games } from '../data/seed';
+import { useVault } from '../data/store';
+import { relativeDate, time } from '../data/repository';
+import { ClipMenu } from './Actions';
+export function Artwork({
+  src,
+  alt = '',
+  className = '',
+  eager = false,
+}: {
+  src: string;
+  alt?: string;
+  className?: string;
+  eager?: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  const responsive = src.startsWith('/media/') && src.endsWith('.webp');
+  return src && !failed ? (
+    <img
+      className={className}
+      src={src}
+      srcSet={
+        responsive
+          ? `${src.replace('.webp', '-thumb.webp')} ${src.includes('cover') ? 400 : 600}w, ${src} ${src.includes('cover') ? 600 : 1600}w`
+          : undefined
+      }
+      sizes={eager ? '100vw' : '(max-width:600px) 76vw, (max-width:1100px) 34vw, 25vw'}
+      alt={alt}
+      loading={eager ? 'eager' : 'lazy'}
+      fetchPriority={eager ? 'high' : 'auto'}
+      onError={() => setFailed(true)}
+    />
+  ) : (
+    <div className={`art-fallback ${className}`}>
+      <Film size={32} />
+      <span>Keine Vorschau</span>
+    </div>
+  );
+}
+export function ClipCard({
+  clip,
+  selecting = false,
+  selected = false,
+  onSelect,
+}: {
+  clip: Clip;
+  selecting?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
+}) {
+  const { state, patchClip } = useVault();
+  const game = games.find((g) => g.id === clip.gameId);
+  const progress = state.progress[clip.id];
+  const content = (
+    <>
+      <Artwork src={clip.thumbnail} />
+      <span className="card-shade" />
+      <span className="card-play">
+        <Play size={22} fill="currentColor" />
+      </span>
+      <span className="duration">{time(clip.duration)}</span>
+      {clip.status !== 'ready' && (
+        <span className={`status-badge ${clip.status}`}>
+          {clip.status === 'processing' ? 'Verarbeitung' : 'Fehler'}
+        </span>
+      )}
+      {progress && progress.duration > 0 && (
+        <span
+          className="card-progress"
+          style={{ width: `${Math.min(100, (progress.seconds / progress.duration) * 100)}%` }}
+        />
+      )}
+      {selecting && (
+        <span className={`select-indicator ${selected ? 'selected' : ''}`}>
+          {selected && <Check size={17} />}
+        </span>
+      )}
+    </>
+  );
+  return (
+    <article className={`clip-card ${selected ? 'is-selected' : ''}`}>
+      <div className="thumbnail">
+        {selecting ? (
+          <button
+            className="thumbnail-link"
+            onClick={onSelect}
+            aria-label={`${clip.title} ${selected ? 'abwählen' : 'auswählen'}`}
+            aria-pressed={selected}
+          >
+            {content}
+          </button>
+        ) : (
+          <Link
+            className="thumbnail-link"
+            to={`/clips/${clip.id}`}
+            aria-label={`${clip.title} abspielen`}
+          >
+            {content}
+          </Link>
+        )}
+        {!selecting && (
+          <button
+            className={`card-favorite ${clip.favorite ? 'is-favorite' : ''}`}
+            onClick={() => patchClip(clip.id, { favorite: !clip.favorite })}
+            aria-label={
+              clip.favorite ? `${clip.title} aus Favoriten entfernen` : `${clip.title} favorisieren`
+            }
+            aria-pressed={clip.favorite}
+          >
+            <Heart size={15} fill={clip.favorite ? 'currentColor' : 'none'} />
+          </button>
+        )}
+      </div>
+      <div className="card-caption">
+        <div>
+          <Link to={`/clips/${clip.id}`} className="clip-title">
+            {clip.title}
+          </Link>
+          <p>
+            <span className="game-dot" style={{ background: game?.color || '#a78bfa' }} />
+            {game?.name || clip.gameName || 'Deine Aufnahme'}
+            <span className="metadata-divider">·</span>
+            {relativeDate(clip.recordedAt)}
+          </p>
+        </div>
+        <ClipMenu clip={clip} />
+      </div>
+    </article>
+  );
+}
+export function Section({
+  title,
+  subtitle,
+  link,
+  children,
+  scroll = true,
+}: {
+  title: string;
+  subtitle?: string;
+  link?: string;
+  children: ReactNode;
+  scroll?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState(false);
+  const [position, setPosition] = useState({ left: false, right: false });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      setOverflow(el.scrollWidth > el.clientWidth + 2);
+      setPosition({
+        left: el.scrollLeft > 2,
+        right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+      });
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    el.addEventListener('scroll', update);
+    update();
+    return () => {
+      observer.disconnect();
+      el.removeEventListener('scroll', update);
+    };
+  }, [children]);
+  return (
+    <section className="content-section">
+      <div className="section-heading">
+        <div>
+          <h2>{title}</h2>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
+        <div className="section-actions">
+          {link && (
+            <Link className="text-link" to={link}>
+              Alle anzeigen <ArrowRight size={15} />
+            </Link>
+          )}
+          {overflow && (
+            <div className="row-arrows">
+              <button
+                className="icon-button"
+                disabled={!position.left}
+                aria-label={`${title}: zurück`}
+                onClick={() =>
+                  ref.current?.scrollBy({
+                    left: -ref.current.clientWidth * 0.8,
+                    behavior: 'smooth',
+                  })
+                }
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                className="icon-button"
+                disabled={!position.right}
+                aria-label={`${title}: weiter`}
+                onClick={() =>
+                  ref.current?.scrollBy({ left: ref.current.clientWidth * 0.8, behavior: 'smooth' })
+                }
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      <div ref={ref} className={scroll ? 'card-row' : 'section-content'}>
+        {children}
+      </div>
+    </section>
+  );
+}
+export function CollectionCard({ collection }: { collection: Collection }) {
+  const { state } = useVault();
+  const clips = collection.clipIds
+    .map((id) => state.clips.find((c) => c.id === id))
+    .filter((c): c is Clip => !!c);
+  return (
+    <Link to={`/collections/${collection.id}`} className="collection-card">
+      <div className="collection-mosaic">
+        {clips.length ? (
+          clips.slice(0, 3).map((c) => <Artwork key={c.id} src={c.thumbnail} />)
+        ) : (
+          <div className="empty-cover">
+            <Folder size={38} />
+          </div>
+        )}
+        <div className="collection-overlay">
+          <span className="collection-icon">
+            <Folder size={18} />
+          </span>
+          <div>
+            <h3>{collection.title}</h3>
+            <p>
+              {clips.length} Clips <span>·</span> {relativeDate(collection.updatedAt)}
+            </p>
+          </div>
+          <ArrowRight size={19} />
+        </div>
+      </div>
+    </Link>
+  );
+}
+export function EmptyState({
+  title = 'Noch keine Clips',
+  description = 'Dein nächster guter Moment wartet schon.',
+  children,
+}: {
+  title?: string;
+  description?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="empty-state">
+      <div className="empty-icon">
+        <Film size={32} strokeWidth={1.4} />
+      </div>
+      <h2>{title}</h2>
+      <p>{description}</p>
+      {children}
+    </div>
+  );
+}

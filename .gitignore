@@ -1,0 +1,30 @@
+# Dependencies and build output
+node_modules/
+dist/
+desktop-bundle/
+server-bundle/
+release/
+*.tsbuildinfo
+.vite/
+
+# Test and review output
+test-results/
+playwright-report/
+artifacts/
+
+# Runtime data (server archive, client state)
+vault-data/
+agent-state/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+.server.env
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

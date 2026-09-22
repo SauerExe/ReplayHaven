@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Typecheck, lint, unit tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+      - run: npm run server:bundle
+
+  e2e:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: test-results
+          retention-days: 7
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: replayhaven:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test the container
+        run: |
+          set -euo pipefail
+          TOKEN=ci-smoke-test-token-with-32-characters
+          docker run -d --name replayhaven -p 8787:8787 \
+            -e REPLAYHAVEN_ACCESS_TOKEN="$TOKEN" \
+            -e REPLAYHAVEN_PUBLIC_ORIGIN=http://localhost:8787 \
+            -e REPLAYHAVEN_CLIENT_DOWNLOAD_URL=https://example.invalid/ReplayHaven-Client-Setup.exe \
+            replayhaven:ci
+          for _ in $(seq 1 30); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8787/api/status)" = "401" ]; then break; fi
+            sleep 1
+          done
+          curl -fs -H "Authorization: Bearer $TOKEN" http://localhost:8787/api/status | grep -q '"clientDownloadAvailable":true'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" http://localhost:8787/api/downloads/windows)" = "302"
+          curl -fs http://localhost:8787/ | grep -q '<div id="root">'
+          docker logs replayhaven
+          docker rm -f replayhaven
+
+  client:
+    name: Windows client
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run client:prepare
+      - name: Package unpacked client
+        run: npx electron-builder --config electron-builder.yml --win dir --x64
+      - name: Smoke test the client
+        run: node scripts/client-smoke.mjs

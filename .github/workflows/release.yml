@@ -1,0 +1,116 @@
+name: Release
+
+# Tag a commit as vX.Y.Z and push the tag. This builds the Windows installer,
+# publishes the multi-arch server image to GHCR and creates the GitHub release.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  client:
+    name: Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Version from tag
+        shell: bash
+        run: echo "REPLAYHAVEN_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - run: npm run client:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-client
+          path: release/ReplayHaven-Client-Setup.exe
+          if-no-files-found: error
+
+  image:
+    name: Server image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image name and tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            REPLAYHAVEN_VERSION=${{ github.ref_name }}
+            REPLAYHAVEN_CLIENT_DOWNLOAD_URL=https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ReplayHaven-Client-Setup.exe
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    name: GitHub release
+    needs: [client, image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-client
+          path: assets
+      - name: Prepare release assets
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Ready-to-run compose file and env template, pinned to this release.
+          sed "s|ghcr.io/OWNER/replayhaven:latest|${IMAGE}:${VERSION}|" compose.yaml > assets/compose.yaml
+          sed "s|OWNER/replayhaven|${GITHUB_REPOSITORY}|g" .env.example > assets/env.example
+          cp setup-server.sh assets/setup-server.sh
+          (cd assets && sha256sum ReplayHaven-Client-Setup.exe compose.yaml env.example setup-server.sh > SHA256SUMS.txt)
+          {
+            echo "## Self-host the server"
+            echo
+            echo '```bash'
+            echo "mkdir -p replayhaven && cd replayhaven"
+            echo "curl -fsSLO https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/compose.yaml"
+            echo "curl -fsSL  https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/env.example -o .env"
+            echo "# edit .env: REPLAYHAVEN_ACCESS_TOKEN (openssl rand -hex 24) and REPLAYHAVEN_PUBLIC_ORIGIN"
+            echo "docker compose up -d"
+            echo '```'
+            echo
+            echo "Image: \`${IMAGE}:${VERSION}\` (linux/amd64, linux/arm64)."
+            echo
+            echo "## Windows client"
+            echo
+            echo "Install \`ReplayHaven-Client-Setup.exe\` on the gaming PC, or download it later from the server's Devices page."
+            echo "The installer is not code-signed yet, so Windows SmartScreen asks for confirmation."
+          } > assets/NOTES.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: assets/NOTES.md
+          generate_release_notes: true
+          files: |
+            assets/ReplayHaven-Client-Setup.exe
+            assets/compose.yaml
+            assets/env.example
+            assets/setup-server.sh
+            assets/SHA256SUMS.txt

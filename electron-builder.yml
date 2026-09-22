@@ -1,0 +1,32 @@
+appId: de.replayhaven.client
+productName: ReplayHaven Client
+directories:
+  app: desktop-bundle
+  output: release
+files:
+  - main.cjs
+  - preload.cjs
+  - renderer/**
+  - icon.png
+  - package.json
+  - THIRD-PARTY.txt
+  - licenses/**
+  - '!node_modules/**'
+extraResources:
+  - from: desktop-bundle/binaries
+    to: binaries
+asar: true
+win:
+  icon: desktop-bundle/icon.ico
+  target:
+    - target: nsis
+      arch: x64
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  runAfterFinish: false
+artifactName: ReplayHaven-Client-Setup.exe
+npmRebuild: false

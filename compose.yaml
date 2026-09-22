@@ -1,0 +1,29 @@
+# ReplayHaven archive server.
+#
+#   cp .env.example .env      # set REPLAYHAVEN_ACCESS_TOKEN and REPLAYHAVEN_PUBLIC_ORIGIN
+#   docker compose up -d      # pulls the published image and starts the server
+#
+# Building from a source checkout instead: `bash setup-server.sh` (or
+# `docker build -t replayhaven:local .` and REPLAYHAVEN_IMAGE=replayhaven:local in .env).
+services:
+  replayhaven:
+    image: ${REPLAYHAVEN_IMAGE:-ghcr.io/OWNER/replayhaven:latest}
+    container_name: replayhaven
+    restart: unless-stopped
+    ports:
+      - '${REPLAYHAVEN_HOST_PORT:-8787}:8787'
+    env_file:
+      # Every variable in .env reaches the container (see .env.example).
+      - path: .env
+        required: false
+    environment:
+      REPLAYHAVEN_ACCESS_TOKEN: ${REPLAYHAVEN_ACCESS_TOKEN:?Set REPLAYHAVEN_ACCESS_TOKEN in .env (copy .env.example)}
+      REPLAYHAVEN_PUBLIC_ORIGIN: ${REPLAYHAVEN_PUBLIC_ORIGIN:-http://localhost:8787}
+    volumes:
+      # Originals, thumbnails, playback copies and the SQLite database.
+      - archive:/app/vault-data
+      # Optional: drop ReplayHaven-Client-Setup.exe here to serve it from this server
+      # instead of redirecting to the GitHub release.
+      - ./release:/app/release:ro
+volumes:
+  archive:
