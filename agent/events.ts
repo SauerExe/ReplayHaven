@@ -51,10 +51,17 @@ export interface GameEvent {
   source: 'screen' | 'spectator' | 'nvidia' | 'replay' | 'ocr';
   /** Gegner, falls die Meldung ihn nennt: Opfer bei Kills, Verursacher beim eigenen Tod. */
   other?: string;
-  /** Nur aus Replays: Waffe bzw. Ursache, Entfernung in Metern, Zahl der Kills einer Serie. */
+  /** Aus Replays: Waffe bzw. Ursache, Entfernung in Metern. Zahl der Kills einer Serie. */
   weapon?: Weapon;
   distance?: number;
   count?: number;
+  /** Mehrfach-Kill über den ganzen Clip verteilt statt kurz nacheinander. */
+  spread?: boolean;
+  /**
+   * Nur bei gelesenen Meldungen: das letzte Bild davor, auf dem sie noch fehlte. Das Ereignis
+   * liegt zwischen diesem Bild und `seconds`; eine Einblendung erscheint erst nach dem Kill.
+   */
+  from?: number;
 }
 
 export type SeenFrame = Pick<FrameObservation, 'kind' | 'visibleText'> & { seconds: number };
@@ -97,7 +104,8 @@ const RULES: { kind: EventKind; pattern: RegExp; games?: RegExp }[] = [
   { kind: 'kill', pattern: /\bELIMINIERT\s*[:：]/ },
   { kind: 'kill', pattern: /\+\s?[\d.,]+\s*(?:G?EP|XP)\b.{0,24}\bELIMINIERUNG\b/ },
   { kind: 'kill', pattern: /\bDU HAST\b.{0,40}\b(?:ELIMINIERT|GET(?:Ö|OE|O)TET|AUSGESCHALTET)\b/ },
-  { kind: 'kill', pattern: /\+\s?\d+\s*KILL\b|\bKILL\s*\+\s?\d+/ },
+  // Das Modell trennt Punkte und Wort oft mit "|": R6 zeigt "+100 KILL" nur für eigene Kills.
+  { kind: 'kill', pattern: /\+\s?\d+\s*(?:\|\s*)?KILL\b|\bKILL\s*(?:\|\s*)?\+\s?\d+/ },
   { kind: 'kill', pattern: /\bYOU (?:KILLED|ELIMINATED)\b|\bENEMY (?:KILLED|ELIMINATED)\b/ },
   { kind: 'kill', pattern: /\bABSCHUSS\b/ },
   // "TÖTUNG BESTÄTIGT" (Wardogs), nicht "BEI TÖTUNG ASSISTIERT". Nachgetragen nach dem Neutest
@@ -247,9 +255,37 @@ export function eventsFromFileName(path: string): { kinds: EventKind[]; label: s
  * nennen bzw. wörtlich gleich lauten und nicht zwischendurch aus dem Bild verschwunden sind.
  * Letzteres trennt zwei Tode durch denselben Agenten in zwei Runden (VAL-B2, Nachprüfung E17).
  */
+/**
+ * Mehrere verschiedene Kills im Clip sind ein Mehrfach-Kill, auch ohne Einblendung und auch,
+ * wenn sie sich über die Runde verteilen. Er steht beim letzten Kill und zählt alle.
+ */
+export function seriesOf(events: GameEvent[], source: GameEvent['source']): GameEvent | undefined {
+  const kills = events.filter((e) => e.kind === 'kill' && e.seconds !== null);
+  if (kills.length < 2) return undefined;
+  const quick = kills.every((k, i) => i === 0 || k.seconds! - kills[i - 1].seconds! <= 12);
+  return {
+    kind: 'multikill',
+    seconds: kills.at(-1)!.seconds,
+    from: kills.at(-1)!.from,
+    text: `${kills.length} Kills ${quick ? 'kurz nacheinander' : 'im Clip'}`,
+    source,
+    count: kills.length,
+    ...(quick ? {} : { spread: true }),
+  };
+}
+
+/** Die Zahl der Lebenden, wie R6 sie oben zeigt ("3vs4"), oder leer. */
+function aliveCount(text: string) {
+  const match = /\b(\d)\s*vs\.?\s*(\d)\b/i.exec(text);
+  return match ? `${match[1]}:${match[2]}` : '';
+}
+
+/** So lange steht eine Einblendung wie der R6-Killfeed ungefähr im Bild. */
+const MESSAGE_SECONDS = 5;
 export function collectEvents(frames: SeenFrame[], path: string, game = ''): GameEvent[] {
   const found: GameEvent[] = [];
   const lastSeen = new Map<GameEvent, number>();
+  const lastText = new Map<GameEvent, string>();
   const ordered = [...frames].sort((a, b) => a.seconds - b.seconds);
   // Wiederholungen wie "BESTE AKTION" oder die Killcam können das Spiel eines anderen zeigen.
   const counted = (f: SeenFrame) => f.kind !== 'loading' && !REPLAY.test(normalize(f.visibleText));
@@ -274,26 +310,41 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
             counted(f) &&
             !kindsOf.get(f)!.includes(kind),
         );
+      // Eine Kill-Einblendung steht rund fünf Sekunden und damit auf zwei aufeinanderfolgenden
+      // Bildern, auch wenn sich ihr Text ändert ("+100 KILL", dann "+100 KILL | Head Shot +20").
+      // Erst eine geänderte Zahl der Lebenden ("3vs4" → "3vs3") zeigt einen neuen Kill.
+      const adjacent =
+        previous &&
+        (kind === 'kill' || kind === 'headshot') &&
+        frame.seconds - seen <= MESSAGE_SECONDS - 0.5 &&
+        !ordered.some((f) => f.seconds > seen && f.seconds < frame.seconds && counted(f)) &&
+        aliveCount(text) === aliveCount(lastText.get(previous) ?? '');
       if (
         previous &&
         (frame.seconds - seen <= 2.5 ||
+          adjacent ||
           (!vanished &&
             ((other && previous.other && other.toLowerCase() === previous.other.toLowerCase()) ||
               normalize(tellingPart(text)) === normalize(previous.text))))
       ) {
         previous.other ??= other;
         lastSeen.set(previous, frame.seconds);
+        lastText.set(previous, text);
         continue;
       }
+      const before = ordered.filter((f) => f.seconds < frame.seconds).at(-1);
       const event: GameEvent = {
         kind,
         seconds: frame.seconds,
+        // Länger als rund fünf Sekunden steht keine Meldung; bei weiten Bildabständen zählt das.
+        from: Math.max(before?.seconds ?? 0, frame.seconds - MESSAGE_SECONDS),
         text: tellingPart(text),
         source: 'screen',
         ...(other ? { other } : {}),
       };
       found.push(event);
       lastSeen.set(event, frame.seconds);
+      lastText.set(event, text);
     }
   }
   // Zuschaueransicht ohne gelesenen Tod: ausgeschieden, sofern es mehr als ein Bild zeigt.
@@ -310,20 +361,8 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
       text: tellingPart(watching[0].visibleText),
       source: 'spectator',
     });
-  // Zwei verschiedene Kills kurz nacheinander sind ein Mehrfach-Kill, auch ohne Einblendung.
-  const kills = found.filter((e) => e.kind === 'kill');
-  if (
-    !found.some((e) => e.kind === 'multikill') &&
-    kills.some((k, i) => i > 0 && k.seconds! - kills[i - 1].seconds! <= 12)
-  ) {
-    const second = kills.find((k, i) => i > 0 && k.seconds! - kills[i - 1].seconds! <= 12)!;
-    found.push({
-      kind: 'multikill',
-      seconds: second.seconds,
-      text: 'zwei Kills kurz nacheinander',
-      source: 'screen',
-    });
-  }
+  const series = found.some((e) => e.kind === 'multikill') ? undefined : seriesOf(found, 'screen');
+  if (series) found.push(series);
   const file = eventsFromFileName(path);
   for (const kind of file.kinds)
     if (!found.some((e) => e.kind === kind))
@@ -359,7 +398,13 @@ export function withReplay(events: GameEvent[], replay: GameEvent[] | undefined)
  * Nimmt Runden- und Matchergebnisse aus der Texterkennung hinzu (agent/r6.ts). Sie waren im
  * Blindtest nie falsch; ein vom Modell gelesenes Ergebnis derselben Stelle (±5 s) weicht ihnen.
  */
-export function withTexts(events: GameEvent[], texts: GameEvent[] | undefined) {
+export function withTexts(events: GameEvent[], texts: GameEvent[] | undefined, feed = false) {
+  // Ein gelesener Killfeed ist für Kills und Tode maßgeblich, auch wenn er keine eigenen zeigt:
+  // das Modell hielt etwa den Kampfbericht der Vorrunde für einen Tod in diesem Clip.
+  if (feed) {
+    const personal: EventKind[] = ['kill', 'multikill', 'headshot', 'knock', 'death'];
+    events = events.filter((e) => !personal.includes(e.kind) || e.source === 'replay');
+  }
   if (!texts?.length) return events;
   const results: EventKind[] = ['roundWon', 'roundLost', 'matchWon', 'matchLost'];
   const covered = (e: GameEvent) =>
@@ -391,8 +436,9 @@ export function headline(events: GameEvent[], momentStart: number): GameEvent[] 
       ['kill', 'knock', 'multikill'].includes(e.kind) &&
         ((e.distance ?? 0) >= 100 || e.weapon === 'sniper' || e.weapon === 'noscope'),
     );
+  // Ein Mehrfach-Kill fasst die ganze Runde zusammen und zählt deshalb auch aus dem Vorlauf.
   const pool = events
-    .filter((e) => e.seconds === null || e.seconds >= momentStart)
+    .filter((e) => e.seconds === null || e.seconds >= momentStart || e.kind === 'multikill')
     .sort(
       (a, b) =>
         SIGNIFICANCE[b.kind] + notable(b) - (SIGNIFICANCE[a.kind] + notable(a)) ||
@@ -496,7 +542,7 @@ export function countWord(count: number) {
 export function phrase(event: GameEvent) {
   const base =
     event.kind === 'multikill' && event.count
-      ? `Du hast ${countWord(event.count)} Gegner kurz nacheinander ausgeschaltet`
+      ? `Du hast ${countWord(event.count)} Gegner ${event.spread ? 'in diesem Clip' : 'kurz nacheinander'} ausgeschaltet`
       : PHRASE[event.kind];
   const details = [
     event.weapon ? WEAPON_WITH[event.weapon] : '',

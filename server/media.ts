@@ -6,6 +6,8 @@ import type { ServerConfig } from './config';
 const moduleRequire = createRequire(typeof __filename === 'string' ? __filename : import.meta.url);
 /** Länge des Schlussfensters, in dem der gespeicherte Moment erfahrungsgemäß liegt. */
 export const TAIL_SECONDS = 30;
+/** Höchstzahl Bilder bei gleichmäßiger Verteilung: 3 s Abstand reichen so für 4 Minuten. */
+export const MAX_EVEN_FRAMES = 80;
 /** Bildbreite der Analysebilder. 640 und 1280 kosten dieselben Kontext-Token (.docs/06-recherche.md). */
 const FRAME_WIDTH = 1280;
 export function runFile(
@@ -519,9 +521,29 @@ export class MediaProcessor {
     ]);
     return (await readFile(file)).toString('base64');
   }
-  async frames(original: string, directory: string, duration: number, count = 48) {
+  async frames(
+    original: string,
+    directory: string,
+    duration: number,
+    count = 48,
+    /** Abstand in Sekunden: gleichmäßig über den ganzen Clip statt Schwerpunkt am Ende. */
+    spacing?: number,
+  ) {
     const folder = join(directory, 'frames');
     await mkdir(folder, { recursive: true });
+    // Einblendungen wie der R6-Killfeed stehen rund fünf Sekunden; ein Bild alle drei Sekunden
+    // erwischt jede davon, auch mitten in der Runde. Kurze Clips bekommen trotzdem mindestens
+    // `count` Bilder, lange höchstens MAX_EVEN_FRAMES.
+    if (spacing)
+      return this.sample(
+        original,
+        folder,
+        'even',
+        0,
+        duration,
+        Math.min(MAX_EVEN_FRAMES, Math.max(count, Math.ceil(duration / spacing))),
+        duration,
+      );
     // Aufnahmen aus NVIDIA, OBS und Game Bar enden mit dem Moment, für den sie gespeichert
     // wurden. Zwei Drittel der Bilder liegen deshalb im Schluss, der Rest hält den Vorlauf
     // als Kontext fest. Kürzere Clips sind komplett Schluss.

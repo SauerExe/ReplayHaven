@@ -4,6 +4,7 @@ import type { Clip, ServerGame, ServerInfo, UploadJob, VaultState } from '../dom
 import { deleteClips, repository } from './repository';
 import { api, disconnectedServer, uploadToServer } from './api';
 import { createId } from './id';
+import { sampleCollectionIds } from './seed';
 type Store = {
   state: VaultState;
   setState: Dispatch<SetStateAction<VaultState>>;
@@ -56,6 +57,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           // dauerhaft zwischen den eigenen Aufnahmen. Eigene Browser-Uploads (local) bleiben.
           ...s.clips.filter((c) => !c.server && c.local),
         ],
+        // Dasselbe gilt für die Beispiel-Sammlungen, solange niemand eigene Clips hineinlegt.
+        collections: s.collections.filter(
+          (c) =>
+            !sampleCollectionIds.has(c.id) ||
+            c.clipIds.some((id) => clips.some((clip) => clip.id === id)),
+        ),
       }));
     } catch (error) {
       setServer((s) => ({

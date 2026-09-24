@@ -33,6 +33,13 @@ const titles = [
     'Komplettes Chaos',
   ],
 ];
+/** Kennungen der Beispiel-Sammlungen, damit ein verbundener Server sie ausräumen kann. */
+export const sampleCollectionIds = new Set([
+  'favorites-2026',
+  'clutches',
+  'friends',
+  'after-hours',
+]);
 export function createSeed(): VaultState {
   const clips: Clip[] = games.flatMap((g, gi) =>
     titles[gi].map((title, i) => ({

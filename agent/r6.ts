@@ -2,9 +2,11 @@ import { Worker } from 'node:worker_threads';
 import type { MessagePort } from 'node:worker_threads';
 import { collectEvents } from './events';
 import type { EventKind, GameEvent } from './events';
-import { joinRows, TextReader } from './ocr';
+import { crop, joinRows, TextReader } from './ocr';
 import type { OcrModels, TextLine } from './ocr';
 import { sameGame } from './players';
+import { feedEvents, isValorant, KILLFEED } from './valorant';
+import type { FeedFrame } from './valorant';
 import type { MediaProcessor } from '../server/media';
 
 /**
@@ -122,6 +124,8 @@ export interface TextTrace {
 }
 
 export interface TextLookup extends TextFindings {
+  /** Der Killfeed wurde gelesen; seine Kills und Tode ersetzen die vom Modell gelesenen. */
+  feed?: boolean;
   trace: TextTrace;
 }
 
@@ -169,7 +173,13 @@ export class ClipTexts {
     await (await reader?.catch(() => undefined))?.close();
   }
 
-  async forClip(path: string, game: string, signal?: AbortSignal): Promise<TextLookup | undefined> {
+  async forClip(
+    path: string,
+    game: string,
+    signal?: AbortSignal,
+    names: readonly string[] = [],
+  ): Promise<TextLookup | undefined> {
+    if (isValorant(game)) return this.valorant(path, signal, names);
     if (!isR6(game)) return undefined;
     const started = Date.now();
     const reader = await this.load();
@@ -193,6 +203,47 @@ export class ClipTexts {
       },
     };
   }
+
+  /**
+   * Valorant: nur der Killfeed-Ausschnitt, zwei Bilder je Sekunde. Ohne eigenen Namen lässt
+   * sich keine Zeile zuordnen; dann bleibt es bei den Meldungen, die das Modell liest.
+   */
+  private async valorant(
+    path: string,
+    signal: AbortSignal | undefined,
+    names: readonly string[],
+  ): Promise<TextLookup | undefined> {
+    if (!names.length) return undefined;
+    const started = Date.now();
+    const reader = await this.load();
+    const frames: FeedFrame[] = [];
+    for await (const { seconds, frame } of this.options.media.rawFrames(path, {
+      fps: this.options.fps ?? 2,
+      width: this.options.width ?? 1280,
+      signal,
+    })) {
+      if (signal?.aborted) break;
+      const region = {
+        x: frame.width * KILLFEED.x,
+        y: frame.height * KILLFEED.y,
+        w: frame.width * KILLFEED.w,
+        h: frame.height * KILLFEED.h,
+      };
+      frames.push({ seconds, lines: await reader.read(crop(frame, region)) });
+    }
+    // Abgebrochen ist nichts belegt; ein halber Killfeed darf die Meldungen nicht ersetzen.
+    if (signal?.aborted) return undefined;
+    const events = feedEvents(frames, names);
+    return {
+      events,
+      feed: true,
+      trace: {
+        frames: frames.length,
+        seconds: Math.round((Date.now() - started) / 100) / 10,
+        events: events.length,
+      },
+    };
+  }
 }
 
 /** Was der Worker der Texterkennung zum Start braucht (siehe agent/r6-worker.ts). */
@@ -205,7 +256,7 @@ export interface TextsWorkerData {
 }
 
 type TextsRequest =
-  | { id: number; type: 'clip'; path: string; game: string }
+  | { id: number; type: 'clip'; path: string; game: string; names?: string[] }
   | { id: number; type: 'check' }
   | { id: number; type: 'abort' };
 interface TextsReply {
@@ -224,7 +275,7 @@ export function serveTexts(port: MessagePort, texts: Pick<ClipTexts, 'forClip' |
     const work =
       request.type === 'check'
         ? texts.check()
-        : texts.forClip(request.path, request.game, control.signal);
+        : texts.forClip(request.path, request.game, control.signal, request.names);
     void work
       .then(
         (value) => port.postMessage({ id: request.id, value } satisfies TextsReply),
@@ -258,9 +309,11 @@ export class WorkerTexts {
   private readonly inflight = new Set<Promise<unknown>>();
   constructor(private readonly options: { script: string; data: TextsWorkerData }) {}
 
-  forClip(path: string, game: string, signal?: AbortSignal) {
-    if (!isR6(game)) return Promise.resolve(undefined);
-    return this.request({ type: 'clip', path, game }, signal) as Promise<TextLookup | undefined>;
+  forClip(path: string, game: string, signal?: AbortSignal, names: readonly string[] = []) {
+    if (!isR6(game) && !(isValorant(game) && names.length)) return Promise.resolve(undefined);
+    return this.request({ type: 'clip', path, game, names: [...names] }, signal) as Promise<
+      TextLookup | undefined
+    >;
   }
 
   /** Lädt die Texterkennung zur Probe. Nichts heißt bereit, sonst der Fehler beim Laden. */

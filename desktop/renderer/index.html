@@ -95,7 +95,7 @@
           <div class="model">
             <span class="model-icon">✦</span>
             <div>
-              <strong>Qwen3-VL · 8B</strong>
+              <strong>Qwen3.5 · 9B</strong>
               <p>Ollama · läuft lokal auf deiner GPU</p>
             </div>
             <span id="model-state" class="badge">Ungeprüft</span>
@@ -107,7 +107,7 @@
           <div class="setup-actions">
             <button id="install-ollama" class="secondary">1. Ollama installieren ↗</button
             ><button id="check-model" class="secondary">Verbindung prüfen</button
-            ><button id="download-model" class="secondary">2. Modell laden · ca. 6,1 GB</button
+            ><button id="download-model" class="secondary">2. Modell laden · ca. 6,6 GB</button
             ><button id="cancel-download" class="secondary" hidden>Download abbrechen</button>
           </div>
           <label class="check"
@@ -117,6 +117,7 @@
             >Analyseumfang<select id="frames">
               <option value="24">24 Bilder · weniger GPU-Arbeit</option>
               <option value="48">48 Bilder · feinere Bildstichprobe</option>
+              <option value="0">Ganzer Clip · ein Bild alle 3 Sekunden, dauert länger</option>
             </select></label
           >
           <label class="check"
@@ -136,13 +137,14 @@
               placeholder="Nötig bei festen Mitspielern, sonst aus den Replays erkannt"
           /></label>
           <label class="check"
-            ><input id="r6-texts" type="checkbox" />R6: Karte und Rundenausgang per
-            Texterkennung</label
+            ><input id="r6-texts" type="checkbox" />Texterkennung: R6-Karte und Rundenausgang,
+            Valorant-Killfeed</label
           >
           <p class="hint">
             Liest zwei Bilder je Sekunde auf der CPU, etwa eine Minute je Clip, während die KI auf
-            der Grafikkarte arbeitet. Kills liest sie bewusst nicht, die ordnet sie nicht
-            verlässlich zu.
+            der Grafikkarte arbeitet. In R6 liest sie Kills bewusst nicht, die ordnet sie dort nicht
+            verlässlich zu. In Valorant liest sie Kills, Kopfschüsse und Tode aus dem Killfeed;
+            dafür muss oben dein Valorant-Name eingetragen sein.
           </p>
           <div class="notice">
             Die KI schlägt Titel, Beschreibung, Spiel, Tags und Zeitmarken vor. Schnelle Ereignisse

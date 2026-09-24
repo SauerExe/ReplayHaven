@@ -14,10 +14,17 @@ import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { FolderUploader, recordedGames } from '../agent/watcher';
-import { LocalAnalyzer, checkOllama, pullModel, DEFAULT_MODEL, OLLAMA_URL } from '../agent/ollama';
+import {
+  LocalAnalyzer,
+  checkOllama,
+  pullModel,
+  DEFAULT_MODEL,
+  FRAME_SPACING,
+  OLLAMA_URL,
+} from '../agent/ollama';
 import { playerNamesSchema, savedPlayerNames, tidyPlayerNames } from '../agent/players';
 import { defaultDemosFolder, FortniteReplays } from '../agent/fortnite';
-import { missingLibrary } from '../agent/ocr';
+import { LATIN_KEYS, LATIN_REC, missingLibrary } from '../agent/ocr';
 import { WorkerTexts } from '../agent/r6';
 import { MediaProcessor } from '../server/media';
 
@@ -31,12 +38,14 @@ const configSchema = z.object({
   playerNames: playerNamesSchema.default([]),
   includeExisting: z.boolean(),
   analyze: z.boolean(),
-  frames: z.union([z.literal(24), z.literal(48)]),
+  /** 0: ganzer Clip, ein Bild alle FRAME_SPACING Sekunden. */
+  frames: z.union([z.literal(24), z.literal(48), z.literal(0)]),
   // Kills, Waffe und Entfernung aus den Fortnite-Replays (agent/fortnite.ts). Aus, bis gemessen.
   fortniteReplays: z.boolean().default(false),
   // Eigene Epic-Konto-IDs; leer: Der Client erkennt das Konto aus den Replays selbst.
   epicAccounts: z.array(z.string()).max(10).default([]),
-  // Karte und Rundenausgang in R6 per Texterkennung (agent/r6.ts), etwa eine Minute CPU je Clip.
+  // Karte und Rundenausgang in R6 per Texterkennung (agent/r6.ts), etwa eine Minute CPU je Clip;
+  // in Valorant der Killfeed (agent/valorant.ts), sofern ein eigener Name eingetragen ist.
   r6Texts: z.boolean().default(false),
 });
 type ClientConfig = z.infer<typeof configSchema>;
@@ -131,8 +140,9 @@ function resource(name: string) {
 }
 const ocrModels = () => ({
   det: join(resource('ocr'), 'ch_PP-OCRv4_det_infer.onnx'),
-  rec: join(resource('ocr'), 'ch_PP-OCRv4_rec_infer.onnx'),
-  keys: join(resource('ocr'), 'ppocr_keys_v1.txt'),
+  // Lesen mit PP-OCRv5 lateinisch (agent/ocr-models.json), vom Build geladen und geprüft.
+  rec: join(resource('ocr'), LATIN_REC.file!),
+  keys: join(resource('ocr'), LATIN_KEYS.file!),
 });
 /** Die Texterkennung läuft in einem eigenen Thread und bleibt über Starts hinweg geladen. */
 let texts: WorkerTexts | undefined;
@@ -237,7 +247,8 @@ async function launch() {
   const analyzer = new LocalAnalyzer({
     url: OLLAMA_URL,
     model: DEFAULT_MODEL,
-    frames: config.frames,
+    frames: config.frames || 24,
+    ...(config.frames === 0 ? { spacing: FRAME_SPACING } : {}),
     cacheDir: join(root(), 'cache'),
     media: processor,
     isPaused: () => paused,
@@ -251,8 +262,8 @@ async function launch() {
       : {}),
     ...(reading
       ? {
-          texts: (path: string, game: string, signal: AbortSignal) =>
-            reading.forClip(path, game, signal),
+          texts: (path: string, game: string, signal: AbortSignal, names: readonly string[]) =>
+            reading.forClip(path, game, signal, names),
         }
       : {}),
     onProgress: (message) => emit({ message }),

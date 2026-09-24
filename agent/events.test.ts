@@ -82,6 +82,53 @@ const frame = (seconds: number, visibleText: string, kind: SeenFrame['kind'] = '
   kind,
 });
 
+it('counts kills spread over the whole clip as one multikill that leads the title', () => {
+  // Drei Kills über die Runde verteilt, der Schluss ab Sekunde 90 zeigt nur den eigenen Tod.
+  const events = collectEvents(
+    [
+      frame(12, 'ELIMINIERT: SpielerZwei'),
+      frame(45, 'ELIMINIERT: SpielerDrei'),
+      frame(48, 'ELIMINIERT: SpielerDrei'),
+      frame(70, 'ELIMINIERT: SpielerVier'),
+      frame(100, 'ELIMINIERT VON SpielerFünf'),
+    ],
+    'Fortnite 2025.02.14 - 17.00.00.DVR.mp4',
+    'Fortnite',
+  );
+  const multi = events.find((e) => e.kind === 'multikill')!;
+  expect(multi).toMatchObject({ count: 3, seconds: 70, spread: true });
+  expect(phrase(multi)).toBe('Du hast drei Gegner in diesem Clip ausgeschaltet');
+  expect(headline(events, 90).map((e) => e.kind)).toContain('multikill');
+});
+
+it('reads R6 score pop-ups split by the model into three kills of one round', () => {
+  // Gelesen am 2026-09-24 in einem R6-Clip auf Border: Kopfschuss, Kill, später Kopfschuss.
+  const events = collectEvents(
+    [
+      frame(57.1, '2F East Stairs | 1:45'),
+      frame(60.1, '3vs4 | +120 | Head Shot +20'),
+      frame(63.0, '3vs4 | +100 | Head Shot +20'),
+      frame(65.9, '3vs3 | +100 | Kill'),
+      frame(68.8, '3vs3 | +100 | Kill'),
+      frame(71.8, '3 vs 2 | 1:30 | 0'),
+      frame(112.8, '2 VS 1 | Head Shot +20'),
+    ],
+    "Tom Clancy's Rainbow Six Siege 2025.09.21 - 17.10.43.03.DVR.mp4",
+    "Tom Clancy's Rainbow Six Siege",
+  );
+  expect(events.filter((e) => e.kind === 'kill').map((e) => e.seconds)).toEqual([
+    60.1, 65.9, 112.8,
+  ]);
+  expect(events.find((e) => e.kind === 'multikill')).toMatchObject({ count: 3 });
+  // Die Prüfer sahen die Kills bei 58,7, 64,5 und 109,8 s: jede Zeitmarke liegt kurz davor,
+  // am letzten Bild ohne Einblendung, statt 1,4 bis 3 s zu spät auf der Einblendung.
+  expect(
+    tidyHighlights([], events, 120)
+      .filter((h) => /Kill|Kopfschuss|Headshot|ausgeschaltet/i.test(h.title))
+      .map((h) => h.seconds),
+  ).toEqual([56.1, 62, 106.8]);
+});
+
 it('merges a message that stays on screen and keeps separate kills apart', () => {
   const events = collectEvents(
     [
@@ -340,7 +387,7 @@ it('builds time marks from proven events and drops repeated or unsupported propo
   );
   expect(marks).toEqual([
     {
-      seconds: 15,
+      seconds: 9,
       title: 'Gegner ausgeschaltet',
       description: 'Meldung: ELIMINIERT: Gegner_Zwei',
     },
@@ -458,7 +505,7 @@ it('replaces read kills and deaths by the exact ones of a replay and keeps resul
   expect(withReplay(read, undefined)).toBe(read);
   expect(tidyHighlights([], merged, 20)).toEqual([
     {
-      seconds: 14.2,
+      seconds: 13.2,
       title: 'Kill mit der Schrotflinte',
       description: 'Du hast einen Gegner mit der Schrotflinte ausgeschaltet.',
     },
@@ -480,4 +527,46 @@ it('gives the bonus for far shots only to own hits and keeps headshots next to r
     ['kill', 14.2],
     ['headshot', 15],
   ]);
+});
+
+it('rejects an R6 place the text recognition never read, but keeps plain phrases', () => {
+  const place = { maps: ['Border', 'Oregon'] as const };
+  const read = { ...place, map: 'Border' };
+  expect(titleProblems('Gelber Bagger auf Dantzig', [], [], place).join(' ')).toMatch(
+    /Ort Dantzig/,
+  );
+  const kills = [at('kill'), at('headshot')] as GameEvent[];
+  expect(titleProblems('Dreifach-Kill auf Border', kills, [], read)).toEqual([]);
+  expect(titleProblems('Kopfschuss auf Distanz', kills, [], place)).toEqual([]);
+  expect(titleProblems('Bagger auf dem Hof', [], [], place)).toEqual([]);
+  // Zum selben Bild schrieb Qwen3.5 im zweiten Lauf "Übersicht über Dirt Haul".
+  expect(titleProblems('Übersicht über Dirt Haul', [], [], place).join(' ')).toMatch(
+    /Ort Dirt Haul/,
+  );
+  expect(titleProblems('Sprung in Deckung', [], [], place)).toEqual([]);
+  // Ohne Texterkennung (kein R6) gilt die Prüfung nicht.
+  expect(titleProblems('Abend auf Mallorca', [], [])).toEqual([]);
+});
+
+it('counts an R6 kill pop-up on two frames in a row once, unless the alive count changed', () => {
+  // Gelesen am 2026-09-24 im Clip R6-3V1 (Prüfer: Kills bei 43, 61,3 und 68,9 s, dann Tod).
+  const events = collectEvents(
+    [
+      frame(45.4, '5vs4 | 1F Main Stairs'),
+      frame(48.4, 'MATCH POINT | +100 KILL | Head Shot +20'),
+      frame(51.3, '+10'),
+      frame(63.0, '5 vs 3 | +140 | +10 | +100'),
+      frame(65.9, '+100 | Head Shot'),
+      frame(68.9, '1F Lobby'),
+      frame(71.8, 'MATCH POINT | +100 KILL'),
+      frame(74.7, '+100 KILL | Head Shot +20'),
+      frame(98.2, 'ACE | KILLED BY xiTango'),
+    ],
+    "Tom Clancy's Rainbow Six Siege 2025.12.06 - 23.00.52.03.DVR.mp4",
+    "Tom Clancy's Rainbow Six Siege",
+  );
+  expect(events.filter((e) => e.kind === 'kill').map((e) => e.seconds)).toEqual([48.4, 65.9, 71.8]);
+  expect(events.find((e) => e.kind === 'multikill')).toMatchObject({ count: 3 });
+  expect(titleProblems('Vierfach Kill und ACE', events, []).join(' ')).toMatch(/4 Kills.*3|Ace/);
+  expect(titleProblems('Dreifach-Kill, dann xiTango', events, [])).toEqual([]);
 });

@@ -1,6 +1,9 @@
 import { build } from 'esbuild';
 import { mkdir, copyFile, cp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import sharp from 'sharp';
 const require = createRequire(import.meta.url);
 // Release builds pass REPLAYHAVEN_VERSION (from the git tag); local builds use package.json.
@@ -50,7 +53,7 @@ await copyFile(
 );
 await copyFile('node_modules/zod/LICENSE', 'desktop-bundle/licenses/Zod-MIT.txt');
 // Texterkennung (agent/ocr.ts): ONNX Runtime nur mit den CPU-Dateien für Windows x64 (DirectML
-// lädt sie erst bei Bedarf) und die PP-OCRv4-Modelle. Beides liegt neben FFmpeg, nicht im Archiv.
+// lädt sie erst bei Bedarf) und die Texterkennungsmodelle. Beides liegt neben FFmpeg, nicht im Archiv.
 const ort = 'desktop-bundle/onnxruntime';
 const native = 'bin/napi-v6/win32/x64';
 await rm(ort, { recursive: true, force: true });
@@ -78,20 +81,42 @@ await writeFile(
 );
 for (const file of ['onnxruntime_binding.node', 'onnxruntime.dll'])
   await copyFile(`node_modules/onnxruntime-node/${native}/${file}`, `${ort}/${native}/${file}`);
+// Frisch anlegen: Modelle früherer Builds (etwa das PP-OCRv4-Lesemodell) sollen nicht mitreisen.
+await rm('desktop-bundle/ocr', { recursive: true, force: true });
 await mkdir('desktop-bundle/ocr', { recursive: true });
-for (const file of [
-  'ch_PP-OCRv4_det_infer.onnx',
-  'ch_PP-OCRv4_rec_infer.onnx',
-  'ppocr_keys_v1.txt',
-])
-  await copyFile(`node_modules/@gutenye/ocr-models/assets/${file}`, `desktop-bundle/ocr/${file}`);
+await copyFile(
+  'node_modules/@gutenye/ocr-models/assets/ch_PP-OCRv4_det_infer.onnx',
+  'desktop-bundle/ocr/ch_PP-OCRv4_det_infer.onnx',
+);
+// Das Lesemodell PP-OCRv5 kommt nicht aus npm: geladen, gegen Größe und SHA-256 geprüft, im
+// lokalen Modellordner zwischengespeichert, damit ein zweiter Build nichts lädt.
+const latin = JSON.parse(await readFile('agent/ocr-models.json', 'utf8'));
+const cache = join(
+  process.env.LOCALAPPDATA ?? join(homedir(), '.cache'),
+  process.env.LOCALAPPDATA ? 'ReplayHaven/models' : 'replayhaven',
+);
+for (const model of [latin.rec, latin.keys]) {
+  const cached = join(cache, model.file);
+  const fits = async (data) =>
+    data.length === model.bytes && createHash('sha256').update(data).digest('hex') === model.sha256;
+  let data = await readFile(cached).catch(() => undefined);
+  if (!data || !(await fits(data))) {
+    const response = await fetch(model.url);
+    if (!response.ok) throw new Error(`${model.file} nicht ladbar (HTTP ${response.status}).`);
+    data = Buffer.from(await response.arrayBuffer());
+    if (!(await fits(data))) throw new Error(`${model.file}: falsche Prüfsumme, verworfen.`);
+    await mkdir(cache, { recursive: true });
+    await writeFile(cached, data);
+  }
+  await writeFile(`desktop-bundle/ocr/${model.file}`, data);
+}
 await writeFile(
   'desktop-bundle/licenses/ONNX-Runtime-MIT.txt',
   `MIT License\n\nCopyright (c) Microsoft Corporation\n\n${(await readFile('LICENSE', 'utf8')).split('\n').slice(4).join('\n')}\nThird-party notices of ONNX Runtime: https://github.com/microsoft/onnxruntime/blob/main/ThirdPartyNotices.txt\n`,
 );
 await writeFile(
   'desktop-bundle/licenses/PaddleOCR-models-Apache-2.0.txt',
-  `PaddleOCR PP-OCRv4 text detection and recognition models (https://github.com/PaddlePaddle/PaddleOCR), converted to ONNX by @gutenye/ocr-models (MIT).\n\n${await readFile('node_modules/typescript/LICENSE.txt', 'utf8')}`,
+  `PaddleOCR PP-OCRv4 text detection model (https://github.com/PaddlePaddle/PaddleOCR), converted to ONNX by @gutenye/ocr-models (MIT), and the PP-OCRv5 latin recognition model, converted to ONNX by monkt/paddleocr-onnx (https://huggingface.co/monkt/paddleocr-onnx).\n\n${await readFile('node_modules/typescript/LICENSE.txt', 'utf8')}`,
 );
 await sharp('public/favicon.svg').resize(256, 256).png().toFile('desktop-bundle/icon.png');
 // ICO containing a PNG image, supported by modern Windows shells and NSIS.
@@ -118,6 +143,6 @@ await writeFile(
 );
 await writeFile(
   'desktop-bundle/THIRD-PARTY.txt',
-  'ReplayHaven Client includes Electron (MIT), Zod (MIT), FFmpeg 6.1.1 (GPL-3.0), FFprobe (GPL-3.0, Gyan build 20230213-2296078), ONNX Runtime 1.30 (MIT, CPU files for Windows x64) and the PaddleOCR PP-OCRv4 text models (Apache-2.0). License texts and FFmpeg build configuration are in licenses/. Electron notices accompany the executable. FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/e38092ef93 ; FFprobe source: https://github.com/FFmpeg/FFmpeg/tree/2296078 ; build distribution: https://www.gyan.dev/ffmpeg/builds/ ; package sources: https://github.com/eugeneware/ffmpeg-static and https://github.com/SavageCore/node-ffprobe-installer . Ollama and Qwen are installed separately. No model weights are bundled.',
+  'ReplayHaven Client includes Electron (MIT), Zod (MIT), FFmpeg 6.1.1 (GPL-3.0), FFprobe (GPL-3.0, Gyan build 20230213-2296078), ONNX Runtime 1.30 (MIT, CPU files for Windows x64) and the PaddleOCR PP-OCRv4/PP-OCRv5 text models (Apache-2.0). License texts and FFmpeg build configuration are in licenses/. Electron notices accompany the executable. FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/e38092ef93 ; FFprobe source: https://github.com/FFmpeg/FFmpeg/tree/2296078 ; build distribution: https://www.gyan.dev/ffmpeg/builds/ ; package sources: https://github.com/eugeneware/ffmpeg-static and https://github.com/SavageCore/node-ffprobe-installer . Ollama and Qwen are installed separately. No model weights are bundled.',
 );
 console.log('Windows-Client vorbereitet.');

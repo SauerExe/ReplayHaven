@@ -36,7 +36,7 @@ Danach die Serveradresse im Browser öffnen → **Einstellungen → KI & Server*
 2. Den Aufnahmeordner auswählen. Unterordner werden mitgenommen.
 3. Serveradresse und Zugangsschlüssel eintragen.
 4. **Ollama installieren** öffnet den offiziellen Download. Ollama installieren und starten, dann im Client **Verbindung prüfen** klicken.
-5. **Modell laden** lädt einmalig Qwen3-VL 8B, ungefähr 6,1 GB. Das geschieht ausschließlich auf deinen Klick.
+5. **Modell laden** lädt einmalig Qwen3.5 9B, ungefähr 6,6 GB. Das geschieht ausschließlich auf deinen Klick.
 6. Mit **24 Bildern** beginnen und **Analyse & Upload starten** klicken.
 
 Aktiviere **Vorhandene Aufnahmen beim ersten Start mitnehmen**, bevor du erstmals startest, wenn du alte Clips ebenfalls importieren möchtest. Sonst werden sie als übersprungen vorgemerkt. Diese Auswahl gilt pro Aufnahmeordner und Server. Der Spielname ist optional; ohne Eingabe dient der Unterordnername als Hinweis für die KI.
@@ -63,12 +63,13 @@ Fortnite legt von jedem Match ein Replay unter `%LOCALAPPDATA%\FortniteGame\Save
 - Ein Clip aus einem Match, das noch läuft, wartet bis zu dessen Ende, höchstens 45 Minuten. Danach wird er wie bisher nur mit Bildern analysiert.
 - In Fortnite muss die Aufzeichnung von Replays eingeschaltet sein. Der Client liest nur den Kopf und die Ereignisse eines Replays, nicht das ganze Match.
 
-## Rainbow Six Siege: Karte und Rundenausgang (optional)
+## Texterkennung: R6-Karte, Rundenausgang und Valorant-Killfeed (optional)
 
-Mit **R6: Karte und Rundenausgang per Texterkennung** liest der Client in R6-Clips zwei Bilder je Sekunde mit einer Texterkennung (PaddleOCR über ONNX Runtime, auf der CPU). Daraus nimmt er den Kartennamen und Rundenergebnisse wie „ROUND WON“, sodass Titel wie „Rundensieg auf Oregon“ möglich werden.
+Mit **Texterkennung: R6-Karte und Rundenausgang, Valorant-Killfeed** liest der Client in R6-Clips zwei Bilder je Sekunde mit einer Texterkennung (PaddleOCR über ONNX Runtime, auf der CPU). Daraus nimmt er den Kartennamen und Rundenergebnisse wie „ROUND WON“, sodass Titel wie „Rundensieg auf Oregon“ möglich werden.
 
 - Eine Karte zählt erst, wenn sie in mindestens zwei Bildern sicher gelesen wurde. Ein Titel darf dann keine andere Karte nennen.
-- Kills liest die Texterkennung bewusst nicht. Wer eine Killfeed-Zeile verursacht hat und ob sie zum Clip gehört, ließ sich so nicht verlässlich klären.
+- In R6 liest die Texterkennung Kills bewusst nicht. Wer eine Killfeed-Zeile verursacht hat und ob sie zum Clip gehört, ließ sich so nicht verlässlich klären.
+- In Valorant liest sie nur den Killfeed oben rechts. Steht einer deiner eingetragenen Valorant-Namen links in einer Zeile, ist es dein Kill, steht er rechts, dein Tod; das Kopfschuss-Symbol wird meist mitgelesen. Trag jeden Namen ein, unter dem du je gespielt hast, sonst bleiben Clips aus dieser Zeit ohne Kills. Kills und Tode aus dem Killfeed ersetzen dann die, die die KI aus Bildschirmtexten gedeutet hat. Das dauert etwa 15 bis 25 Sekunden CPU je Clip.
 - Die Texterkennung braucht etwa eine Minute CPU-Zeit je Clip. Sie läuft gleichzeitig mit der KI, die auf der Grafikkarte rechnet, in einem eigenen Thread, damit das Fenster nicht stockt, und nutzt höchstens die Hälfte der Prozessorkerne.
 - Sie nutzt ONNX Runtime von Microsoft. Deren Windows-Fassung enthält Telemetrie-Ereignisse (ETW). Laut Datenschutzhinweis des Projekts werden sie nur aufgezeichnet, wenn eine Trace-Sitzung läuft, und nur mit deiner Zustimmung zu den Windows-Diagnosedaten übertragen.
 
@@ -101,6 +102,6 @@ Mit **R6: Karte und Rundenausgang per Texterkennung** liest der Client in R6-Cli
 
 ## Grenzen
 
-Modellqualität, Geschwindigkeit und Grafikspeicherbedarf hängen von deiner Hardware ab. Qwen3-VL 8B läuft auf Grafikkarten ab etwa 10 GB VRAM flüssig; ohne passende GPU rechnet Ollama auf der CPU und braucht deutlich länger. Prüfe nach der Einrichtung mit einem echten Clip: Server starten → Client verbinden → neue Aufnahme speichern → GPU-Auslastung beobachten → Ergebnis im Archiv prüfen → Original herunterladen.
+Modellqualität, Geschwindigkeit und Grafikspeicherbedarf hängen von deiner Hardware ab. Qwen3.5 9B läuft auf Grafikkarten ab etwa 10 GB VRAM flüssig; ohne passende GPU rechnet Ollama auf der CPU und braucht deutlich länger. Prüfe nach der Einrichtung mit einem echten Clip: Server starten → Client verbinden → neue Aufnahme speichern → GPU-Auslastung beobachten → Ergebnis im Archiv prüfen → Original herunterladen.
 
-Weiterführend: [Serverbetrieb](SERVER.md), [Entwicklung](../README.md), [Qwen3-VL bei Ollama](https://ollama.com/library/qwen3-vl:8b), [Ollama GPU-Unterstützung](https://docs.ollama.com/gpu).
+Weiterführend: [Serverbetrieb](SERVER.md), [Entwicklung](../README.md), [Qwen3.5 bei Ollama](https://ollama.com/library/qwen3.5:9b), [Ollama GPU-Unterstützung](https://docs.ollama.com/gpu).

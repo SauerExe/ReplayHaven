@@ -1,7 +1,8 @@
-import { Children, useEffect, useId, useRef, useState } from 'react';
+import { Children, useId } from 'react';
 import type { ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { linkHandler, prefersReducedMotion, type Navigate } from './links';
+import { linkHandler, type Navigate } from './links';
+import { useScrollPager } from './useScrollPager';
 
 export function Row({
   title,
@@ -20,36 +21,7 @@ export function Row({
   children: ReactNode;
 }) {
   const titleId = useId();
-  const trackRef = useRef<HTMLUListElement>(null);
-  const [edges, setEdges] = useState({ start: false, end: false });
-  const count = Children.count(children);
-
-  useEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
-    const update = () => {
-      const max = track.scrollWidth - track.clientWidth;
-      setEdges({ start: track.scrollLeft > 4, end: track.scrollLeft < max - 4 });
-    };
-    update();
-    track.addEventListener('scroll', update, { passive: true });
-    const observer = new ResizeObserver(update);
-    observer.observe(track);
-    return () => {
-      track.removeEventListener('scroll', update);
-      observer.disconnect();
-    };
-  }, [count]);
-
-  function page(direction: 1 | -1) {
-    const track = trackRef.current;
-    if (!track) return;
-    const gutter = parseFloat(getComputedStyle(track).paddingLeft) || 0;
-    track.scrollBy({
-      left: direction * Math.max(track.clientWidth - 2 * gutter, 160),
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-    });
-  }
+  const { trackRef, edges, page } = useScrollPager(Children.count(children));
 
   return (
     <section className={`stream-row stream-row--${kind}`} aria-labelledby={titleId}>

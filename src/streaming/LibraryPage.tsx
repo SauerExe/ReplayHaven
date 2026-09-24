@@ -4,6 +4,8 @@ import {
   ArrowUpRight,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Film,
   FolderPlus,
   Heart,
@@ -21,6 +23,7 @@ import { ClipMenu } from './ClipMenu';
 import { ClipLayers, useClipLayers, useMinuteClock, useStreamLibrary } from './connected';
 import { countLabel, formatTotal, formatWhen, isNew } from './format';
 import { GridClipTile } from './GridTile';
+import { useScrollPager } from './useScrollPager';
 import {
   filterLibrary,
   gameSummary,
@@ -155,6 +158,7 @@ export default function StreamingLibraryPage() {
     [state.clips, library, filters],
   );
   const shelf = useMemo(() => gameTiles(library.clips), [library.clips]);
+  const shelfPager = useScrollPager(shelf.length);
   const tags = useMemo(() => tagOptions(state.clips), [state.clips]);
   const spotlight = filters.game ? gameSummary(library, filters.game) : null;
   const selectedIds = selected.filter((id) => clips.some((c) => c.id === id));
@@ -230,7 +234,7 @@ export default function StreamingLibraryPage() {
 
       {shelf.length > 0 && (
         <div className="stream-shelf" role="group" aria-label="Nach Spiel filtern">
-          <ul className="stream-shelf-track">
+          <ul className="stream-shelf-track" ref={shelfPager.trackRef}>
             <li>
               <button
                 type="button"
@@ -266,6 +270,27 @@ export default function StreamingLibraryPage() {
               </li>
             ))}
           </ul>
+          {/* Wie in den Reihen der Startseite: die Knöpfe sind per Tab erreichbar, die Pfeile Mauskomfort. */}
+          <button
+            type="button"
+            className="stream-row-arrow stream-row-arrow--prev stream-shelf-arrow"
+            tabIndex={-1}
+            aria-label="Spiele: zurück"
+            data-visible={shelfPager.edges.start}
+            onClick={() => shelfPager.page(-1)}
+          >
+            <ChevronLeft size={30} strokeWidth={2.5} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="stream-row-arrow stream-row-arrow--next stream-shelf-arrow"
+            tabIndex={-1}
+            aria-label="Spiele: weiter"
+            data-visible={shelfPager.edges.end}
+            onClick={() => shelfPager.page(1)}
+          >
+            <ChevronRight size={30} strokeWidth={2.5} aria-hidden="true" />
+          </button>
         </div>
       )}
 

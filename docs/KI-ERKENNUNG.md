@@ -86,8 +86,8 @@ Das Bildmodell sieht je 32 Pixel Bildkante ein Token. Bei 1280 px Breite ist ein
 
 | Modell                   | Größe (Ollama) | Texterkennung (OCRBench) | Video (Video-MME) | Einordnung                                                                                  |
 | ------------------------ | -------------- | ------------------------ | ----------------- | ------------------------------------------------------------------------------------------- |
-| Qwen3-VL 8B Instruct     | 6,1 GB         | 896                      | 71,4              | heute; weiter beste Wahl fürs Lesen bei 8 GB VRAM                                           |
-| Qwen3.5 9B               | 6,6 GB         | 892                      | 78,4              | gleich gut lesen, deutlich besser im Ablauf; Denkmodus ist an und muss aus (`think: false`) |
+| Qwen3-VL 8B Instruct     | 6,1 GB         | 896                      | 71,4              | bis 2026-09-24 Standard                                                                     |
+| Qwen3.5 9B               | 6,6 GB         | 892                      | 78,4              | Standard seit 2026-09-24 (gemessen: 6/6 statt 5/6 Titel mit belegtem Ereignis, siehe unten) |
 | Qwen3-VL 4B / Qwen3.5 4B | 3,3 / 3,4 GB   | 881 / 850                | 69,3 / 76,9       | für 6-GB-Karten                                                                             |
 | Qwen3.5 27B, Qwen3.8 27B | 17 / 18 GB     | –                        | –                 | für 24-GB-Karten                                                                            |
 | Gemma 4 E4B / 12B        | –              | keine Angabe             | –                 | höchstens 1120 Token je Bild: zu grob für HUD-Text                                          |
@@ -195,3 +195,15 @@ Ton, Bildauswahl, Suche, Messung
 - SigLIP 2: https://huggingface.co/blog/siglip2, ONNX: https://huggingface.co/onnx-community/siglip2-large-patch16-512-ONNX; sqlite-vec: https://alexgarcia.xyz/sqlite-vec/js.html; Jina CLIP v2 (Lizenz): https://huggingface.co/jinaai/jina-clip-v2
 - Messung: promptfoo mit Ollama https://www.promptfoo.dev/docs/providers/ollama/; VDCscore https://arxiv.org/abs/2410.03051; GEPA https://github.com/gepa-ai/gepa
 - Datensätze: VideoGameBunny https://huggingface.co/datasets/VideoGameBunny/Dataset, GamePhysics https://huggingface.co/datasets/asgaardlab/GamePhysics-FullResolution
+
+## Erste Messung (2026-09-24)
+
+Zwölf Clips mit Handprüfung (Stichprobe `pruefung-2`: Valorant, Fortnite, Rainbow Six, Call of Duty, Chained Together, ARC Raiders, Desktop). Gleiche Einstellungen je Lauf: Spielernamen, ganzer Clip mit einem Bild alle drei Sekunden, Texterkennung, Fortnite-Replays.
+
+| Lauf                                        | Titel nennt belegtes Ereignis | Erfundenes im Titel | Laufzeit je Clip |
+| ------------------------------------------- | ----------------------------- | ------------------- | ---------------- |
+| Qwen3-VL 8B, PP-OCRv4, ohne Ton             | 4/6                           | 0                   | 77 s             |
+| Qwen3-VL 8B, PP-OCRv5-Lesen, mit Transkript | 5/6                           | 0                   | 77 s             |
+| Qwen3.5 9B, PP-OCRv5-Lesen, mit Transkript  | 6/6                           | 1 (Karte „Dantzig“) | 76 s             |
+
+Die erfundene Karte fängt seither die Titelprüfung ab (`agent/wording.ts`: „auf“ plus Eigenname muss bei R6 die erkannte Karte sein). PP-OCRv5 für lateinische Schrift las an 75 Killfeed-Ausschnitten mit bekannter Wahrheit 62 Opfernamen exakt, PP-OCRv4 53, bei gleicher Rechenzeit (`.docs/tools/ocr-vergleich.mts`). Zwölf Clips sind für eine Entscheidung knapp; der Messsatz aus der Reihenfolge oben bleibt nötig.

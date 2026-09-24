@@ -30,12 +30,17 @@ import type { GameEvent } from './events';
 import type { ReplayLookup, ReplayTrace } from './fortnite';
 import { isR6, R6_MAPS } from './r6';
 import type { TextLookup, TextTrace } from './r6';
+import { conversational, speechFacts, splitTranscript } from './speech';
+import type { Laugh, SpeechTrace, Transcript } from './speech';
 import { DeferredError } from './watcher';
 import { cleanText, fallbackTitle, tidyHighlights, titleProblems, uncertaintyFor } from './wording';
 import { namesFor } from './players';
 import type { PlayerName } from './players';
 
-export const DEFAULT_MODEL = 'qwen3-vl:8b';
+// Qwen3.5 9B las am 2026-09-24 mehr Meldungen als Qwen3-VL 8B (.docs/messungen, Stichprobe pruefung-2).
+export const DEFAULT_MODEL = 'qwen3.5:9b';
+/** Bildabstand für „ganzer Clip“: kürzer als die rund fünf Sekunden, die ein Killfeed steht. */
+export const FRAME_SPACING = 3;
 export const OLLAMA_URL = 'http://127.0.0.1:11434';
 // Reuse the model between batches, with a short expiry if the client exits unexpectedly.
 const BATCH_KEEP_ALIVE_SECONDS = 60;
@@ -73,11 +78,15 @@ export interface AnalysisTrace {
   replay?: ReplayTrace;
   /** Was die Texterkennung las (agent/r6.ts). */
   texts?: TextTrace;
+  /** Was die Spracherkennung mitschrieb (agent/speech.ts). */
+  speech?: SpeechTrace;
 }
 export interface LocalAnalyzerOptions {
   url: string;
   model: string;
   frames: number;
+  /** Ein Bild alle so viele Sekunden über den ganzen Clip; ersetzt dann `frames`. */
+  spacing?: number;
   cacheDir: string;
   media: MediaProcessor;
   isPaused: () => boolean;
@@ -100,7 +109,18 @@ export interface LocalAnalyzerOptions {
    * Texterkennung für Karte und Rundenausgang (agent/r6.ts). Sie rechnet auf der CPU, während
    * die KI auf der GPU sichtet; ohne Ergebnis zählen wie bisher nur die Bilder.
    */
-  texts?: (path: string, game: string, signal: AbortSignal) => Promise<TextLookup | undefined>;
+  texts?: (
+    path: string,
+    game: string,
+    signal: AbortSignal,
+    /** Eigene Namen in diesem Spiel; für den Valorant-Killfeed nötig. */
+    names: readonly string[],
+  ) => Promise<TextLookup | undefined>;
+  /**
+   * Transkript des Voice-Chats (docs/KI-ERKENNUNG.md, Stufe 4). Es läuft neben der Sichtung und
+   * gibt Spaßclips ohne Spielereignis ihr Thema; Lachstellen werden Zeitmarken.
+   */
+  speech?: (path: string, signal: AbortSignal) => Promise<Transcript | undefined>;
 }
 type Message = { role: 'user' | 'assistant'; content: string; images?: string[] };
 /**
@@ -277,6 +297,7 @@ export class LocalAnalyzer {
             stopReading.signal,
             ...(this.options.signal ? [this.options.signal] : []),
           ]),
+          trace.playerNames,
         )
         .catch((error): TextLookup => ({
           events: [],
@@ -288,8 +309,32 @@ export class LocalAnalyzer {
           },
         }))
         .finally(() => (read = true));
+      const listening = this.options
+        .speech?.(
+          path,
+          AbortSignal.any([
+            stopReading.signal,
+            ...(this.options.signal ? [this.options.signal] : []),
+          ]),
+        )
+        .catch((error): Transcript | undefined => {
+          trace.speech = {
+            engine: 'unbekannt',
+            seconds: 0,
+            words: 0,
+            laughs: 0,
+            error: error instanceof Error ? error.message : 'unbekannt',
+          };
+          return undefined;
+        });
       this.options.onProgress?.('Bilder aus deiner Aufnahme werden vorbereitet …');
-      const frames = await this.options.media.frames(path, work, duration, this.options.frames);
+      const frames = await this.options.media.frames(
+        path,
+        work,
+        duration,
+        this.options.frames,
+        this.options.spacing,
+      );
       if (!frames.length) throw new Error('Keine Bilder aus der Aufnahme lesbar.');
       // Bei langen Aufnahmen ist das Schlussfenster fest, bei kurzen bliebe sonst nichts als
       // Vorlauf übrig: dann zählt das letzte Clipdrittel als der gespeicherte Moment.
@@ -312,9 +357,13 @@ export class LocalAnalyzer {
         for (const f of observed.frames) seen.push({ ...f, seconds: batch[f.frame].seconds });
       }
       if (reading && !read)
-        this.options.onProgress?.('Texterkennung liest Karte und Rundenausgang …');
+        this.options.onProgress?.('Texterkennung liest Karte, Runde und Killfeed …');
       const texts = await reading;
       if (texts) trace.texts = texts.trace;
+      if (listening) this.options.onProgress?.('Spracherkennung schreibt den Voice-Chat mit …');
+      const transcript = await listening;
+      if (transcript) trace.speech = transcript.trace;
+      const laughs = transcript ? splitTranscript(transcript.segments).laughs : [];
       const map = texts?.map;
       // Das Modell liest die Meldungen, gedeutet werden sie hier (agent/events.ts). Kills und
       // Tode aus einem Replay sind exakt und ersetzen die gelesenen; Rundenergebnisse aus der
@@ -325,6 +374,7 @@ export class LocalAnalyzer {
           replay?.status === 'ok' ? replay.events : undefined,
         ),
         texts?.events,
+        texts?.feed,
       );
       trace.events = events;
       const weight = new Map(
@@ -386,11 +436,14 @@ export class LocalAnalyzer {
           : '';
       const titleRule = heads.length
         ? `Er benennt das wichtigste belegte Ereignis aus dem Schluss: ${phrase(heads[0])}${heads[1] ? `; er darf es mit diesem verbinden: ${phrase(heads[1])}` : ''}.${heads[0].source === 'replay' ? ' Anzahl, Waffe und Entfernung stammen aus dem Spiel selbst; nenne, was den Moment besonders macht, etwa die Zahl der Kills, einen Snipe oder die Entfernung, und nichts, was dem widerspricht.' : ''}`
-        : 'Es gibt kein belegtes Ereignis, also nennt er zuerst, was du im Schluss tust, als Tätigkeit mit Verb, dann ein Detail, das diesen Clip von anderen unterscheidet — nicht bloß Umgebung oder Gegenstände und keine Anzeige.';
+        : conversational(transcript)
+          ? 'Es gibt kein belegtes Spielereignis, aber ein Gespräch im Voice-Chat. Er nennt, worum es im Gespräch geht oder worüber gelacht wird, so konkret wie möglich (Thema, Pointe, genannte Namen), wie man den Clip einem Freund beschreiben würde; das Spielgeschehen darf dahinter zurücktreten. Nicht wörtlich zitieren.'
+          : 'Es gibt kein belegtes Ereignis, also nennt er zuerst, was du im Schluss tust, als Tätigkeit mit Verb, dann ein Detail, das diesen Clip von anderen unterscheidet — nicht bloß Umgebung oder Gegenstände und keine Anzeige.';
+      const said = speechFacts(transcript);
       const messages: Message[] = [
         {
           role: 'user',
-          content: `${rules} ${identity}\n${describeFacts(events, momentStart)}\nAufgabe: Schreibe zu dieser Aufnahme einen Titel, eine Beschreibung, eine Unsicherheit und höchstens fünf Zeitmarken. Gesamtdauer ${duration.toFixed(2)} Sekunden. Das beigefügte Bild stammt aus Sekunde ${focus.seconds.toFixed(2)}; es und die belegten Ereignisse sind verlässlich, die Beobachtungen unten sind unzuverlässige Notizen und daran zu prüfen.\nTitel: eine Überschrift aus zwei bis sechs Wörtern auf Deutsch, so wie ein Spieler den Moment einem Freund nennen würde, ohne "Du" am Anfang. ${titleRule}${mapRule} Keine Punktestände, keine Zahlenverhältnisse, keine Rundennummern, keine Wörter in Großbuchstaben, keine Leistungswerte, keinen Bildschirmtext wörtlich.\nBeschreibung: zwei bis drei kurze Sätze in der Du-Form: was du tust, was passiert und wie es ausgeht. Nur, was Bild und belegte Ereignisse tragen. Keine Munition, Lebenspunkte, Uhrzeiten, FPS oder Ping, keine Einblendungen von NVIDIA, Steam oder Discord.\nuncertainty: leer, außer etwas Wesentliches am Geschehen bleibt offen; dann ein kurzer Satz dazu, ohne Bilder, Sekunden oder das Vorgehen zu erwähnen.\nhighlights: höchstens fünf Stellen mit je eigenem Inhalt, Titel ein bis vier Wörter, seconds nur aus den Beobachtungen, zwischen 0 und ${duration.toFixed(2)}.\nTitel und Beschreibung handeln vom Clip, nie vom Vorgehen. Ausgabe JSON nach Schema.\nBeobachtungen: ${JSON.stringify(evidence)}`,
+          content: `${said ? rules.replace('Kein Ton vorhanden.', 'Vom Ton gibt es nur das Transkript unten.') : rules} ${identity}\n${describeFacts(events, momentStart)}${said ? `\n${said}` : ''}\nAufgabe: Schreibe zu dieser Aufnahme einen Titel, eine Beschreibung, eine Unsicherheit und höchstens fünf Zeitmarken. Gesamtdauer ${duration.toFixed(2)} Sekunden. Das beigefügte Bild stammt aus Sekunde ${focus.seconds.toFixed(2)}; es und die belegten Ereignisse sind verlässlich, die Beobachtungen unten sind unzuverlässige Notizen und daran zu prüfen.\nTitel: eine Überschrift aus zwei bis sechs Wörtern auf Deutsch, so wie ein Spieler den Moment einem Freund nennen würde, ohne "Du" am Anfang. ${titleRule}${mapRule} Keine Punktestände, keine Zahlenverhältnisse, keine Rundennummern, keine Wörter in Großbuchstaben, keine Leistungswerte, keinen Bildschirmtext wörtlich.\nBeschreibung: zwei bis drei kurze Sätze in der Du-Form: was du tust, was passiert und wie es ausgeht. Nur, was Bild, belegte Ereignisse${said ? ' und das Gespräch' : ''} tragen. Keine Munition, Lebenspunkte, Uhrzeiten, FPS oder Ping, keine Einblendungen von NVIDIA, Steam oder Discord.\nuncertainty: leer, außer etwas Wesentliches am Geschehen bleibt offen; dann ein kurzer Satz dazu, ohne Bilder, Sekunden oder das Vorgehen zu erwähnen.\nhighlights: höchstens fünf Stellen mit je eigenem Inhalt, Titel ein bis vier Wörter, seconds nur aus den Beobachtungen, zwischen 0 und ${duration.toFixed(2)}.\nTitel und Beschreibung handeln vom Clip, nie vom Vorgehen. Ausgabe JSON nach Schema.\nBeobachtungen: ${JSON.stringify(evidence)}`,
           images: [focusImage],
         },
       ];
@@ -451,6 +504,7 @@ export class LocalAnalyzer {
         playing,
         focusObservation: focus.observation,
         lostFrames: trace.lostFrames,
+        laughs,
       });
       return { result, duration, model: this.options.model };
     } finally {
@@ -480,6 +534,7 @@ export class LocalAnalyzer {
       playing: boolean;
       focusObservation: string;
       lostFrames: number;
+      laughs: Laugh[];
     },
   ): AnalysisResult {
     const { events, heads, seen, duration, playing } = context;
@@ -501,7 +556,7 @@ export class LocalAnalyzer {
       // Das Feld des Modells nimmt Vorbehalte auf, damit sie nicht in der Beschreibung landen;
       // angezeigt wird der aus der Beleglage abgeleitete Vorbehalt.
       uncertainty: uncertaintyFor(heads, context.lostFrames),
-      highlights: tidyHighlights(summary.highlights, events, duration),
+      highlights: tidyHighlights(summary.highlights, events, duration, context.laughs),
     });
   }
 }

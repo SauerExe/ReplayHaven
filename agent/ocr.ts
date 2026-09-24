@@ -1,12 +1,18 @@
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { availableParallelism } from 'node:os';
+import { join } from 'node:path';
 import type { InferenceSession } from 'onnxruntime-node';
+import { ensureModel, modelFolder } from './laughs';
+import type { ModelFile } from './laughs';
+import latin from './ocr-models.json';
 
 const moduleRequire = createRequire(typeof __filename === 'string' ? __filename : import.meta.url);
 
 /**
- * Texterkennung mit PaddleOCR (PP-OCRv4) über ONNX Runtime auf der CPU: erst finden, wo Text
+ * Texterkennung mit PaddleOCR (Erkennung PP-OCRv4, Lesen PP-OCRv5 lateinisch) über ONNX Runtime
+ * auf der CPU: erst finden, wo Text
  * steht (Erkennungsmodell, DB-Verfahren), dann jede Zeile lesen (CTC). Nachgebaut ohne OpenCV
  * und ohne canvas: Bilder kommen als rohe RGB-Pixel von FFmpeg. Spieloberflächen schreiben
  * waagerecht, deshalb genügen achsparallele Rechtecke statt gedrehter Boxen.
@@ -249,13 +255,35 @@ export interface OcrModels {
   keys: string;
 }
 
-/** Die Modelle eines Entwicklungs-Checkouts (devDependency @gutenye/ocr-models). */
-export function developmentModels(root = process.cwd()): OcrModels {
+/**
+ * Das Lesemodell PP-OCRv5 für lateinische Schrift. Das Erkennungsmodell bleibt PP-OCRv4: das
+ * v5-Gegenstück ist 88 MB groß und doppelt so langsam, gewinnt aber kaum etwas dazu (62 gegen 65
+ * von 75 Namen, .docs/tools/ocr-vergleich.mts).
+ */
+export const LATIN_REC: ModelFile = latin.rec;
+export const LATIN_KEYS: ModelFile = latin.keys;
+
+/** Lädt das v5-Lesemodell samt Zeichenliste in `folder`, falls es fehlt, geprüft per SHA-256. */
+export async function ensureLatinModels(folder = modelFolder()) {
+  return {
+    rec: await ensureModel(folder, LATIN_REC),
+    keys: await ensureModel(folder, LATIN_KEYS),
+  };
+}
+
+/**
+ * Die Modelle eines Entwicklungs-Checkouts: Erkennung aus der devDependency @gutenye/ocr-models,
+ * Lesen mit PP-OCRv5, sobald `ensureLatinModels` es geladen hat, sonst noch mit PP-OCRv4.
+ */
+export function developmentModels(root = process.cwd(), folder = modelFolder()): OcrModels {
   const assets = `${root}/node_modules/@gutenye/ocr-models/assets`;
+  const rec = join(folder, LATIN_REC.file!);
+  const keys = join(folder, LATIN_KEYS.file!);
+  const latinReady = existsSync(rec) && existsSync(keys);
   return {
     det: `${assets}/ch_PP-OCRv4_det_infer.onnx`,
-    rec: `${assets}/ch_PP-OCRv4_rec_infer.onnx`,
-    keys: `${assets}/ppocr_keys_v1.txt`,
+    rec: latinReady ? rec : `${assets}/ch_PP-OCRv4_rec_infer.onnx`,
+    keys: latinReady ? keys : `${assets}/ppocr_keys_v1.txt`,
   };
 }
 

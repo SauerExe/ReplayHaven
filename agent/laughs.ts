@@ -15,6 +15,8 @@ const moduleRequire = createRequire(typeof __filename === 'string' ? __filename 
 
 export interface ModelFile {
   url: string;
+  /** Dateiname in der Ablage; sonst der letzte Teil der Adresse. */
+  file?: string;
   bytes: number;
   sha256: string;
 }
@@ -86,7 +88,7 @@ export async function ensureModel(
   get: typeof fetch = fetch,
   onDownload?: () => void,
 ) {
-  const path = join(folder, model.url.split('/').at(-1)!);
+  const path = join(folder, model.file ?? model.url.split('/').at(-1)!);
   if (await matches(path, model)) return path;
   onDownload?.();
   const response = await get(model.url);

@@ -2179,7 +2179,18 @@
 
 /* Spieleleiste: dieselben Cover und Zahlen wie „Deine Spiele“ auf der Startseite */
 .stream-shelf {
+  --shelf-item-w: clamp(96px, 8.2vw, 136px);
+  position: relative;
   margin: 0 calc(-1 * var(--stream-gutter)) 24px;
+}
+/* Die Pfeile decken genau die Cover ab: Innenabstand oben plus Höhe im Format 2:3. */
+.stream-shelf-arrow {
+  top: 10px;
+  height: calc(var(--shelf-item-w) * 1.5);
+}
+.stream-shelf:is(:hover, :focus-within) .stream-shelf-arrow[data-visible='true'] {
+  opacity: 1;
+  visibility: visible;
 }
 .stream-shelf-track {
   display: flex;
@@ -2199,7 +2210,7 @@
   scroll-snap-align: start;
 }
 .stream-shelf-item {
-  width: clamp(96px, 8.2vw, 136px);
+  width: var(--shelf-item-w);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2395,6 +2406,10 @@
   background: transparent;
   color: var(--stream-text);
   font-size: 15px;
+  outline: none;
+}
+/* Den Fokus zeigt der Rahmen des Felds (:focus-within); ein zweiter Ring am Input doppelt ihn. */
+.stream-search-field input:focus-visible {
   outline: none;
 }
 .stream-search-field input::placeholder {
@@ -2944,13 +2959,11 @@
     flex: 1;
   }
   .stream-shelf {
+    --shelf-item-w: 84px;
     margin-bottom: 18px;
   }
   .stream-shelf-track {
     gap: 10px;
-  }
-  .stream-shelf-item {
-    width: 84px;
   }
   .stream-shelf-name {
     font-size: 12px;

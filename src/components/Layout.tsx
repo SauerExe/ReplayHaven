@@ -207,7 +207,9 @@ export function Layout() {
         <Brand />
         <span>Deine Momente. Dein Archiv.</span>
         <div>
-          <span className="demo-label">Beispiel-Cards</span>
+          {state.clips.some((c) => !c.server && !c.local) && (
+            <span className="demo-label">Beispiel-Cards</span>
+          )}
           <Link to="/devices">
             <WifiOff size={13} />{' '}
             {server.connected ? 'Archiv-Server verbunden' : 'Server nicht verbunden'}{' '}

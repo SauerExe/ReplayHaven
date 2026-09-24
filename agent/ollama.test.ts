@@ -329,7 +329,7 @@ it.each([
         confidence: 'high',
         description: 'Du triffst den Gegner.',
         uncertainty: '',
-        highlights: [{ seconds: 15, title: 'Gegner ausgeschaltet' }],
+        highlights: [{ seconds: 11.5, title: 'Gegner ausgeschaltet' }],
       });
     } finally {
       if (
@@ -674,8 +674,8 @@ it('takes kills from the replay, asks for the detail and waits while the match r
       tags: ['Kill', 'Multikill'],
       confidence: 'high',
       highlights: [
-        { seconds: 14, title: 'Kill mit der Schrotflinte' },
-        { seconds: 17, title: 'Doppel-Kill mit der Schrotflinte' },
+        { seconds: 13, title: 'Kill mit der Schrotflinte' },
+        { seconds: 16, title: 'Doppel-Kill mit der Schrotflinte' },
       ],
     });
     expect(trace?.events.filter((e) => e.source === 'screen')).toEqual([]);

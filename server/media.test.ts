@@ -37,6 +37,11 @@ it('labels every sampled frame with the moment it actually shows', async () => {
       const labelled = await brightness(await media.frameAt(video, root, frame.seconds));
       expect(Math.abs((await brightness(frame.base64)) - labelled)).toBeLessThan(2.5);
     }
+    // Ganzer Clip: ein Bild alle 3 s, gleichmäßig verteilt; ein kurzer Clip behält die Mindestzahl.
+    const even = await media.frames(video, join(root, 'even'), 60, 12, 3);
+    expect(even).toHaveLength(20);
+    expect(even[1].seconds - even[0].seconds).toBeCloseTo(3, 1);
+    expect(await media.frames(video, join(root, 'short'), 60, 30, 3)).toHaveLength(30);
   } finally {
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
       await rm(root, { recursive: true, force: true });

@@ -62,9 +62,30 @@ All notable changes to this project are documented here. The format follows
   worker thread and keeps its models across restarts, so the client window stays responsive.
   With the option on, starting the client first loads it once and names a missing Microsoft
   Visual C++ runtime instead of leaving every clip without a map.
+- Valorant kills, headshots and deaths from the kill feed: the text recognition reads only the
+  top-right corner twice a second and matches your in-game names; your name on the left is a
+  kill, on the right your death. These replace kills and deaths the model guessed from the
+  screen (it took the previous round's combat report for a death). Needs your Valorant names,
+  including older ones.
+- "Ganzer Clip · ein Bild alle 3 Sekunden" in the client: frames spread evenly over the whole
+  clip instead of two thirds from the end, so kill-feed lines, which stay about five seconds,
+  are all seen. Short clips still get at least 24 frames.
+- Voice chat as context (analyser option `speech`, not yet in the client): a transcript goes to
+  the summary, so fun clips without game events get titles about what was said; runs of
+  repeated short lines that speech recognition produces while people laugh become a
+  "Lachflash" time mark.
 
 ### Changed
 
+- Default model is Qwen3.5 9B instead of Qwen3-VL 8B. On twelve hand-checked clips it named the
+  proven event in 6 of 6 titles instead of 5 of 6, at the same speed (docs/KI-ERKENNUNG.md).
+- Text recognition reads with the PP-OCRv5 latin model (downloaded and checked by SHA-256 when
+  the client is built): 62 instead of 53 of 75 kill-feed names read exactly, at the same speed.
+- Kills spread over a clip count as one multi-kill with their number ("Vierfach-Kill"), and it
+  may lead the title even when the kills happen before the final seconds.
+- Time marks for kills and deaths start one second before the last frame without the message
+  instead of on the message, which appears after the kill; several kills keep a mark each.
+- Game shelf in the library pages with arrows like the rows on the home page.
 - The README shows the product with screenshots of the web library, the AI summary and the
   Windows client, an architecture graphic for light and dark mode and a flow diagram.
   `npm run readme:images` regenerates all images from the real interface with demo data. The
@@ -82,6 +103,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- R6 kill pop-ups read as "+100 | Kill" count as kills, and one pop-up on two frames in a row
+  counts once unless the alive count changed. Titles naming more kills than counted, an "Ace"
+  (in R6 an operator), or a place the text recognition never read are corrected.
+- Sample collections and the "Beispiel-Cards" label disappear once a server is connected.
+- The library search field showed two focus rings.
 - Recordings with a separate microphone track play with your voice in the library: the
   playback copy mixes all audio tracks (the video is copied, not re-encoded), since browsers
   only play the first track. Extra tracks are folded to the centre, as a mono microphone often

@@ -1,4 +1,4 @@
-import { WEAPON_WITH, countWord, phrase } from './events';
+import { SIGNIFICANCE, WEAPON_WITH, countWord, phrase } from './events';
 import type { EventKind, GameEvent, Weapon } from './events';
 
 /**
@@ -66,6 +66,19 @@ export function unsupportedClaims(text: string, events: GameEvent[]) {
   // Serien und Entfernungen prüfen. Clips ohne Replay prüft das wie bisher.
   if (events.some((e) => e.source === 'replay'))
     problems.push(...exactClaims(rest, events, killed));
+  else {
+    // Auch eine gelesene Serie ist gezählt: "Vierfach-Kill" bei drei Kills stimmt nicht.
+    const counted = Math.max(
+      0,
+      ...events.map((e) => (e.kind === 'multikill' ? (e.count ?? 2) : 0)),
+    );
+    const series = seriesIn(rest);
+    if (counted && series > counted)
+      problems.push(`behauptet ${series} Kills in Folge, belegt sind ${counted}`);
+  }
+  // In R6 heißt ein Operator ACE ("KILLED BY xiTango | ACE"); ein Ace braucht eine eigene Meldung.
+  if (/\bace\b/i.test(text) && !has(events, ['ace']))
+    problems.push('behauptet ein Ace, das keine Meldung belegt');
   if (!killed && EITHER.test(rest) && !kill && !death)
     problems.push('behauptet ein Ausschalten, das keine Meldung belegt');
   if (WIN.test(text) && !has(events, WINS))
@@ -116,6 +129,10 @@ function exactClaims(text: string, events: GameEvent[], killed: boolean) {
   return problems;
 }
 
+/** Gewöhnliche Wendungen mit "auf", die keine Karte meinen ("Kopfschuss auf Distanz"). */
+const COMMON_AFTER_AUF =
+  /^(?:Distanz|Entfernung|Abstand|Anhieb|Augenhöhe|Sicht|Zeit|Kurs|Ansage|Kommando|Befehl|Risiko|Ansatz|Knopfdruck|Zuruf)$/i;
+
 /** Was über den Ort bekannt ist: die erkannte Karte und alle Karten des Spiels. */
 export interface MapContext {
   map?: string;
@@ -137,6 +154,28 @@ export function titleProblems(
       place?.map
         ? `nennt die Karte ${named}, erkannt wurde ${place.map}`
         : `nennt die Karte ${named}, die nicht erkannt wurde`,
+    );
+  // Auch ein Ort, den es gar nicht gibt: Qwen3.5 schrieb am 2026-09-24 "Gelber Bagger auf
+  // Dantzig" zu einem Bild ohne Kartennamen. "auf" plus Eigenname zählt als Kartenangabe.
+  const where = /\bauf\s+([A-ZÄÖÜ][\p{L}'-]+(?:\s+[A-ZÄÖÜ][\p{L}'-]+)?)\s*[!.]?$/u.exec(
+    title.trim(),
+  );
+  // Ebenso zwei großgeschriebene Wörter nach einer Präposition ("Übersicht über Dirt Haul"):
+  // im Deutschen fast immer ein Eigenname, einzelne Wörter ("in Deckung") dagegen oft nicht.
+  // Wortgrenze per Lookbehind: \b kennt kein "ü" und fände "über" nicht.
+  const compound =
+    /(?<!\p{L})(?:auf|über|in|im|am|an|bei|nach|vor)\s+([A-ZÄÖÜ][\p{L}'-]+\s+[A-ZÄÖÜ][\p{L}'-]+)/u.exec(
+      title,
+    );
+  const invented = [where?.[1], compound?.[1]].find(
+    (name) =>
+      name && !COMMON_AFTER_AUF.test(name) && name.toLowerCase() !== place?.map?.toLowerCase(),
+  );
+  if (place && !named && invented)
+    problems.push(
+      place.map
+        ? `nennt den Ort ${invented}, erkannt wurde die Karte ${place.map}`
+        : `nennt den Ort ${invented}, der nicht als Karte erkannt wurde`,
     );
   if (!title.trim()) problems.push('ist leer');
   if (shouting(title)) problems.push('übernimmt Bildschirmtext in Großbuchstaben');
@@ -414,29 +453,85 @@ export interface Highlight {
  * Unbelegtes behaupten und nicht dieselbe Stelle oder denselben Titel wiederholen. Vorher standen
  * sechs Marken mit demselben Titel "Tod durch Feuerwaffe" untereinander.
  */
-export function tidyHighlights(proposed: Highlight[], events: GameEvent[], duration: number) {
+/** Sekunden Vorlauf vor einer Zeitmarke aus Meldung oder Replay. */
+export const HIGHLIGHT_LEAD = 1;
+/** Mindestabstand eines Modellvorschlags zu einer belegten Marke, in Sekunden. */
+const PROVEN_GAP = 3;
+/** Ereignisse eines Augenblicks, deren Einblendung erst danach erscheint. */
+const SUDDEN: EventKind[] = ['kill', 'multikill', 'headshot', 'knock', 'death', 'ace', 'clutch'];
+export function tidyHighlights(
+  proposed: Highlight[],
+  events: GameEvent[],
+  duration: number,
+  /** Lachstellen aus dem Transkript (agent/speech.ts); die Marke setzt kurz vor dem Lachen an. */
+  laughs: readonly { start: number; end: number }[] = [],
+) {
   const out: Highlight[] = [];
   // Neben belegten Ereignissen reichen wenige Vorschläge; sonst reihen sich "Kampfbericht",
   // "Schneeumgebung" und "Karte B Site" hinter den eigentlichen Moment.
   let room = events.some((e) => ['screen', 'replay', 'ocr'].includes(e.source)) ? 3 : 5;
   const key = (title: string) => title.toLowerCase().replace(/[^a-zäöüß0-9]+/g, '');
-  const add = (h: Highlight) => {
+  // Belegte Kills und Tode dürfen gleich heißen: drei Kills sind drei Stellen. Ein Siegerbanner,
+  // das in zwei Bildern stand, ist dagegen eine Stelle, ebenso ein Vorschlag mit vergebenem Titel.
+  // Das Modell nennt belegte Momente zur Zeit der Einblendung; neben der vorgezogenen Marke
+  // desselben Moments wäre das eine zweite, deshalb halten Vorschläge Abstand zu belegten Marken.
+  const proven: number[] = [];
+  // `belegt`: aus Ereignis oder Ton; `wiederholbar`: derselbe Titel darf mehrmals stehen.
+  const add = (h: Highlight, source: 'vorschlag' | 'belegt' | 'wiederholbar' = 'vorschlag') => {
     if (!Number.isFinite(h.seconds) || h.seconds < 0 || h.seconds > duration) return;
     const seconds = h.seconds;
     const title = h.title.replace(/\s+/g, ' ').trim().slice(0, 120);
     if (!title) return;
-    if (out.some((o) => key(o.title) === key(title) || Math.abs(o.seconds - seconds) < 1.5)) return;
+    if (
+      out.some(
+        (o) =>
+          (source !== 'wiederholbar' && key(o.title) === key(title)) ||
+          Math.abs(o.seconds - seconds) < 1.5,
+      ) ||
+      (source === 'vorschlag' && proven.some((p) => Math.abs(p - seconds) < PROVEN_GAP))
+    )
+      return;
+    if (source !== 'vorschlag') proven.push(seconds);
     out.push({
       seconds: Number(seconds.toFixed(2)),
       title,
       description: cleanText(h.description).slice(0, 400),
     });
   };
-  for (const e of events)
+  // Eine Zeitmarke soll den Moment zeigen, nicht die Einblendung danach: gelesene Meldungen
+  // beginnen am letzten Bild ohne sie, alle mit etwas Vorlauf, damit man den Kill kommen sieht.
+  // Ergebnisbanner stehen lange und markieren ihr Erscheinen selbst; sie bleiben, wo sie sind.
+  const start = (e: GameEvent, seconds: number) =>
+    SUDDEN.includes(e.kind) ? Math.max(0, seconds - HIGHLIGHT_LEAD) : seconds;
+  // An derselben Stelle gewinnt das gewichtigere Ereignis: der Dreifach-Kill vor dem dritten Kill.
+  const ordered = [...events].sort(
+    (a, b) => (a.seconds ?? 0) - (b.seconds ?? 0) || SIGNIFICANCE[b.kind] - SIGNIFICANCE[a.kind],
+  );
+  const sourceOf = (e: GameEvent) => (SUDDEN.includes(e.kind) ? 'wiederholbar' : 'belegt');
+  for (const e of ordered)
     if (e.seconds !== null && (e.source === 'screen' || e.source === 'ocr'))
-      add({ seconds: e.seconds, title: label(e), description: `Meldung: ${e.text}` });
+      add(
+        {
+          seconds: start(e, SUDDEN.includes(e.kind) ? (e.from ?? e.seconds) : e.seconds),
+          title: label(e),
+          description: `Meldung: ${e.text}`,
+        },
+        sourceOf(e),
+      );
     else if (e.seconds !== null && e.source === 'replay')
-      add({ seconds: e.seconds, title: label(e), description: `${phrase(e)}.` });
+      add(
+        { seconds: start(e, e.seconds), title: label(e), description: `${phrase(e)}.` },
+        sourceOf(e),
+      );
+  for (const laugh of laughs)
+    add(
+      {
+        seconds: Math.max(0, laugh.start - HIGHLIGHT_LEAD),
+        title: 'Lachflash',
+        description: 'Lachen im Voice-Chat.',
+      },
+      'wiederholbar',
+    );
   for (const h of proposed) {
     if (room <= 0) break;
     if (unsupportedClaims(`${h.title} ${h.description}`, events).length || shouting(h.title))

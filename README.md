@@ -26,7 +26,7 @@
 
 Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.DVR.mp4`, a hundred times over. ReplayHaven turns that into **“Ace auf Inferno”** with a short description, tags and jump marks, and it does so on your own hardware: a small Windows client analyses each new recording with a local vision model, your own server keeps the original forever, and any browser in your home becomes the place to watch it again.
 
-> **Auf Deutsch:** ReplayHaven ist ein selbst gehostetes Archiv für Gaming-Clips. Ein Windows-Client benennt neue Aufnahmen mit einer lokalen KI (Ollama, Qwen3-VL) und lädt sie auf deinen eigenen Server; dort findest du sie in einer Mediathek im Streaming-Stil wieder. Die Oberfläche ist deutsch. Die Schritt-für-Schritt-Anleitung mit Fehlerhilfe steht in **[docs/START.md](docs/START.md)**, der Serverbetrieb in **[docs/SERVER.md](docs/SERVER.md)**.
+> **Auf Deutsch:** ReplayHaven ist ein selbst gehostetes Archiv für Gaming-Clips. Ein Windows-Client benennt neue Aufnahmen mit einer lokalen KI (Ollama, Qwen3.5) und lädt sie auf deinen eigenen Server; dort findest du sie in einer Mediathek im Streaming-Stil wieder. Die Oberfläche ist deutsch. Die Schritt-für-Schritt-Anleitung mit Fehlerhilfe steht in **[docs/START.md](docs/START.md)**, der Serverbetrieb in **[docs/SERVER.md](docs/SERVER.md)**.
 
 ## Features
 
@@ -91,7 +91,7 @@ What happens when you save a clip:
 flowchart LR
   rec["Recorder saves a clip"] --> wait["Client waits until<br/>the file is complete"]
   wait --> frames["24 or 48 frames"]
-  frames --> model["Qwen3-VL via Ollama<br/>describes the frames"]
+  frames --> model["Qwen3.5 via Ollama<br/>describes the frames"]
   model --> rules["Fixed rules read kills, deaths<br/>and round results from the screen"]
   extras["Fortnite replays,<br/>R6 text recognition"] -. optional .-> rules
   rules --> check["Title checked<br/>against the events"]
@@ -138,7 +138,7 @@ Open the server address in a browser, go to **Einstellungen → KI & Server** an
 
 1. Install `ReplayHaven-Client-Setup.exe` from the [releases](https://github.com/SauerExe/ReplayHaven/releases) or from your server's **Geräte** page. The installer is not code-signed yet, so SmartScreen asks for confirmation. No release yet? Build it on Windows with `npm ci && npm run client:build`.
 2. Pick your recording folder (subfolders included), enter the server address and the access key.
-3. Install [Ollama](https://ollama.com/download/windows) and click **Modell laden** once. It downloads Qwen3-VL 8B, about 6.1 GB.
+3. Install [Ollama](https://ollama.com/download/windows) and click **Modell laden** once. It downloads Qwen3.5 9B, about 6.6 GB.
 4. Click **Analyse & Upload starten**. New recordings are analysed once they are completely written and show up in the library a minute or two later.
 
 Pause the client while you play if you need the GPU. The full German guide with troubleshooting is [docs/START.md](docs/START.md).
@@ -167,7 +167,7 @@ Command-line tools show what these sources contribute to your own clips before y
 | Component  | Requirement                                                                                                                                           |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Server     | Docker Engine 24+ with Compose v2.24+, linux/amd64 or linux/arm64, disk space for your clips. Without Docker: Node.js 24+ and FFmpeg.                 |
-| Gaming PC  | Windows 10/11 x64. For local AI: [Ollama](https://ollama.com) and a GPU with about 10 GB VRAM for Qwen3-VL 8B. CPU-only works, but slowly.            |
+| Gaming PC  | Windows 10/11 x64. For local AI: [Ollama](https://ollama.com) and a GPU with about 10 GB VRAM for Qwen3.5 9B. CPU-only works, but slowly.             |
 | Recordings | MP4, M4V, MOV, WebM or MKV, up to 2 GB, 30 minutes and 8K per file. H.264 MP4 plays directly; other codecs get a playback copy transcoded on the CPU. |
 | Recorder   | Anything that writes files into a folder: NVIDIA App (Instant Replay), OBS, Xbox Game Bar and others.                                                 |
 
