@@ -62,7 +62,7 @@ for (const path of files) {
     results.push({ clip: basename(path), error: error instanceof Error ? error.message : '?' });
   }
 }
-await reader?.close();
+await Promise.all([reader?.close(), texts.close()]);
 if (values.json) {
   await writeFile(resolve(values.json), JSON.stringify(results, null, 2));
   console.log(`\nJSON: ${resolve(values.json)}`);
