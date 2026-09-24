@@ -45,15 +45,22 @@ export interface AudioTrack {
 }
 /**
  * Mischt alle Tonspuren zu einer. Nimmt die NVIDIA App das Mikrofon als eigene Spur auf, spielt
- * ein Browser sonst nur die erste Spur ab und deine Stimme fehlt. normalize=0 hält die Pegel,
- * statt jede Spur durch die Zahl der Spuren zu teilen; der Begrenzer fängt Spitzen ab, wenn
- * Spielton und Stimme zugleich laut sind.
+ * ein Browser sonst nur die erste Spur ab und deine Stimme fehlt. Ein Mono-Mikrofon landet in
+ * einer Stereospur oft nur auf einem Kanal (Forenberichte seit 2013); jede weitere Spur wird
+ * deshalb mittig gefaltet, sonst käme die Stimme nur auf einem Ohr an. normalize=0 hält die
+ * Pegel, statt jede Spur durch die Zahl der Spuren zu teilen; der Begrenzer fängt Spitzen ab,
+ * wenn Spielton und Stimme zugleich laut sind.
  */
-function mixedAudio(tracks: number) {
-  const inputs = Array.from({ length: tracks }, (_, i) => `[0:a:${i}]`).join('');
+function mixedAudio(tracks: readonly AudioTrack[]) {
+  const inputs = tracks.map((t, i) =>
+    i > 0 && t.channels >= 2
+      ? `[0:a:${t.index}]pan=stereo|c0<c0+c1|c1<c0+c1[a${i}]`
+      : `[0:a:${t.index}]aformat=channel_layouts=stereo[a${i}]`,
+  );
+  const labels = tracks.map((_, i) => `[a${i}]`).join('');
   return [
     '-filter_complex',
-    `${inputs}amix=inputs=${tracks}:duration=longest:normalize=0,alimiter=limit=0.95:level=0[mixed]`,
+    `${inputs.join(';')};${labels}amix=inputs=${tracks.length}:duration=longest:normalize=0,alimiter=limit=0.95:level=0[mixed]`,
     '-map',
     '[mixed]',
   ];
@@ -185,14 +192,14 @@ export class MediaProcessor {
           30 * 60000,
         );
       // Lässt sich eine Zusatzspur nicht mischen (leer oder unlesbar), gilt wie früher die erste.
-      if (mix) await copy(mixedAudio(meta.audio.length)).catch(() => copy(['-map', '0:a:0?']));
+      if (mix) await copy(mixedAudio(meta.audio)).catch(() => copy(['-map', '0:a:0?']));
       else await copy(['-map', '0:a:0?']);
     }
     return { ...meta, playbackFile };
   }
   async analysisVideo(original: string, directory: string, includeAudio: boolean) {
     const output = join(directory, 'analysis.mp4');
-    const tracks = includeAudio ? (await this.probe(original)).audio.length : 0;
+    const tracks = includeAudio ? (await this.probe(original)).audio : [];
     const encode = (audio: string[]) =>
       runFile(
         this.ffmpeg,
@@ -235,7 +242,7 @@ export class MediaProcessor {
       );
     const single = includeAudio ? ['-map', '0:a:0?'] : [];
     // Wie bei der Wiedergabekopie: lässt sich nicht mischen, gilt die erste Spur.
-    if (tracks > 1) await encode(mixedAudio(tracks)).catch(() => encode(single));
+    if (tracks.length > 1) await encode(mixedAudio(tracks)).catch(() => encode(single));
     else await encode(single);
     return output;
   }

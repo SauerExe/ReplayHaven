@@ -164,3 +164,72 @@ it('streams raw RGB frames labelled with the middle of their interval', async ()
       await rm(root, { recursive: true, force: true });
   }
 });
+
+it('puts a microphone that sits on one channel in the middle of the playback mix', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-media-'));
+  try {
+    const media = new MediaProcessor({});
+    const video = join(root, 'test-only.mp4');
+    // Spielton als stille Stereospur, das Mikrofon nur auf dem linken Kanal der zweiten Spur.
+    await runFile(media.ffmpeg, [
+      '-nostdin',
+      '-v',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=black:s=64x36:r=10:d=3',
+      '-f',
+      'lavfi',
+      '-i',
+      'anullsrc=r=48000:cl=stereo',
+      '-f',
+      'lavfi',
+      '-i',
+      'aevalsrc=0.3*sin(2*PI*880*t)|0:s=48000:d=3',
+      '-map',
+      '0:v',
+      '-map',
+      '1:a',
+      '-map',
+      '2:a',
+      '-t',
+      '3',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      video,
+    ]);
+    const prepared = await media.prepare(video, root, '.mp4');
+    const channel = async (index: number) => {
+      const log = await runFile(
+        media.ffmpeg,
+        [
+          '-nostdin',
+          '-v',
+          'info',
+          '-i',
+          prepared.playbackFile,
+          '-af',
+          `pan=mono|c0=c${index},volumedetect`,
+          '-f',
+          'null',
+          '-',
+        ],
+        60000,
+        'stderr',
+      );
+      return Number(/max_volume:\s*(-?[\d.]+) dB/.exec(log)?.[1] ?? -Infinity);
+    };
+    const [left, right] = [await channel(0), await channel(1)];
+    expect(right).toBeGreaterThan(-30);
+    expect(Math.abs(left - right)).toBeLessThan(1);
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});

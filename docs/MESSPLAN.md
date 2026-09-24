@@ -68,15 +68,15 @@ Mit `--account <Epic-Konto-ID>` gilt die eingetragene ID statt der Automatik.
 - `ffprobe` liefert alle Tonspuren einer Aufnahme.
 - Die Mikrofonspur wird erkannt: zuerst am Titel, dann an den Pegeln (stumme Spuren zählen nicht), dann an der Reihenfolge (Spielton zuerst, Mikrofon danach). Bleibt es offen, gibt es keine Mikrofonspur statt einer geratenen.
 - Eine Spur lässt sich als WAV mit 16 kHz mono herauslösen.
-- Die Analyse nutzt den Ton noch nicht.
-- Auf dem Server bekommen Aufnahmen mit mehreren Tonspuren eine Wiedergabekopie mit gemischtem Ton. Das Bild wird dabei kopiert, nicht neu kodiert.
+- Die Analyse nutzt den Ton noch nicht; wie sie es tun soll, beschreibt `docs/TON-KONZEPT.md` samt eigenem Messplan.
+- Auf dem Server bekommen Aufnahmen mit mehreren Tonspuren eine Wiedergabekopie mit gemischtem Ton. Das Bild wird dabei kopiert, nicht neu kodiert. Weitere Spuren werden mittig gefaltet, weil ein Mono-Mikrofon laut Forenberichten oft nur auf einem Kanal einer Stereospur liegt.
 
 **Messung.** Schalte in der NVIDIA App „Mikrofon als separate Spur“ ein und nimm zehn Clips aus verschiedenen Spielen auf, in denen du sprichst. Dann `npm run audio -- "<Ordner>" --out "<WAV-Ordner>"` und die Spuren anhören; dazu die Clips im Archiv abspielen.
 
 **Erfolg.**
 
 - Die Mikrofonspur ist in allen zehn Clips richtig erkannt oder bleibt offen, nie falsch.
-- Im Archiv sind Spielton und Stimme zu hören, ohne hörbares Übersteuern.
+- Im Archiv sind Spielton und Stimme zu hören, die Stimme auf beiden Ohren und ohne hörbares Übersteuern.
 - Clips mit nur einer Spur bleiben unverändert: Sie bekommen keine Wiedergabekopie.
 
 **Verwerfen**, wenn eines davon eintritt:

@@ -45,7 +45,8 @@ All notable changes to this project are documented here. The format follows
 
 - Recordings with a separate microphone track play with your voice in the library: the
   playback copy mixes all audio tracks (the video is copied, not re-encoded), since browsers
-  only play the first track. Server-side analysis with audio hears the mix as well.
+  only play the first track. Extra tracks are folded to the centre, as a mono microphone often
+  sits on one channel of a stereo track. Server-side analysis with audio hears the mix as well.
 
 - Analyses no longer fail when the model numbers frames across batches or returns one frame
   too few; unreadable batches are retried once and partially recovered.
