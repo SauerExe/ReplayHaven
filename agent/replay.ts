@@ -244,9 +244,11 @@ function readPlayer(c: Cursor, typed: boolean): ReplayPlayer {
  * Transformation für Opfer (ab Version 6) und Verursacher, dann beide Beteiligten, die
  * Todesursache und ob das Opfer nur niedergeschlagen wurde.
  *
- * Die Zahlenbreite der Transformationen hängt an der Engine-Version, und einer der quelloffenen
- * Leser überspringt für neuere Versionen einen weiteren Block. Deshalb werden die bekannten
- * Aufbauten der Reihe nach versucht; gilt nur, was genau am Ende des Ereignisses aufgeht.
+ * Die Zahlenbreite der Transformationen hängt an der Engine-Version: float bis Kapitel 2, double
+ * ab Large World Coordinates. Beide Breiten werden versucht, die zur Version passende zuerst; gilt
+ * nur, was genau am Ende des Ereignisses aufgeht. Geprüft an echten Replays von 6.01 bis 32.00.
+ * Dass ein quelloffener Leser ab Engine-Version 34 weitere 80 Byte überspringt, gleicht dort nur
+ * float statt double aus; einen weiteren Block gibt es nicht.
  */
 export function readElimination(data: Buffer, time: number, engineNetworkVersion: number) {
   const version = data.length >= 4 ? data.readInt32LE(0) : -1;
@@ -254,19 +256,13 @@ export function readElimination(data: Buffer, time: number, engineNetworkVersion
     throw new ReplayError(`Eliminierung in unbekannter Fassung ${version}.`);
   const lwc = engineNetworkVersion >= LWC_ENGINE_NETWORK_VERSION;
   const transforms = version >= 6 ? 2 : 1;
-  const layouts = [
-    { wide: lwc, extra: 0 },
-    { wide: !lwc, extra: 0 },
-    { wide: lwc, extra: 1 },
-    { wide: !lwc, extra: 1 },
-  ];
   let failure: unknown;
-  for (const layout of layouts) {
+  for (const wide of [lwc, !lwc]) {
     try {
       const c = new Cursor(data);
       c.skip(4 + 1);
-      const number = layout.wide ? () => c.f64() : () => c.f32();
-      const read = Array.from({ length: transforms + layout.extra }, () => readTransform(number));
+      const number = wide ? () => c.f64() : () => c.f32();
+      const read = Array.from({ length: transforms }, () => readTransform(number));
       if (!read.every(plausible)) throw new ReplayError('Unplausible Transformation.');
       const victim = readPlayer(c, version >= 6);
       const killer = readPlayer(c, version >= 6);

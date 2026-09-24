@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
-import { parseReplay, readReplayFile, ReplayError } from './replay';
+import { parseReplay, readElimination, readReplayFile, ReplayError } from './replay';
 import { buildReplay, id } from './replay-fixture';
 
 const at = (x: number, y: number, z: number): [number, number, number] => [x, y, z];
@@ -81,6 +81,44 @@ it('reads the float layout of older engine versions and unencrypted files', asyn
     [3, undefined],
     [4, undefined],
   ]);
+});
+
+it('reads eliminations laid out like real replays from 11.31 and 29.01', () => {
+  // Bytes aus den Tests von FortniteReplayDecompressor (MIT), Konto-IDs durch Platzhalter ersetzt.
+  const floats = Buffer.from(
+    [
+      '09000000040000000000000080b20ac93c43ec7f3f42b89047c15082c7fd618847000080',
+      '3f0000803f0000803f000000000000008011fb7f3fc00e493ca44aa147e19291c793f382',
+      '470000803f0000803f0000803f1110b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b21110a1a1a1',
+      'a1a1a1a1a1a1a1a1a1a1a1a1a10800000000',
+    ].join(''),
+    'hex',
+  );
+  expect(readElimination(floats, 5000, 14)).toEqual({
+    time: 5000,
+    victim: { kind: 'player', id: id('b2') },
+    killer: { kind: 'player', id: id('a1') },
+    cause: 8,
+    knocked: false,
+    victimAt: { x: 74096.515625, y: -66721.5078125, z: 69827.9765625 },
+    killerAt: { x: 82581.28125, y: -74533.7578125, z: 67047.1484375 },
+  });
+  const doubles = Buffer.from(
+    [
+      '0900000004000000000000000000000000000000000000000000000000000000000000f0',
+      '3f2e48c99ae1b4e440537e968efd47f1c08147616626ddb040000000000000f03f000000',
+      '000000f03f000000000000f03f0000000000000000000000000000000000000000000000',
+      '00000000000000f03f000000000000000000000000000000000000000000000000000000',
+      '000000f03f000000000000f03f000000000000f03f1110b2b2b2b2b2b2b2b2b2b2b2b2b2',
+      'b2b2b21110a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10301000000',
+    ].join(''),
+    'hex',
+  );
+  const knock = readElimination(doubles, 0, 34);
+  expect(knock).toMatchObject({ cause: 3, knocked: true, killer: { id: id('a1') } });
+  expect(knock.victimAt?.x).toBeCloseTo(42407.05, 2);
+  // Der Ort des Schützen steht hier auf (0, 0, 0), also unbekannt.
+  expect(knock.killerAt).toBeUndefined();
 });
 
 it('leaves a replay that is still recording unread', async () => {
