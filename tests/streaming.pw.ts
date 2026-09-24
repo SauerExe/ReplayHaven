@@ -38,6 +38,7 @@ test('Startseite zeigt Hero und Reihen in fester Reihenfolge', async ({ page }) 
     'Elden Ring',
     'Deine Spiele',
     'Deine Sammlungen',
+    'Automatisch sortiert',
   ]);
   await expect(
     page

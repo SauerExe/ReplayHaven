@@ -163,3 +163,33 @@ test('Aus der Bibliothek führen Details und Menü zur Clip-Seite', async ({ pag
   await expect(page).toHaveURL(/\/clips\/elden-1$/);
   await expect(page.getByRole('heading', { name: 'Dieser Boss hatte andere Pläne' })).toBeVisible();
 });
+
+test('Automatische Sammlungen folgen den Tags und lassen sich speichern', async ({ page }) => {
+  await offline(page);
+  await page.goto('/');
+  const row = page.getByRole('region', { name: 'Automatisch sortiert' });
+  await expect(row.locator('.stream-tile--collection')).toHaveCount(2);
+
+  await page.goto('/collections');
+  const smart = page.getByRole('region', { name: 'Automatisch sortiert' });
+  await expect(smart).toContainText('Clutches');
+  await expect(smart).toContainText('Bosskämpfe');
+  await smart.getByRole('link', { name: /Clutches/ }).click();
+  await expect(page).toHaveURL(/\/collections\/auto\/clutches$/);
+  await expect(page.getByRole('heading', { name: 'Clutches', level: 1 })).toBeVisible();
+  await expect(tiles(page)).toHaveCount(4);
+
+  // Ohne das Tag fällt der Clip heraus.
+  await page.getByRole('button', { name: 'Eine Runde. Fünf Treffer.', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Tags bearbeiten' }).click();
+  await page.getByLabel('Tags, durch Kommas getrennt').fill('Mit Freunden');
+  await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(tiles(page)).toHaveCount(3);
+
+  await page.getByRole('button', { name: 'Als Sammlung speichern' }).click();
+  await expect(page).toHaveURL(/\/collections\/(?!auto\/)[^/]+$/);
+  await expect(page.getByRole('heading', { name: 'Clutches', level: 1 })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sammlung bearbeiten' })).toBeVisible();
+  await expect(tiles(page)).toHaveCount(3);
+});

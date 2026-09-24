@@ -40,6 +40,13 @@ All notable changes to this project are documented here. The format follows
   collection and delete stay as before, and every clip has a menu for rename, tags, share,
   download, delete and the full clip page. Collections show their games and total length and
   play their clips in order.
+- Automatic collections built from clip tags: Aces, Clutches, Mehrfach-Kills, Headshots,
+  Trickshots, Lustige Momente, Gewonnene Matches and Bosskämpfe. They use the tags the Windows
+  client sets (Ace, Clutch, Multikill, Headshot, Sieg) plus your own tags in common spellings;
+  Trickshots also take No-Scopes from titles and jump marks. A collection appears once two clips
+  match, on the collections page and as a row on the home page, keeps itself up to date and can
+  be saved as a regular collection. Nothing is detected beyond the tags: funny moments and boss
+  fights only fill up when you (or Gemini) tag clips that way.
 - `npm run r6-replays`: a measurement tool for Rainbow Six match replays. It builds the
   maintained r6-dissect fork from a pinned commit on first use (needs Go and Git), lists per
   match and round the map, side, outcome and your kills with the round clock, series, ace and

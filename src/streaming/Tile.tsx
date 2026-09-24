@@ -143,6 +143,12 @@ export function CollectionTile({
       onClick={linkHandler(onNavigate, item.href)}
     >
       <span className="stream-tile-media stream-mosaic" data-count={item.thumbnails.length}>
+        {item.automatic && (
+          <span className="stream-badge stream-badge--auto">
+            <Sparkles size={12} strokeWidth={2.4} aria-hidden="true" />
+            Automatisch
+          </span>
+        )}
         {first ? (
           <>
             <Picture
