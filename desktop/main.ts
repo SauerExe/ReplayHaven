@@ -149,6 +149,19 @@ function textsWorker() {
   });
   return texts;
 }
+/** Beendet den Worker der Texterkennung, ohne ihn mitten in einem Bild abzubrechen. */
+let textsClosing: Promise<void> | undefined;
+function closeTexts() {
+  const closing = texts;
+  texts = undefined;
+  if (closing) {
+    const done: Promise<void> = Promise.all([textsClosing, closing.close()]).then(() => {
+      if (textsClosing === done) textsClosing = undefined;
+    });
+    textsClosing = done;
+  }
+  return textsClosing;
+}
 /**
  * Lädt die Texterkennung einmal zur Probe: vor dem Start mit R6-Option und im Rauchtest des
  * fertigen Clients. Gibt nichts zurück, wenn sie bereit ist, sonst einen Hinweis zum Beheben.
@@ -220,10 +233,7 @@ async function launch() {
       : undefined;
   const reading = config.analyze && config.r6Texts ? textsWorker() : undefined;
   // Ohne die Option gibt der Worker seine Modelle frei.
-  if (!reading && texts) {
-    void texts.close();
-    texts = undefined;
-  }
+  if (!reading) void closeTexts();
   const analyzer = new LocalAnalyzer({
     url: OLLAMA_URL,
     model: DEFAULT_MODEL,
@@ -428,12 +438,18 @@ else {
       console.error(error.message);
       app.quit();
     });
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
     quitting = true;
     paused = true;
     aborter.abort();
     downloadAbort?.abort();
     if (loop) clearInterval(loop);
-    void texts?.close();
+    // Mitten in einem Bild beendet, risse ONNX Runtime den ganzen Prozess mit: erst den Worker
+    // anhalten lassen, dann beenden.
+    const closing = closeTexts();
+    if (closing) {
+      event.preventDefault();
+      void closing.finally(() => app.quit());
+    }
   });
 }

@@ -208,11 +208,14 @@ it('passes load errors, aborts and crashes of the text worker on', async () => {
     await writeFile(
       script,
       `const { parentPort } = require('node:worker_threads');
+const paths = new Map();
 parentPort.on('message', (m) => {
   if (m.type === 'check')
     parentPort.postMessage({ id: m.id, error: { message: 'Das angegebene Modul wurde nicht gefunden.', code: 'ERR_DLOPEN_FAILED' } });
+  if (m.type === 'clip') paths.set(m.id, m.path);
   if (m.type === 'clip' && m.path === 'crash.mp4') process.exit(3);
-  if (m.type === 'abort')
+  // Wie ONNX Runtime mitten in einem Bild: Der Abbruch wirkt erst danach, hier gar nicht.
+  if (m.type === 'abort' && paths.get(m.id) !== 'stuck.mp4')
     parentPort.postMessage({ id: m.id, value: { events: [], trace: { frames: 1, seconds: 0, events: 0 } } });
 });`,
     );
@@ -237,6 +240,16 @@ parentPort.on('message', (m) => {
       expect(await texts.problem()).toBeInstanceOf(Error);
       // Andere Spiele erreichen den Worker gar nicht.
       expect(await texts.forClip('clip.mp4', 'Fortnite')).toBeUndefined();
+      // Beenden bricht laufende Anfragen ab und wartet auf ihre Antwort, statt den Worker mitten
+      // in einer Rechnung zu beenden; das risse ONNX Runtime samt Prozess mit.
+      const busy = texts.forClip('slow.mp4', 'R6');
+      await texts.close();
+      expect((await busy)?.trace.frames).toBe(1);
+      // Antwortet der Worker nicht, endet das Warten nach der Frist.
+      const stuck = texts.forClip('stuck.mp4', 'R6');
+      const closing = texts.close(50);
+      await expect(stuck).rejects.toThrow('Texterkennung beendet.');
+      await closing;
     } finally {
       await texts.close();
     }

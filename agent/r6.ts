@@ -255,6 +255,7 @@ export class WorkerTexts {
     number,
     { resolve: (value: unknown) => void; reject: (error: Error) => void }
   >();
+  private readonly inflight = new Set<Promise<unknown>>();
   constructor(private readonly options: { script: string; data: TextsWorkerData }) {}
 
   forClip(path: string, game: string, signal?: AbortSignal) {
@@ -272,18 +273,30 @@ export class WorkerTexts {
     }
   }
 
-  async close() {
+  /**
+   * Beendet den Worker. Mitten in einer Rechnung beendet, reißt ONNX Runtime den ganzen Prozess
+   * mit (SIGABRT). Deshalb bricht close() erst alle Anfragen ab und wartet auf ihre Antworten:
+   * ein Bild oder das Laden der Modelle, höchstens `wait` Millisekunden.
+   */
+  async close(wait = 10000) {
     const worker = this.worker;
     this.worker = undefined;
+    if (!worker) return;
+    for (const id of this.pending.keys())
+      worker.postMessage({ id, type: 'abort' } satisfies TextsRequest);
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      Promise.allSettled([...this.inflight]),
+      new Promise((done) => (timer = setTimeout(done, wait))),
+    ]);
+    clearTimeout(timer);
     this.fail(new Error('Texterkennung beendet.'));
-    await worker?.terminate();
+    await worker.terminate();
   }
 
   private start() {
     if (this.worker) return this.worker;
     const worker = new Worker(this.options.script, { workerData: this.options.data });
-    // Der Client beendet sich, ohne auf den Worker zu warten.
-    worker.unref();
     worker.on('message', (reply: TextsReply) => {
       const waiting = this.pending.get(reply.id);
       if (!waiting) return;
@@ -320,12 +333,17 @@ export class WorkerTexts {
     const worker = this.start();
     const id = this.next++;
     const abort = () => worker.postMessage({ id, type: 'abort' } satisfies TextsRequest);
-    return new Promise<unknown>((resolve, reject) => {
+    const answer = new Promise<unknown>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       worker.postMessage({ ...message, id });
       if (signal?.aborted) abort();
       else signal?.addEventListener('abort', abort, { once: true });
-    }).finally(() => signal?.removeEventListener('abort', abort));
+    });
+    this.inflight.add(answer);
+    return answer.finally(() => {
+      this.inflight.delete(answer);
+      signal?.removeEventListener('abort', abort);
+    });
   }
 }
 
