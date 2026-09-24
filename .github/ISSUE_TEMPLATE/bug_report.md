@@ -21,7 +21,7 @@ labels: bug
 
 **Logs**
 
-Server: `docker compose logs --tail=100`. Client: the status message and any error shown in the app.
+Server: `docker compose logs --tail=100`. Client: the status message and any error shown in the app. Please remove access keys, player names and personal paths before posting.
 
 ```text
 
