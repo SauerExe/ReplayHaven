@@ -1,0 +1,468 @@
+import { spawn } from 'node:child_process';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { chromium } from '@playwright/test';
+import ffmpeg from 'ffmpeg-static';
+import sharp from 'sharp';
+
+/**
+ * Erzeugt die Bilder der README in docs/images: die Web-Bibliothek mit Beispieldaten und einem
+ * nachgestellten Server, die neue Startseite aus der Vorschau, den Windows-Client und aus
+ * docs/images/src Banner, Social-Preview und Architekturgrafik. Nach Änderungen an der
+ * Oberfläche einfach neu laufen lassen: npm run readme:images
+ */
+
+const root = resolve(import.meta.dirname, '..');
+const out = join(root, 'docs', 'images');
+const port = 5199;
+const base = `http://localhost:${port}`;
+const now = Date.now();
+const HOUR = 3600000;
+
+function run(command, args) {
+  return new Promise((done, fail) => {
+    const child = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let log = '';
+    child.stderr.on('data', (text) => (log += text));
+    child.on('error', fail);
+    child.on('close', (code) =>
+      code === 0 ? done() : fail(new Error(`${command} endete mit ${code}: ${log}`)),
+    );
+  });
+}
+
+/** Vite liefert App, Vorschau und die Vorlagen unter docs/images/src aus. */
+async function startVite() {
+  const vite = spawn(
+    process.execPath,
+    [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(port), '--strictPort'],
+    { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  for (let i = 0; i < 120; i++) {
+    if (
+      await fetch(base).then(
+        (r) => r.ok,
+        () => false,
+      )
+    )
+      return vite;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  vite.kill();
+  throw new Error(`Vite antwortet nicht auf ${base}.`);
+}
+
+/** Ein ruhiges Standbild als VP9-Video: Screenshots brauchen ein ladbares Video, keine Bewegung. */
+async function demoVideo(folder) {
+  const file = join(folder, 'demo.webm');
+  await run(ffmpeg, [
+    '-v',
+    'error',
+    '-y',
+    '-loop',
+    '1',
+    '-i',
+    join(root, 'public', 'media', 'cs2-4.webp'),
+    '-t',
+    '54',
+    '-r',
+    '6',
+    '-vf',
+    'scale=1280:720,format=yuv420p',
+    '-c:v',
+    'libvpx-vp9',
+    '-deadline',
+    'realtime',
+    '-cpu-used',
+    '8',
+    '-b:v',
+    '0',
+    '-crf',
+    '45',
+    file,
+  ]);
+  return file;
+}
+
+const iso = (hoursAgo) => new Date(now - hoursAgo * HOUR).toISOString();
+
+/** Beispiel-Clips, wie sie der Server nach Upload und Analyse durch den Client ausliefert. */
+function demoClips() {
+  const clip = (id, gameName, image, title, hoursAgo, duration, extra = {}) => {
+    const tags = extra.tags ?? [];
+    const description = extra.description ?? '';
+    return {
+      id,
+      title,
+      gameId: 'recording',
+      gameName,
+      thumbnail: `/media/${image}.webp`,
+      videoSource: '/demo/clip.webm',
+      duration,
+      recordedAt: iso(hoursAgo),
+      size: Math.round(duration * 0.82 * 1024 * 1024),
+      resolution: '1080p',
+      tags,
+      favorite: !!extra.favorite,
+      status: 'ready',
+      note: '',
+      server: true,
+      description,
+      deviceName: 'Gaming-PC',
+      originalName: `${gameName} ${new Date(now - hoursAgo * HOUR).toISOString().slice(0, 10)}.mp4`,
+      analysis: {
+        status: 'ready',
+        provider: 'client',
+        model: 'qwen3-vl:8b',
+        input: 'frames',
+        updatedAt: iso(hoursAgo - 0.02),
+        result: {
+          title,
+          description: description || `${title}.`,
+          game: gameName,
+          tags,
+          confidence: extra.confidence ?? 'high',
+          uncertainty: '',
+          highlights: extra.highlights ?? [],
+        },
+      },
+    };
+  };
+  return [
+    clip('ace-inferno', 'Counter-Strike 2', 'cs2-4', 'Ace auf Inferno', 1.5, 54, {
+      tags: ['Ace', 'Rundensieg', 'Inferno'],
+      favorite: true,
+      description:
+        'Fünf Gegner in einer Runde, der letzte hinter den Fässern in der Gasse. Die Runde endet mit dem Rundensieg.',
+      highlights: [
+        { seconds: 12, title: 'Erster Kill', description: 'Am Eingang der Gasse.' },
+        { seconds: 21, title: 'Doppel-Kill', description: 'Zwei Gegner kurz hintereinander.' },
+        { seconds: 38, title: 'Triple Kill', description: 'Hinter den Fässern.' },
+        { seconds: 47, title: 'Ace', description: 'Der fünfte Gegner der Runde.' },
+        { seconds: 51, title: 'Rundensieg', description: 'Die Runde ist gewonnen.' },
+      ],
+    }),
+    clip('apex-final', 'Apex Legends', 'apex-2', 'Champion mit dem letzten Schuss', 3, 51, {
+      tags: ['Sieg', 'Teamplay'],
+      description:
+        'Der letzte Trupp fällt am Kraterrand, danach erscheint der Champion-Bildschirm.',
+    }),
+    clip('elden-boss', 'ELDEN RING', 'elden-1', 'Dieser Boss hatte andere Pläne', 5, 66, {
+      tags: ['Bosskampf'],
+      favorite: true,
+      description: 'Ein langer Bosskampf mit knappem Ende.',
+    }),
+    clip('mirage-triple', 'Counter-Strike 2', 'cs2-2', 'Triple Kill auf Mirage', 7, 47, {
+      tags: ['Triple Kill', 'Mirage'],
+    }),
+    clip('forza-drift', 'Forza Horizon 5', 'forza-2', 'Der sauberste Drift bisher', 26, 31, {
+      tags: ['Drift'],
+      favorite: true,
+    }),
+    clip('night-city', 'Cyberpunk 2077', 'cyberpunk-1', 'Nachts gehört uns die Stadt', 28, 58, {
+      tags: ['Open World'],
+    }),
+    clip('apex-third', 'Apex Legends', 'apex-4', 'Dritter Trupp, keine Chance', 30, 43, {
+      tags: ['Teamplay'],
+    }),
+    clip('clutch-inferno', 'Counter-Strike 2', 'cs2-1', 'Clutch 1 gegen 3 auf Inferno', 50, 58, {
+      tags: ['Clutch', 'Inferno'],
+      favorite: true,
+    }),
+    clip('elden-view', 'ELDEN RING', 'elden-3', 'Die Aussicht war es wert', 74, 31, {
+      tags: ['Atmosphäre'],
+    }),
+    clip('forza-rain', 'Forza Horizon 5', 'forza-4', 'Nur noch diese eine Kurve', 98, 36),
+    clip('night-drive', 'Cyberpunk 2077', 'cyberpunk-3', 'Plan B: einfach weiterfahren', 120, 64),
+    clip('headshot-dust', 'Counter-Strike 2', 'cs2-3', 'Doppel-Kill per Headshot', 140, 23, {
+      tags: ['Headshot'],
+    }),
+  ];
+}
+
+const games = [
+  'Counter-Strike 2',
+  'Apex Legends',
+  'ELDEN RING',
+  'Forza Horizon 5',
+  'Cyberpunk 2077',
+];
+const covers = {
+  'Counter-Strike 2': 'cs2',
+  'Apex Legends': 'apex',
+  'ELDEN RING': 'elden',
+  'Forza Horizon 5': 'forza',
+  'Cyberpunk 2077': 'cyberpunk',
+};
+
+/** Was die Web-App lokal speichert: Sammlungen, Fortschritt und Anzeigename. */
+const vault = {
+  version: 1,
+  clips: [],
+  collections: [
+    {
+      id: 'clutches',
+      title: 'Beste Clutches',
+      description: 'Es ist erst vorbei, wenn es vorbei ist.',
+      clipIds: ['clutch-inferno', 'ace-inferno', 'apex-final'],
+      updatedAt: iso(2),
+    },
+    {
+      id: 'friends',
+      title: 'Mit Freunden',
+      description: 'Gute Gesellschaft, fragwürdige Entscheidungen.',
+      clipIds: ['apex-third', 'mirage-triple', 'forza-drift'],
+      updatedAt: iso(20),
+    },
+    {
+      id: 'montage',
+      title: 'Montage-Material',
+      description: 'Für das nächste Video.',
+      clipIds: ['forza-drift', 'night-city', 'headshot-dust'],
+      updatedAt: iso(40),
+    },
+    {
+      id: 'bosses',
+      title: 'Bosskämpfe',
+      description: 'Einmal noch.',
+      clipIds: ['elden-boss', 'elden-view'],
+      updatedAt: iso(80),
+    },
+  ],
+  progress: {
+    'elden-boss': { seconds: 25, duration: 66, updatedAt: iso(1) },
+    'night-city': { seconds: 41, duration: 58, updatedAt: iso(3) },
+    'forza-drift': { seconds: 9, duration: 31, updatedAt: iso(6) },
+  },
+  preferences: { name: 'Spieler', speed: 1, reducedMotion: false, compact: false },
+};
+
+/** Stellt den Server nach: Status mit verbundenem Gaming-PC, Clips, Spielinfos und das Video. */
+async function mockServer(context, video) {
+  const clips = demoClips();
+  await context.route(`${base}/api/**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/status')
+      return route.fulfill({
+        json: {
+          connected: true,
+          provider: 'none',
+          configured: false,
+          model: '',
+          settings: { autoAnalyze: true, autoTitle: true, includeAudio: false },
+          queue: 0,
+          clientDownloadAvailable: true,
+          devices: [
+            {
+              id: 'pc',
+              name: 'Gaming-PC',
+              folder: 'D:\\Clips',
+              lastSeen: new Date().toISOString(),
+              error: '',
+              uploaded: clips.length,
+              analysisLocation: 'client',
+              paused: false,
+            },
+          ],
+        },
+      });
+    if (path === '/api/clips' && route.request().method() === 'GET')
+      return route.fulfill({ json: clips });
+    if (path === '/api/games')
+      return route.fulfill({
+        json: games.map((name) => ({
+          key: name.toLowerCase(),
+          label: name,
+          name,
+          genre: '',
+          cover: `/media/${covers[name]}-cover.webp`,
+        })),
+      });
+    return route.fulfill({ status: 404, json: { error: 'Nicht Teil der Demo.' } });
+  });
+  await context.route(`${base}/demo/clip.webm`, (route) =>
+    route.fulfill({ path: video, contentType: 'video/webm' }),
+  );
+  await context.addInitScript((state) => {
+    localStorage.setItem('replayhaven.v1', JSON.stringify(state));
+  }, vault);
+}
+
+/** Screenshot als JPEG (Fotos aus Spielen komprimieren so auf einen Bruchteil) oder PNG. */
+async function save(page, name, options = {}) {
+  const buffer = await page.screenshot(options);
+  const target = join(out, name);
+  if (name.endsWith('.png'))
+    await sharp(buffer).png({ compressionLevel: 9, palette: false }).toFile(target);
+  else await sharp(buffer).jpeg({ quality: 84, mozjpeg: true }).toFile(target);
+  console.log(`  ${name}`);
+}
+
+/** Wartet auf Schriften und sichtbare Bilder; Bilder unterhalb laden per Lazy Loading nie. */
+/** Ausschnitt um ein Element, mit etwas Rand, in Seitenkoordinaten (boundingBox misst im Fenster). */
+async function padded(locator, margin) {
+  const box = await locator.boundingBox();
+  const scroll = await locator.page().evaluate(() => ({ x: scrollX, y: scrollY }));
+  return {
+    x: box.x + scroll.x - margin,
+    y: box.y + scroll.y - margin,
+    width: box.width + 2 * margin,
+    height: box.height + 2 * margin,
+  };
+}
+
+const settle = (page) =>
+  page.evaluate(async () => {
+    await document.fonts.ready;
+    const visible = [...document.images].filter((image) => {
+      const box = image.getBoundingClientRect();
+      return !image.complete && box.bottom > 0 && box.top < innerHeight;
+    });
+    const loaded = Promise.all(
+      visible.map((image) => new Promise((done) => (image.onload = image.onerror = done))),
+    );
+    await Promise.race([loaded, new Promise((done) => setTimeout(done, 5000))]);
+  });
+
+async function appShots(browser, video) {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1,
+  });
+  await mockServer(context, video);
+  const page = await context.newPage();
+  await page.goto(`${base}/`);
+  await page.getByRole('heading', { name: 'Ace auf Inferno', level: 1 }).waitFor();
+  await page.waitForTimeout(600);
+  await settle(page);
+  await save(page, 'app-home.jpg');
+
+  await page.goto(`${base}/library`);
+  await page.getByText('Triple Kill auf Mirage').first().waitFor();
+  await settle(page);
+  await save(page, 'app-library.jpg');
+
+  await page.goto(`${base}/clips/ace-inferno`);
+  await page.getByText('Dein Moment, zusammengefasst').waitFor();
+  await page.waitForFunction(() => (document.querySelector('video')?.readyState ?? 0) >= 2);
+  await page.evaluate(() => document.querySelector('video')?.pause());
+  await settle(page);
+  await save(page, 'app-clip.jpg');
+  // Die feste Kopfleiste läge sonst über der Überschrift des Ausschnitts.
+  const hidden = await page.addStyleTag({ content: '.header { visibility: hidden; }' });
+  const panel = page.locator('.analysis-panel');
+  await panel.scrollIntoViewIfNeeded();
+  await settle(page);
+  await save(page, 'app-ai.jpg', { fullPage: true, clip: await padded(panel, 24) });
+  await hidden.evaluate((style) => style.remove());
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${base}/`);
+  await page.getByRole('heading', { name: 'Ace auf Inferno', level: 1 }).waitFor();
+  await page.waitForTimeout(600);
+  await settle(page);
+  await save(page, 'app-mobile.jpg');
+  await context.close();
+}
+
+async function previewShots(browser) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  await page.goto(`${base}/streaming-preview.html`);
+  await page.locator('.stream-hero').waitFor();
+  await page.waitForTimeout(600);
+  await settle(page);
+  await save(page, 'streaming-home.jpg');
+  await page.getByRole('button', { name: 'Details' }).first().click();
+  await page.getByRole('dialog').waitFor();
+  await page.waitForTimeout(500);
+  await settle(page);
+  await save(page, 'streaming-detail.jpg');
+  await context.close();
+}
+
+/** Das Fenster des Windows-Clients, mit nachgestellter Brücke zum Hauptprozess. */
+async function clientShot(browser) {
+  const page = await browser.newPage({ viewport: { width: 1040, height: 900 } });
+  await page.addInitScript(() => {
+    const config = {
+      folder: 'D:\\Clips',
+      server: 'http://192.168.1.20:8787',
+      game: '',
+      playerNames: [{ name: 'SpielerEins', game: '' }],
+      includeExisting: false,
+      analyze: true,
+      frames: 24,
+      fortniteReplays: true,
+      epicAccounts: [],
+      r6Texts: false,
+      hasToken: true,
+    };
+    const status = {
+      running: true,
+      paused: false,
+      message: 'Hochgeladen: „Ace auf Inferno“. Warte auf die nächste Aufnahme.',
+      queued: 0,
+      uploaded: 48,
+      model: true,
+      ollama: true,
+      downloading: false,
+    };
+    window.vault = {
+      call: async (action) =>
+        action === 'load'
+          ? { ok: true, value: { config, status } }
+          : action === 'games'
+            ? { ok: true, value: ['Counter-Strike 2', 'Fortnite', 'ELDEN RING'] }
+            : { ok: true, value: null },
+      onStatus: () => () => {},
+    };
+  });
+  await page.goto(pathToFileURL(join(root, 'desktop', 'renderer', 'index.html')).href);
+  await page.locator('#status-title').getByText('Client läuft').waitFor();
+  await settle(page);
+  await save(page, 'client.png', { fullPage: true });
+  await page.close();
+}
+
+async function graphics(browser) {
+  const page = await browser.newPage({
+    viewport: { width: 1600, height: 620 },
+    deviceScaleFactor: 1,
+  });
+  await page.goto(`${base}/docs/images/src/banner.html`);
+  await settle(page);
+  await save(page, 'banner.jpg');
+
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await page.goto(`${base}/docs/images/src/social.html`);
+  await settle(page);
+  await save(page, 'social-preview.jpg');
+
+  await page.setViewportSize({ width: 1600, height: 760 });
+  for (const theme of ['dark', 'light']) {
+    await page.goto(`${base}/docs/images/src/architecture.html?theme=${theme}`);
+    await settle(page);
+    await save(page, `architecture-${theme}.png`);
+  }
+  await page.close();
+}
+
+await mkdir(out, { recursive: true });
+const work = await mkdtemp(join(tmpdir(), 'replayhaven-readme-'));
+const vite = await startVite();
+const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+try {
+  console.log(`Bilder nach ${out}:`);
+  const video = await demoVideo(work);
+  await appShots(browser, video);
+  await previewShots(browser);
+  await clientShot(browser);
+  await graphics(browser);
+} finally {
+  await browser.close();
+  vite.kill();
+  await rm(work, { recursive: true, force: true });
+}

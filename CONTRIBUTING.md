@@ -23,16 +23,17 @@ npm run format         # Prettier
 npm run test:e2e       # browser tests, if the web UI changed
 npm run docker:build   # if the server, Dockerfile or compose.yaml changed
 npm run client:build   # if the Windows client changed (Windows only)
+npm run readme:images  # if the interface changed visibly, to refresh the README images
 ```
 
 CI runs the same checks plus a container smoke test and an unpacked client build.
 
 ## Ground rules
 
-- **The product brief is `agent.md`.** It describes the interface, its states, texts and quality bar. User-facing changes should follow it; propose changes to the brief in the pull request when the brief itself needs to move.
+- **The product brief is [`docs/DESIGN.md`](docs/DESIGN.md).** It describes the interface, its states, texts and quality bar. User-facing changes should follow it; propose changes to the brief in the pull request when the brief itself needs to move.
 - **Originals are sacred.** Nothing may rename, move or delete a user's recording on the gaming PC, and removing a clip from the library must keep the original on the server.
 - **Be honest in the UI.** No success messages for things that did not happen, no fake progress, no features that only pretend to work without a server.
-- **Interface texts are German**, short and concrete. Code, comments, commit messages and documentation for developers are English.
+- **Interface texts are German**, short and concrete. Code comments and the guides in `docs/` are German too; identifiers, commit messages, the README and the changelog are English.
 - **Keep dependencies lean.** Do not add a library for something a few lines of code can do.
 - **No secrets, personal addresses or hardware names** in code or docs. Use placeholders and environment variables.
 

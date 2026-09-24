@@ -93,6 +93,6 @@ export function createSeed(): VaultState {
       },
     ],
     progress: {},
-    preferences: { name: 'Timo', speed: 1, reducedMotion: false, compact: false },
+    preferences: { name: 'Spieler', speed: 1, reducedMotion: false, compact: false },
   };
 }

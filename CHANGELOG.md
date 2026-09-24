@@ -51,6 +51,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The README shows the product with screenshots of the web library, the AI summary and the
+  Windows client, an architecture graphic for light and dark mode and a flow diagram.
+  `npm run readme:images` regenerates all images from the real interface with demo data. The
+  product brief moved from `agent.md` to `docs/DESIGN.md`, and new installs start with the
+  neutral display name "Spieler".
 - Clip tags are derived from on-screen messages the model reads (eliminations, deaths, round
   and match results, NVIDIA highlight names) instead of being picked by the model. Titles are
   checked against these events; a contradicting or copied title gets one correction round and

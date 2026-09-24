@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ReplayHaven architecture</title>
+    <link rel="stylesheet" href="common.css" />
+    <script>
+      // ?theme=light rendert die helle Fassung für GitHub im hellen Modus.
+      document.documentElement.dataset.theme =
+        new URLSearchParams(location.search).get('theme') || 'dark';
+    </script>
+    <style>
+      /* Dunkel wie GitHub im dunklen Modus, damit die Grafik ohne Kante im README steht. */
+      :root[data-theme='dark'] {
+        --bg: #0d1117;
+        --surface: #151b23;
+        --line: #2a313c;
+      }
+      body {
+        width: 1600px;
+        height: 760px;
+        overflow: hidden;
+      }
+      .stage {
+        width: 1600px;
+        height: 760px;
+        padding: 56px 64px;
+        display: grid;
+        grid-template-columns: 1fr 150px 1fr 150px 1fr;
+        grid-template-rows: auto 1fr auto;
+        row-gap: 28px;
+      }
+      header {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 44px;
+      }
+      header span {
+        font-size: 18px;
+        color: var(--muted);
+      }
+      .node {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 30px 30px 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .node-head {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+      }
+      .icon svg {
+        width: 30px;
+        height: 30px;
+      }
+      .node h2 {
+        margin: 0;
+        font-size: 26px;
+        line-height: 1.15;
+      }
+      .node h2 small {
+        display: block;
+        margin-top: 4px;
+        font-family: 'RH Inter', sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      ol {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      li {
+        display: flex;
+        gap: 12px;
+        font-size: 19px;
+        line-height: 1.4;
+      }
+      li::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        margin-top: 9px;
+        border-radius: 50%;
+        background: var(--accent);
+        flex-shrink: 0;
+      }
+      .extras {
+        margin-top: auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .extras span {
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px dashed var(--line);
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .link {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        text-align: center;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .link svg {
+        width: 120px;
+        height: 24px;
+        color: var(--accent);
+      }
+      footer {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 18px;
+        color: var(--muted);
+      }
+      footer b {
+        color: var(--text);
+      }
+      footer i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--ok);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <header>
+        <h1 class="display">How ReplayHaven works</h1>
+        <span>Everything runs on hardware you own.</span>
+      </header>
+
+      <section class="node">
+        <div class="node-head">
+          <div class="icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg>
+          </div>
+          <h2 class="display">Gaming PC<small>Windows client</small></h2>
+        </div>
+        <ol>
+          <li>NVIDIA App, OBS or Game Bar saves a clip</li>
+          <li>The client waits until the file is complete</li>
+          <li>A local vision model looks at sampled frames</li>
+          <li>
+            Title, description, tags and highlights, checked against what the game shows on screen
+          </li>
+        </ol>
+        <div class="extras">
+          <span>Ollama · Qwen3-VL</span><span>Fortnite replays</span><span>R6 map &amp; round</span>
+        </div>
+      </section>
+
+      <div class="link">
+        <svg
+          viewBox="0 0 120 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 12h108M100 4l12 8-12 8" />
+        </svg>
+        Original + AI result<br />LAN or HTTPS
+      </div>
+
+      <section class="node">
+        <div class="node-head">
+          <div class="icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="3" width="18" height="7" rx="2" />
+              <rect x="3" y="14" width="18" height="7" rx="2" />
+              <path d="M7 6.5h.01M7 17.5h.01" />
+            </svg>
+          </div>
+          <h2 class="display">Your server<small>One Docker container</small></h2>
+        </div>
+        <ol>
+          <li>Keeps the original exactly as recorded</li>
+          <li>Thumbnail and playback copy with FFmpeg</li>
+          <li>Metadata in SQLite, no external database</li>
+          <li>Web app and API behind one access key</li>
+        </ol>
+        <div class="extras"><span>NAS · mini PC · any Linux</span><span>amd64 · arm64</span></div>
+      </section>
+
+      <div class="link">
+        <svg
+          viewBox="0 0 120 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 12h108M100 4l12 8-12 8" />
+        </svg>
+        Stream and<br />download
+      </div>
+
+      <section class="node">
+        <div class="node-head">
+          <div class="icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="5" y="2" width="14" height="20" rx="2" />
+              <path d="M12 18h.01" />
+            </svg>
+          </div>
+          <h2 class="display">Any browser<small>Web library</small></h2>
+        </div>
+        <ol>
+          <li>Library with search and filters per game</li>
+          <li>Collections and favourites</li>
+          <li>Player that resumes and jumps to highlights</li>
+          <li>Phone, tablet, laptop or TV</li>
+        </ol>
+        <div class="extras"><span>No app to install</span></div>
+      </section>
+
+      <footer>
+        <i></i
+        ><span
+          ><b>No cloud required.</b> With the Windows client the AI runs on your PC, and clips only
+          travel to your own server.</span
+        >
+      </footer>
+    </div>
+  </body>
+</html>

@@ -14,7 +14,6 @@ for (const name of [
   'compose.yaml',
   'setup-server.sh',
   'README.md',
-  'agent.md',
   'tsconfig.json',
   'tsconfig.server.json',
   'vite.config.ts',

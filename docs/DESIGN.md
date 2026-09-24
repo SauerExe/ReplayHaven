@@ -1,4 +1,6 @@
-Du bist Codex und arbeitest als Senior Product Designer und Frontend Engineer. Entwickle eine außergewöhnlich hochwertige Webanwendung für ein selbst hostbares Game-Clip-Archiv.
+# Produkt- und Designbrief
+
+Dieser Brief beschreibt, wie die Weboberfläche von ReplayHaven aussehen, sich anfühlen und funktionieren soll: Produktidee, Designsystem, Ansichten, Zustände und Qualitätsmaßstab. Änderungen an der Oberfläche richten sich danach.
 
 Name: **ReplayHaven**.
 
@@ -750,7 +752,7 @@ Veröffentliche oder deploye die Anwendung nur bei entsprechender ausdrückliche
 
 Beginne jetzt mit der Prüfung des Projekts und setze ReplayHaven um. Priorisiere zuerst die visuelle Qualität von Startseite, Clip-Karten und Player. Übertrage dieses Niveau anschließend konsistent auf die restlichen Ansichten.
 
-## 24. Open-Source-Repository, Betrieb und Arbeitsteilung
+## 26. Open-Source-Repository, Betrieb und Arbeitsteilung
 
 ReplayHaven wird als öffentliches Repository gepflegt. Diese Regeln gelten für alle Beiträge, auch für KI-Agenten.
 

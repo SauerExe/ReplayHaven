@@ -36,7 +36,7 @@ Danach die Serveradresse im Browser öffnen → **Einstellungen → KI & Server*
 2. Den Aufnahmeordner auswählen. Unterordner werden mitgenommen.
 3. Serveradresse und Zugangsschlüssel eintragen.
 4. **Ollama installieren** öffnet den offiziellen Download. Ollama installieren und starten, dann im Client **Verbindung prüfen** klicken.
-5. **Modell laden** lädt einmalig Qwen3-VL 4B, ungefähr 3,3 GB. Das geschieht ausschließlich auf deinen Klick.
+5. **Modell laden** lädt einmalig Qwen3-VL 8B, ungefähr 6,1 GB. Das geschieht ausschließlich auf deinen Klick.
 6. Mit **24 Bildern** beginnen und **Analyse & Upload starten** klicken.
 
 Aktiviere **Vorhandene Aufnahmen beim ersten Start mitnehmen**, bevor du erstmals startest, wenn du alte Clips ebenfalls importieren möchtest. Sonst werden sie als übersprungen vorgemerkt. Diese Auswahl gilt pro Aufnahmeordner und Server. Der Spielname ist optional; ohne Eingabe dient der Unterordnername als Hinweis für die KI.
@@ -101,6 +101,6 @@ Mit **R6: Karte und Rundenausgang per Texterkennung** liest der Client in R6-Cli
 
 ## Grenzen
 
-Modellqualität, Geschwindigkeit und Grafikspeicherbedarf hängen von deiner Hardware ab. Qwen3-VL 4B läuft auf Grafikkarten ab etwa 8 GB VRAM flüssig; ohne passende GPU rechnet Ollama auf der CPU und braucht deutlich länger. Prüfe nach der Einrichtung mit einem echten Clip: Server starten → Client verbinden → neue Aufnahme speichern → GPU-Auslastung beobachten → Ergebnis im Archiv prüfen → Original herunterladen.
+Modellqualität, Geschwindigkeit und Grafikspeicherbedarf hängen von deiner Hardware ab. Qwen3-VL 8B läuft auf Grafikkarten ab etwa 10 GB VRAM flüssig; ohne passende GPU rechnet Ollama auf der CPU und braucht deutlich länger. Prüfe nach der Einrichtung mit einem echten Clip: Server starten → Client verbinden → neue Aufnahme speichern → GPU-Auslastung beobachten → Ergebnis im Archiv prüfen → Original herunterladen.
 
-Weiterführend: [Serverbetrieb](SERVER.md), [Entwicklung](../README.md), [Qwen3-VL bei Ollama](https://ollama.com/library/qwen3-vl:4b), [Ollama GPU-Unterstützung](https://docs.ollama.com/gpu).
+Weiterführend: [Serverbetrieb](SERVER.md), [Entwicklung](../README.md), [Qwen3-VL bei Ollama](https://ollama.com/library/qwen3-vl:8b), [Ollama GPU-Unterstützung](https://docs.ollama.com/gpu).

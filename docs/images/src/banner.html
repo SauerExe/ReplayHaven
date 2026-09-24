@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ReplayHaven banner</title>
+    <link rel="stylesheet" href="common.css" />
+    <style>
+      body {
+        width: 1600px;
+        height: 620px;
+        overflow: hidden;
+      }
+      .stage {
+        position: relative;
+        width: 1600px;
+        height: 620px;
+        overflow: hidden;
+        background:
+          radial-gradient(900px 520px at 78% 40%, #a78bfa24, transparent 70%),
+          linear-gradient(180deg, #0f0f15, #0b0b0f);
+      }
+      .copy {
+        position: absolute;
+        left: 88px;
+        top: 86px;
+        width: 640px;
+      }
+      h1 {
+        margin: 34px 0 22px;
+        font-size: 76px;
+        line-height: 0.98;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--accent);
+      }
+      p {
+        margin: 0 0 30px;
+        font-size: 22px;
+        line-height: 1.5;
+        color: #c9c9d4;
+        width: 560px;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+      .chips li {
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #ffffff0f;
+        border: 1px solid #ffffff1a;
+        font-size: 16px;
+        font-weight: 600;
+        color: #e4e4ec;
+      }
+      .desktop,
+      .phone {
+        position: absolute;
+        border-radius: 14px;
+        box-shadow:
+          0 40px 80px #00000099,
+          0 0 0 1px #ffffff1a;
+        object-fit: cover;
+        object-position: top left;
+      }
+      .desktop {
+        left: 790px;
+        top: 70px;
+        width: 900px;
+        height: 562px;
+      }
+      .phone {
+        left: 736px;
+        top: 330px;
+        width: 196px;
+        height: 424px;
+        border-radius: 26px;
+        box-shadow:
+          0 30px 60px #000000b3,
+          0 0 0 6px #17171f,
+          0 0 0 7px #ffffff26;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="copy">
+        <div class="brand">
+          <svg viewBox="0 0 32 34" aria-hidden="true">
+            <path d="M8 6v22L28 17z" fill="currentColor" />
+            <path d="M2 8v18" stroke="currentColor" stroke-width="3" />
+          </svg>
+          <span>Replay<b>Haven</b></span>
+        </div>
+        <h1 class="display">
+          Your game clips.<br />Named by <em>local AI</em>.<br />Kept on your server.
+        </h1>
+        <p>
+          Record as usual. ReplayHaven titles every clip on your PC, keeps the original on your own
+          server and brings it back in a cinematic web library.
+        </p>
+        <ul class="chips">
+          <li>Windows client</li>
+          <li>Docker server</li>
+          <li>No cloud required</li>
+          <li>MIT licensed</li>
+        </ul>
+      </div>
+      <img class="desktop" src="../app-home.jpg" alt="" />
+      <img class="phone" src="../app-mobile.jpg" alt="" />
+    </div>
+  </body>
+</html>

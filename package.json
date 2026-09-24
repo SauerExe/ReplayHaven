@@ -25,6 +25,7 @@
     "typecheck": "tsc -b && tsc -p tsconfig.server.json",
     "test:e2e": "playwright test",
     "check:browser": "node scripts/browser-check.mjs",
+    "readme:images": "node scripts/readme-images.mjs",
     "media:refresh": "node scripts/fetch-media.mjs",
     "server": "tsx server/index.ts",
     "dev:all": "concurrently -k \"npm run server\" \"npm run dev\"",
