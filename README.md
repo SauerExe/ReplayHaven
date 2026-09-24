@@ -32,20 +32,20 @@ Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.
 
 <table>
   <tr>
-    <td width="50%" valign="top"><b>🏷️ Clips that name themselves</b><br>A local vision model watches 24 or 48 frames of each clip and suggests a title, a description, tags and highlight timestamps.</td>
-    <td width="50%" valign="top"><b>🎯 Titles that stick to the facts</b><br>Kills, deaths, round and match results are read from what the game shows on screen. A title that claims more gets one correction round, otherwise a plain title is built from the confirmed events.</td>
+    <td width="50%" valign="top"><b> Clips that name themselves</b><br>A local vision model watches 24 or 48 frames of each clip and suggests a title, a description, tags and highlight timestamps.</td>
+    <td width="50%" valign="top"><b> Titles that stick to the facts</b><br>Kills, deaths, round and match results are read from what the game shows on screen. A title that claims more gets one correction round, otherwise a plain title is built from the confirmed events.</td>
   </tr>
   <tr>
-    <td width="50%" valign="top"><b>🔒 Your hardware, your clips</b><br>The AI runs on your gaming PC through Ollama. Clips only travel to your own server. No account, no cloud, no subscription.</td>
-    <td width="50%" valign="top"><b>🗂️ Originals are sacred</b><br>Nothing on the gaming PC is renamed, moved or deleted. The server keeps an untouched copy, even if you delete the file at home.</td>
+    <td width="50%" valign="top"><b> Your hardware, your clips</b><br>The AI runs on your gaming PC through Ollama. Clips only travel to your own server. No account, no cloud, no subscription.</td>
+    <td width="50%" valign="top"><b> Originals are sacred</b><br>Nothing on the gaming PC is renamed, moved or deleted. The server keeps an untouched copy, even if you delete the file at home.</td>
   </tr>
   <tr>
-    <td width="50%" valign="top"><b>🎬 A library you want to open</b><br>The newest clip in the spotlight, rows for recent clips and favourites, search and filters per game, collections, resume playback and a keyboard-friendly player, on desktop and phone.</td>
-    <td width="50%" valign="top"><b>🐳 One small container</b><br>Node.js, SQLite and FFmpeg in a single Docker image. No GPU needed on the server. Runs on a NAS, a mini PC or any Linux box.</td>
+    <td width="50%" valign="top"><b>  A library you want to open</b><br>The newest clip in the spotlight, rows for recent clips and favourites, search and filters per game, collections, resume playback and a keyboard-friendly player, on desktop and phone.</td>
+    <td width="50%" valign="top"><b> One small container</b><br>Node.js, SQLite and FFmpeg in a single Docker image. No GPU needed on the server. Runs on a NAS, a mini PC or any Linux box.</td>
   </tr>
   <tr>
-    <td width="50%" valign="top"><b>🎮 Extra precision for some games</b><br>Optional: Fortnite kills with weapon class and distance straight from the match replays, Rainbow Six map and round results from on-device text recognition.</td>
-    <td width="50%" valign="top"><b>✍️ Everything stays editable</b><br>AI results are suggestions. Titles, descriptions and tags can be changed, and a title or tags you set yourself stay when a clip is analysed again.</td>
+    <td width="50%" valign="top"><b> Extra precision for some games</b><br>Optional: Fortnite kills with weapon class and distance straight from the match replays, Rainbow Six map and round results from on-device text recognition.</td>
+    <td width="50%" valign="top"><b> Everything stays editable</b><br>AI results are suggestions. Titles, descriptions and tags can be changed, and a title or tags you set yourself stay when a clip is analysed again.</td>
   </tr>
 </table>
 
