@@ -59,6 +59,7 @@ Fortnite legt von jedem Match ein Replay unter `%LOCALAPPDATA%\FortniteGame\Save
 
 - Die Clipzeit ergibt sich aus der Uhrzeit im NVIDIA-Dateinamen und dem Zeitpunkt, zu dem die Datei geschrieben wurde. Originale werden dafür nur gelesen.
 - Ein Replay nennt nicht, wer aufgenommen hat. Der Client erkennt dein Konto daran, dass es in fast jedem Replay dieses PCs vorkommt, und an der Match-Statistik. Bleibt es unklar, nutzt er das Replay nicht. Eindeutig wird es, wenn du deine **Epic-Konto-ID** einträgst; sie steht auf epicgames.com in deinen Kontoeinstellungen.
+- Spielst du Duos oder Squads mit festen Mitspielern, kommen sie in denselben Replays vor wie du. Dann wählt der Client in Teammatches kein Konto, statt womöglich ihre Kills als deine zu zählen. Trag in dem Fall deine Epic-Konto-ID ein.
 - Ein Clip aus einem Match, das noch läuft, wartet bis zu dessen Ende, höchstens 45 Minuten. Danach wird er wie bisher nur mit Bildern analysiert.
 - In Fortnite muss die Aufzeichnung von Replays eingeschaltet sein. Der Client liest nur den Kopf und die Ereignisse eines Replays, nicht das ganze Match.
 

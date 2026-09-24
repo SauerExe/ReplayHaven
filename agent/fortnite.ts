@@ -159,12 +159,17 @@ export interface OwnerResult {
  * - eingetragene eigene IDs entscheiden allein, wenn genau eine im Replay vorkommt;
  * - Wiederkehr (+2): Wer auf diesem PC spielt, steht in fast jedem seiner Replays, fremde
  *   Spieler fast nie in zwei; Mitspieler aus festen Gruppen allerdings auch;
- * - eigenes Ausscheiden (+2): Die Match-Statistik entsteht, wenn das eigene Match endet;
- *   scheidet genau dann jemand aus, ist das meist der Besitzer;
- * - Kill-Zahl (+1): Eigene Eliminierungen laut Statistik, höchstens eine Abweichung;
- * - Sichtbarkeit (Ausschluss): Der eigene Standort ist dem Replay immer bekannt. Wer als
- *   Schütze ohne Standort vorkommt, war weit weg und ist nicht der Besitzer.
- * Entschieden wird nur mit mindestens drei Punkten und zwei Punkten Vorsprung.
+ * - eigenes Ausscheiden (+2, im Teammodus +1): Die Match-Statistik entsteht, wenn das eigene
+ *   Match endet; scheidet genau dann jemand aus, ist das meist der Besitzer. Im Teammodus endet
+ *   es womöglich erst mit dem letzten Teammitglied;
+ * - Kill-Zahl (+1): Eigene Eliminierungen laut Statistik, höchstens eine Abweichung (an echten
+ *   Replays: 7 statt 8, 7 statt 6). Erst ab einem Kill, null passt auf fast jeden;
+ * - Sichtbarkeit (Ausschluss): Der eigene Standort ist dem Replay bekannt, solange man lebt.
+ *   Wer zu Lebzeiten als Schütze ohne Standort vorkommt, war weit weg und ist nicht der Besitzer.
+ * Entschieden wird nur mit mindestens drei Punkten und zwei Punkten Vorsprung, also nie allein
+ * aus Wiederkehr: Die trennt den Besitzer nicht von festen Mitspielern. Im Teammodus (es gibt
+ * Knocks) gibt es keine Entscheidung, sobald ein weiterer Spieler wiederkehrt: Lieber kein Konto
+ * als die Kills eines Mitspielers. Dann hilft nur die eingetragene Konto-ID.
  */
 export function resolveOwner(
   replay: Replay,
@@ -186,6 +191,7 @@ export function resolveOwner(
   const elims = replay.eliminations;
   // Ab Kapitel 2 kennt das Replay den Ort jedes Opfers; nur dann taugt ein fehlender Ort.
   const located = elims.length > 0 && elims.filter((e) => e.victimAt).length / elims.length >= 0.9;
+  const teams = elims.some((e) => e.knocked);
   const scores = new Map<string, { score: number; basis: string[] }>();
   const add = (id: string, points: number, why: string) => {
     const entry = scores.get(id) ?? { score: 0, basis: [] };
@@ -193,34 +199,49 @@ export function resolveOwner(
     entry.basis.push(why);
     scores.set(id, entry);
   };
+  const stated = replay.stats?.eliminations ?? 0;
   for (const id of players) {
     const seen = recurrence.get(id) ?? 0;
     if (seen >= 2) add(id, 2, `in ${seen} weiteren Replays`);
     else if (seen === 1) add(id, 1, 'in einem weiteren Replay');
-    if (replay.stats) {
-      const finals = elims.filter(
-        (e) => idOf(e.killer) === id && idOf(e.victim) !== id && !e.knocked,
-      ).length;
-      if (Math.abs(finals - replay.stats.eliminations) <= 1)
-        add(id, 1, `${finals} Eliminierungen, Statistik ${replay.stats.eliminations}`);
-    }
+    const finals = elims.filter(
+      (e) => idOf(e.killer) === id && idOf(e.victim) !== id && !e.knocked,
+    ).length;
+    if (stated > 0 && finals > 0 && Math.abs(finals - stated) <= 1)
+      add(id, 1, `${finals} Eliminierungen, Statistik ${stated}`);
   }
   if (replay.stats && (replay.team?.placement ?? 2) > 1)
     for (const e of elims) {
       const id = idOf(e.victim);
       if (id && !e.knocked && Math.abs(e.time - replay.stats.time) <= 500)
-        add(id, 2, 'scheidet aus, als das eigene Match endet');
+        add(id, teams ? 1 : 2, 'scheidet aus, als das eigene Match endet');
     }
-  if (located)
-    for (const e of elims) {
-      const id = idOf(e.killer);
-      if (id && id !== idOf(e.victim) && !e.killerAt && scores.has(id)) scores.delete(id);
-    }
+  // Gutschriften nach dem eigenen Aus, etwa für einen Gegner, der danach ausblutet, können ohne
+  // Standort kommen; sie zählen deshalb nicht.
+  const hidden = (id: string) => {
+    const out = elims.filter((e) => idOf(e.victim) === id && !e.knocked).at(-1)?.time ?? Infinity;
+    return elims.some(
+      (e) =>
+        idOf(e.killer) === id &&
+        idOf(e.victim) !== id &&
+        !e.killerAt &&
+        e.cause !== BLEED_OUT &&
+        e.time < out,
+    );
+  };
+  if (located) for (const id of [...scores.keys()]) if (hidden(id)) scores.delete(id);
   const ranked = [...scores.entries()].sort((a, b) => b[1].score - a[1].score);
   const [best, second] = ranked;
   if (!best || best[1].score < 3) return { basis: ['kein Spieler mit genug Hinweisen'] };
   if (second && best[1].score - second[1].score < 2)
     return { basis: [`nicht eindeutig: ${best[0]} oder ${second[0]}`] };
+  const regulars = [...players].filter((id) => id !== best[0] && (recurrence.get(id) ?? 0) > 0);
+  if (teams && regulars.length)
+    return {
+      basis: [
+        `Teammodus mit ${regulars.length} weiteren Spielern aus anderen Replays: eigene Konto-ID eintragen`,
+      ],
+    };
   return { id: best[0], basis: best[1].basis };
 }
 

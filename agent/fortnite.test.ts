@@ -123,6 +123,71 @@ it('finds the recording account by recurrence, its own elimination and its kill 
   expect(resolveOwner(miscounted, new Map()).id).toBeUndefined();
 });
 
+it('never takes a regular teammate for the owner in team matches', () => {
+  const stats = (time: number, eliminations: number) => ({
+    time,
+    accuracy: 0,
+    assists: 0,
+    eliminations,
+    weaponDamage: 0,
+    otherDamage: 0,
+    revives: 0,
+    damageTaken: 0,
+  });
+  const regulars = new Map([
+    [OWNER, 6],
+    [MATE, 6],
+  ]);
+  // Duo-Sieg ohne eigenen Kill und ohne eigenen Knock: Der Besitzer fehlt in den Ereignissen,
+  // der feste Mitspieler hat einen Kill. Wiederkehr allein reicht nicht.
+  const carried = replayOf({
+    eliminations: [
+      elim(1000, id('b2'), id('d4'), 3, { knocked: true }),
+      elim(5000, id('e5'), MATE),
+    ],
+    stats: stats(9000, 0),
+    team: { time: 9000, placement: 1, totalPlayers: 50 },
+  });
+  expect(resolveOwner(carried, regulars).id).toBeUndefined();
+  // Beide im Match, der Besitzer führt klar. Im Teammodus kann ein fester Mitspieler trotzdem
+  // der sein, dessen Ausscheiden die Statistik auslöst; deshalb entscheidet hier nichts.
+  const together = replayOf({
+    eliminations: [
+      elim(1000, id('b2'), OWNER, 3, { knocked: true }),
+      elim(1500, id('b2'), OWNER),
+      elim(2000, id('d4'), OWNER),
+      elim(6000, MATE, id('f6')),
+      elim(9000, OWNER, id('f6')),
+    ],
+    stats: stats(9000, 2),
+    team: { time: 9000, placement: 3, totalPlayers: 50 },
+  });
+  expect(resolveOwner(together, regulars).basis[0]).toMatch(/Teammodus .* Konto-ID eintragen/);
+  expect(resolveOwner(together, regulars).id).toBeUndefined();
+  // Kehrt der Mitspieler nicht wieder (zugeloste Gruppe), tragen die Hinweise des Besitzers.
+  const alone = new Map([[OWNER, 6]]);
+  expect(resolveOwner(together, alone).id).toBe(OWNER);
+  // Ein Gegner, den der Besitzer niedergeschlagen hat, blutet nach dessen Aus ohne Standort aus.
+  // Das schließt den Besitzer nicht aus.
+  const late = replayOf({
+    ...together,
+    eliminations: [
+      ...together.eliminations,
+      elim(9500, id('g7'), OWNER, 17, { killerAt: undefined }),
+    ],
+  });
+  expect(resolveOwner(late, alone).id).toBe(OWNER);
+  // Ein Kill ohne Standort zu Lebzeiten schließt dagegen aus.
+  const far = replayOf({
+    ...together,
+    eliminations: [
+      ...together.eliminations,
+      elim(500, id('g7'), OWNER, 4, { killerAt: undefined }),
+    ],
+  });
+  expect(resolveOwner(far, alone).id).toBeUndefined();
+});
+
 it('excludes shooters whose position the replay never knew, and honours entered accounts', () => {
   const match = replayOf({
     eliminations: [

@@ -59,7 +59,7 @@ Mit `--account <Epic-Konto-ID>` gilt die eingetragene ID statt der Automatik.
 - Die Codierung der Todesursachen ist an Replays bis Version 32.00 (2024) geprüft; neuere Saisons können sie verschoben haben.
 - Auch der Aufbau der Eliminierungen ist nur an echten Replays bis 32.00 geprüft. Laut einem Fehlerbericht zum C#-Leser FortniteReplayDecompressor liest dieser Replays vom Juni 2026 (Engine 5.8) mit demselben Aufbau. Eigene Replays von 2026 lagen hier nicht vor.
 - Wo in NVIDIA-Namen das Speichern steht und wo der Aufnahmebeginn, entscheidet der Änderungszeitpunkt der Datei, bei Clips unter etwa 17 Sekunden bleibt das offen.
-- In Teammatches kann die Match-Statistik erst beim Ausscheiden des letzten Teammitglieds entstehen; dann trägt dieser Hinweis nicht.
+- In Teammatches kann die Match-Statistik erst beim Ausscheiden des letzten Teammitglieds entstehen. Deshalb zählt dort das Ausscheiden zur Statistikzeit nur einfach, und sobald ein weiterer Spieler auch in anderen Replays vorkommt, entscheidet die Automatik nicht. Mit festen Mitspielern ist „nicht eindeutig“ in Teammatches also gewollt; dort zählt nur die eingetragene ID.
 - Fortnite schreibt das Replay eines laufenden Matches fortlaufend, sodass seine Änderungszeit steigt. Nur dann wartet ein Clip auf das Matchende. Sonst wird er sofort ohne Replay analysiert; das zeigt die Zeile „Warteschlange“.
 
 ## Tonspuren und Mikrofon
