@@ -5,7 +5,7 @@ Self-hosted archive for your game clips.
 **Record as usual (NVIDIA App, OBS, Xbox Game Bar) → the Windows client names and describes the clip with a local vision model → your own server keeps the original and shows it in a cinematic web library.**
 
 - Originals are never renamed, moved or deleted on the gaming PC. The server keeps a copy forever.
-- AI runs on your gaming PC, not in the cloud: Ollama with Qwen3-VL 8B reads frame samples and suggests title, summary and highlight timestamps. Tags come from what the game announces on screen (eliminations, deaths, round and match results) and titles are checked against them, so a clip where you win is not tagged as a death. Everything stays editable.
+- AI runs on your gaming PC, not in the cloud: Ollama with Qwen3-VL 8B reads frame samples and suggests title, summary and highlight timestamps. Tags come from what the game announces on screen (eliminations, deaths, round and match results) and titles are checked against them, so a clip where you win is not tagged as a death. Optionally, Fortnite kills come exactly from the match replays (with weapon class and distance), and Rainbow Six map names and round results from on-device text recognition. Everything stays editable.
 - The server is a single Docker container: Node.js, SQLite and FFmpeg. No GPU needed. Runs on any Linux box, NAS or mini PC (x86-64 or arm64).
 - The web library has search, filters per game, collections, favourites, resume playback and a keyboard-friendly player. The interface language is currently German.
 
