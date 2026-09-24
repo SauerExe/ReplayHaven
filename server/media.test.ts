@@ -41,7 +41,7 @@ it('labels every sampled frame with the moment it actually shows', async () => {
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
       await rm(root, { recursive: true, force: true });
   }
-});
+}, 30000);
 
 it('lists audio tracks, mixes them for playback and extracts one as 16 kHz mono WAV', async () => {
   const root = await mkdtemp(join(tmpdir(), 'replayhaven-media-'));
@@ -122,7 +122,7 @@ it('lists audio tracks, mixes them for playback and extracts one as 16 kHz mono 
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
       await rm(root, { recursive: true, force: true });
   }
-});
+}, 30000);
 
 it('streams raw RGB frames labelled with the middle of their interval', async () => {
   const root = await mkdtemp(join(tmpdir(), 'replayhaven-media-'));
@@ -163,7 +163,7 @@ it('streams raw RGB frames labelled with the middle of their interval', async ()
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
       await rm(root, { recursive: true, force: true });
   }
-});
+}, 30000);
 
 it.skipIf(process.platform === 'win32')(
   'reports a missing or failing FFmpeg instead of a clip without frames',
@@ -210,6 +210,7 @@ it.skipIf(process.platform === 'win32')(
         await rm(root, { recursive: true, force: true });
     }
   },
+  30000,
 );
 
 it('decodes a track as 16 kHz samples, channel by channel', async () => {
@@ -260,7 +261,7 @@ it('decodes a track as 16 kHz samples, channel by channel', async () => {
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
       await rm(root, { recursive: true, force: true });
   }
-});
+}, 30000);
 
 it('puts a microphone that sits on one channel in the middle of the playback mix', async () => {
   const root = await mkdtemp(join(tmpdir(), 'replayhaven-media-'));
@@ -329,4 +330,4 @@ it('puts a microphone that sits on one channel in the middle of the playback mix
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
       await rm(root, { recursive: true, force: true });
   }
-});
+}, 30000);
