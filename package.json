@@ -29,6 +29,7 @@
     "server": "tsx server/index.ts",
     "dev:all": "concurrently -k \"npm run server\" \"npm run dev\"",
     "agent": "tsx agent/index.ts",
+    "fortnite": "tsx agent/fortnite-cli.ts",
     "client:prepare": "node scripts/build-client.mjs",
     "client:dev": "npm run client:prepare && electron desktop-bundle",
     "client:build": "npm run client:prepare && electron-builder --config electron-builder.yml --win nsis --x64",

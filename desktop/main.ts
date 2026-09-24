@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { FolderUploader, recordedGames } from '../agent/watcher';
 import { LocalAnalyzer, checkOllama, pullModel, DEFAULT_MODEL, OLLAMA_URL } from '../agent/ollama';
 import { playerNamesSchema, savedPlayerNames, tidyPlayerNames } from '../agent/players';
+import { defaultDemosFolder, FortniteReplays } from '../agent/fortnite';
 import { MediaProcessor } from '../server/media';
 
 const configSchema = z.object({
@@ -29,6 +30,10 @@ const configSchema = z.object({
   includeExisting: z.boolean(),
   analyze: z.boolean(),
   frames: z.union([z.literal(24), z.literal(48)]),
+  // Kills, Waffe und Entfernung aus den Fortnite-Replays (agent/fortnite.ts). Aus, bis gemessen.
+  fortniteReplays: z.boolean().default(false),
+  // Eigene Epic-Konto-IDs; leer: Der Client erkennt das Konto aus den Replays selbst.
+  epicAccounts: z.array(z.string()).max(10).default([]),
 });
 type ClientConfig = z.infer<typeof configSchema>;
 let config: ClientConfig = {
@@ -40,6 +45,8 @@ let config: ClientConfig = {
   includeExisting: false,
   analyze: true,
   frames: 24,
+  fortniteReplays: false,
+  epicAccounts: [],
 };
 let window: BrowserWindow;
 let tray: Tray;
@@ -86,6 +93,13 @@ async function saveConfig(value: unknown) {
   const input = configSchema.parse(value);
   input.server = validateServer(input.server);
   input.playerNames = tidyPlayerNames(input.playerNames);
+  input.epicAccounts = [...new Set(input.epicAccounts.map((a) => a.trim().toLowerCase()))].filter(
+    Boolean,
+  );
+  if (input.epicAccounts.some((a) => !/^[0-9a-f]{32}$/.test(a)))
+    throw new Error(
+      'Eine Epic-Konto-ID hat 32 Zeichen aus 0–9 und a–f. Du findest sie auf epicgames.com in deinen Kontoeinstellungen.',
+    );
   if (working)
     throw new Error('Pausiere den Client und warte, bis der laufende Schritt beendet ist.');
   if (status.running && !paused)
@@ -147,6 +161,10 @@ async function start() {
   aborter = new AbortController();
   paused = false;
   const processor = media();
+  const replays =
+    config.analyze && config.fortniteReplays && defaultDemosFolder()
+      ? new FortniteReplays({ folder: defaultDemosFolder(), accounts: config.epicAccounts })
+      : undefined;
   const analyzer = new LocalAnalyzer({
     url: OLLAMA_URL,
     model: DEFAULT_MODEL,
@@ -156,6 +174,12 @@ async function start() {
     isPaused: () => paused,
     signal: aborter.signal,
     playerNames: config.playerNames,
+    ...(replays
+      ? {
+          replays: (path: string, game: string, duration: number) =>
+            replays.forClip(path, game, duration),
+        }
+      : {}),
     onProgress: (message) => emit({ message }),
   });
   const stateName = createHash('sha256')

@@ -16,8 +16,18 @@ import {
 import type { AnalysisResult, FrameObservation, SummaryResult } from '../server/schema';
 import { TAIL_SECONDS } from '../server/media';
 import type { MediaProcessor } from '../server/media';
-import { collectEvents, describeFacts, eventWeight, headline, phrase, tagsFor } from './events';
+import {
+  collectEvents,
+  describeFacts,
+  eventWeight,
+  headline,
+  phrase,
+  tagsFor,
+  withReplay,
+} from './events';
 import type { GameEvent } from './events';
+import type { ReplayLookup, ReplayTrace } from './fortnite';
+import { DeferredError } from './watcher';
 import { cleanText, fallbackTitle, tidyHighlights, titleProblems, uncertaintyFor } from './wording';
 import { namesFor } from './players';
 import type { PlayerName } from './players';
@@ -56,6 +66,8 @@ export interface AnalysisTrace {
   rejected: string[];
   /** Die eigenen Namen, die der Prompt für das Spiel des Clips nannte. */
   playerNames: string[];
+  /** Was ein Replay beitrug oder warum keins (agent/fortnite.ts). */
+  replay?: ReplayTrace;
 }
 export interface LocalAnalyzerOptions {
   url: string;
@@ -74,6 +86,11 @@ export interface LocalAnalyzerOptions {
   playerNames?: PlayerName[];
   /** Ein Name für alle Spiele, wie in früheren Fassungen; gilt zusätzlich zu `playerNames`. */
   playerName?: string;
+  /**
+   * Spielereignisse aus Replays (agent/fortnite.ts). "wait" verschiebt die Analyse, bis das
+   * Match vorbei ist; ohne Ergebnis oder mit "none" zählen wie bisher nur die Bilder.
+   */
+  replays?: (path: string, game: string, duration: number) => Promise<ReplayLookup | undefined>;
 }
 type Message = { role: 'user' | 'assistant'; content: string; images?: string[] };
 /**
@@ -222,6 +239,23 @@ export class LocalAnalyzer {
     };
     let modelMayBeLoaded = false;
     try {
+      // Das Replay zuerst: Wartet der Clip auf das Ende seines Matches, kostet das keine GPU-Zeit.
+      // Ein Fehler dabei kostet nur die Replay-Ereignisse, nie die Analyse.
+      const replay = await this.options
+        .replays?.(path, game, duration)
+        .catch((error): ReplayLookup => ({
+          status: 'none',
+          events: [],
+          trace: {
+            status: 'none',
+            reason: `Replay nicht lesbar: ${error instanceof Error ? error.message : 'unbekannt'}`,
+          },
+        }));
+      if (replay) trace.replay = replay.trace;
+      if (replay?.status === 'wait')
+        throw new DeferredError(
+          'Wartet auf das Ende des Fortnite-Matches, damit das Replay feststeht …',
+        );
       this.options.onProgress?.('Bilder aus deiner Aufnahme werden vorbereitet …');
       const frames = await this.options.media.frames(path, work, duration, this.options.frames);
       if (!frames.length) throw new Error('Keine Bilder aus der Aufnahme lesbar.');
@@ -245,8 +279,12 @@ export class LocalAnalyzer {
         if (trace.lostFrames > Math.max(1, Math.floor(frames.length / 4))) throw observed.failure;
         for (const f of observed.frames) seen.push({ ...f, seconds: batch[f.frame].seconds });
       }
-      // Das Modell liest die Meldungen, gedeutet werden sie hier (agent/events.ts).
-      const events = collectEvents(seen, path, game);
+      // Das Modell liest die Meldungen, gedeutet werden sie hier (agent/events.ts). Kills und
+      // Tode aus einem Replay sind exakt und ersetzen die gelesenen.
+      const events = withReplay(
+        collectEvents(seen, path, game),
+        replay?.status === 'ok' ? replay.events : undefined,
+      );
       trace.events = events;
       const weight = new Map(
         seen.map((o) => [o, o.kind === 'loading' ? 0 : eventWeight(o.visibleText, game)]),
@@ -295,7 +333,7 @@ export class LocalAnalyzer {
       } Folgt die Ansicht nach seinem Tod einem Mitspieler oder zeigt sie eine Zuschauerperspektive, ist unklar, wessen Sicht zu sehen ist — dann bleibe unpersönlich.`;
       const heads = headline(events, momentStart);
       const titleRule = heads.length
-        ? `Er benennt das wichtigste belegte Ereignis aus dem Schluss: ${phrase(heads[0])}${heads[1] ? `; er darf es mit diesem verbinden: ${phrase(heads[1])}` : ''}.`
+        ? `Er benennt das wichtigste belegte Ereignis aus dem Schluss: ${phrase(heads[0])}${heads[1] ? `; er darf es mit diesem verbinden: ${phrase(heads[1])}` : ''}.${heads[0].source === 'replay' ? ' Anzahl, Waffe und Entfernung stammen aus dem Spiel selbst; nenne, was den Moment besonders macht, etwa die Zahl der Kills, einen Snipe oder die Entfernung, und nichts, was dem widerspricht.' : ''}`
         : 'Es gibt kein belegtes Ereignis, also nennt er zuerst, was du im Schluss tust, als Tätigkeit mit Verb, dann ein Detail, das diesen Clip von anderen unterscheidet — nicht bloß Umgebung oder Gegenstände und keine Anzeige.';
       const messages: Message[] = [
         {
@@ -398,7 +436,11 @@ export class LocalAnalyzer {
       description: description.slice(0, 1800),
       game: context.game.slice(0, 100),
       tags: tagsFor(events, seen, CLIP_TAGS),
-      confidence: heads.some((e) => e.source === 'screen') ? 'high' : playing ? 'medium' : 'low',
+      confidence: heads.some((e) => e.source === 'screen' || e.source === 'replay')
+        ? 'high'
+        : playing
+          ? 'medium'
+          : 'low',
       // Das Feld des Modells nimmt Vorbehalte auf, damit sie nicht in der Beschreibung landen;
       // angezeigt wird der aus der Beleglage abgeleitete Vorbehalt.
       uncertainty: uncertaintyFor(heads, context.lostFrames),

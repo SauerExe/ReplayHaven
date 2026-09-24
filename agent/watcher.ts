@@ -24,6 +24,11 @@ export interface WatchOptions {
   onQueued?: (count: number) => void;
   signal?: AbortSignal;
 }
+/**
+ * Die Aufnahme soll später verarbeitet werden, ohne dass etwas schiefging — etwa, weil ihr
+ * Fortnite-Match noch läuft und das Replay erst danach feststeht.
+ */
+export class DeferredError extends Error {}
 type Receipt = { fingerprint: string; clipId?: string };
 type AgentState = { id: string; receipts: Record<string, Receipt>; uploaded: number };
 export async function listVideos(folder: string): Promise<string[]> {
@@ -209,6 +214,11 @@ export class FolderUploader {
         this.options.onQueued?.(queued);
         this.options.onStatus?.(`Archiviert: ${basename(path)}`);
       } catch (error) {
+        if (error instanceof DeferredError) {
+          this.retryAt.set(path, now + 60000);
+          this.options.onStatus?.(`${basename(path)}: ${error.message}`);
+          continue;
+        }
         this.error = error instanceof Error ? error.message : 'Upload nicht möglich.';
         this.retryAt.set(path, now + 60000);
         this.options.onStatus?.(this.error);

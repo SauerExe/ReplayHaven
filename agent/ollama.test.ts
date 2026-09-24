@@ -1,5 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { LocalAnalyzer, PausedError, validateLocalOllama } from './ollama';
+import { DeferredError } from './watcher';
+import type { ReplayLookup } from './fortnite';
 import type { AnalysisTrace } from './ollama';
 import { MediaProcessor } from '../server/media';
 import { mkdtemp, rm, readdir } from 'node:fs/promises';
@@ -571,4 +573,128 @@ it('does no media or model work when analysis is already paused', async () => {
   await expect(analyzer.analyze('test-only.mp4', 'Fortnite')).rejects.toBeInstanceOf(PausedError);
   expect(probe).not.toHaveBeenCalled();
   expect(fetch).not.toHaveBeenCalled();
+});
+
+it('takes kills from the replay, asks for the detail and waits while the match runs', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
+  try {
+    const media = new MediaProcessor({});
+    vi.spyOn(media, 'probe').mockResolvedValue({
+      duration: 20,
+      width: 1920,
+      height: 1080,
+      codec: 'h264',
+      hasAudio: true,
+    });
+    const frames = vi
+      .spyOn(media, 'frames')
+      .mockResolvedValue(
+        Array.from({ length: 8 }, (_, i) => ({ seconds: i * 2.5, base64: `bild-${i}` })),
+      );
+    vi.spyOn(media, 'frameAt').mockResolvedValue('focus-image');
+    const summaries: { messages: { content: string }[] }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string);
+        if (!body.messages.length) return Response.json({ done: true });
+        const images = imagesOf(body);
+        if (body.format?.properties?.frames) {
+          const offset = Number(images[0].split('-')[1]);
+          // Die Meldung eines beobachteten Mitspielers: Das Replay weiß es besser.
+          return Response.json({
+            message: {
+              content: JSON.stringify({
+                frames: images.map((_: string, i: number) => ({
+                  frame: i,
+                  kind: 'gameplay',
+                  observation: 'Kampf im Turm',
+                  visibleText: offset + i === 2 ? 'ELIMINIERT: Fremder' : '',
+                })),
+              }),
+            },
+          });
+        }
+        summaries.push(body);
+        return Response.json({
+          message: {
+            content: JSON.stringify({
+              title: summaries.length === 1 ? 'Kill im Turm' : 'Doppel-Kill im Turm',
+              description: 'Du räumst den Turm.',
+              uncertainty: '',
+              highlights: [],
+            }),
+          },
+        });
+      }),
+    );
+    const found: ReplayLookup = {
+      status: 'ok',
+      events: [
+        { kind: 'kill', seconds: 14, text: '', source: 'replay', weapon: 'shotgun', distance: 4 },
+        { kind: 'kill', seconds: 17, text: '', source: 'replay', weapon: 'shotgun', distance: 6 },
+        { kind: 'multikill', seconds: 17, text: '', source: 'replay', weapon: 'shotgun', count: 2 },
+      ],
+      trace: { status: 'ok', file: 'UnsavedReplay-3.replay', owner: 'a1'.repeat(16) },
+    };
+    let lookup = found;
+    const replays = vi.fn(async () => lookup);
+    let trace: AnalysisTrace | undefined;
+    const analyzer = new LocalAnalyzer({
+      url: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      frames: 24,
+      cacheDir: root,
+      media,
+      isPaused: () => false,
+      onTrace: (t) => (trace = t),
+      replays,
+    });
+    const output = await analyzer.analyze('Fortnite 2026.09.24 - 21.10.00.07.DVR.mp4', 'Fortnite');
+    expect(replays).toHaveBeenCalledWith(
+      'Fortnite 2026.09.24 - 21.10.00.07.DVR.mp4',
+      'Fortnite',
+      20,
+    );
+    expect(summaries[0].messages[0].content).toContain(
+      'Du hast zwei Gegner kurz nacheinander mit der Schrotflinte ausgeschaltet',
+    );
+    expect(summaries[0].messages[0].content).toContain('Spielereignis aus dem Fortnite-Replay');
+    // "Kill im Turm" lässt die Serie weg und bekommt eine Rückfrage.
+    expect(summaries[1].messages.at(-1)?.content).toContain('lässt das Besondere am Ereignis weg');
+    expect(output.result).toMatchObject({
+      title: 'Doppel-Kill im Turm',
+      tags: ['Kill', 'Multikill'],
+      confidence: 'high',
+      highlights: [
+        { seconds: 14, title: 'Kill mit der Schrotflinte' },
+        { seconds: 17, title: 'Doppel-Kill mit der Schrotflinte' },
+      ],
+    });
+    expect(trace?.events.filter((e) => e.source === 'screen')).toEqual([]);
+    expect(trace?.replay).toMatchObject({ status: 'ok', file: 'UnsavedReplay-3.replay' });
+
+    // Läuft das Match noch, wartet der Clip, ohne Bilder oder Modell zu bemühen.
+    lookup = { status: 'wait', events: [], trace: { status: 'wait' } };
+    frames.mockClear();
+    const calls = vi.mocked(fetch).mock.calls.length;
+    await expect(
+      analyzer.analyze('Fortnite 2026.09.24 - 21.10.00.07.DVR.mp4', 'Fortnite'),
+    ).rejects.toBeInstanceOf(DeferredError);
+    expect(frames).not.toHaveBeenCalled();
+    expect(vi.mocked(fetch).mock.calls.length).toBe(calls);
+
+    // Ein unlesbares Replay kostet nur die Replay-Ereignisse.
+    replays.mockRejectedValueOnce(new Error('Datei gesperrt'));
+    frames.mockClear();
+    await analyzer.analyze('Fortnite 2026.09.24 - 21.10.00.07.DVR.mp4', 'Fortnite');
+    expect(frames).toHaveBeenCalled();
+    expect(trace?.replay).toEqual({
+      status: 'none',
+      reason: 'Replay nicht lesbar: Datei gesperrt',
+    });
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
+      await rm(root, { recursive: true, force: true });
+  }
 });

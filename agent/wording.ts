@@ -1,4 +1,5 @@
-import type { EventKind, GameEvent } from './events';
+import { WEAPON_WITH, phrase } from './events';
+import type { EventKind, GameEvent, Weapon } from './events';
 
 /**
  * Prüfung und Nachbearbeitung der Texte, die das Modell schreibt. Es formuliert gut, behauptet
@@ -22,6 +23,9 @@ const KILL_ACTIVE = /\b(?:schaltest|erledigst|erwischst|eliminierst|killst|holst
 // Auch als Tätigkeit ("Zombies töten") eine Behauptung, die ein Ereignis braucht.
 const KILL =
   /\b(?:kills?|headshots?|kopfschuss|ace|multikill|(?:doppel|dreifach|vierfach|mehrfach)-?kills?|abschuss|abgeschossen|abschie(?:ß|ss)en|töten|killen)\b/i;
+// Nur gegen Replay-Ereignisse geprüft: Snipes und Knocks ("niedergeschlagen" ist kein Kill).
+const SNIPE = /\b(?:snipes?|gesnip(?:ed|t)|no-?scope\w*)\b/i;
+const KNOCK = /\b(?:knocks?|geknockt|umgeknockt|niedergeschlagen)\b/i;
 // Kann Kill oder Tod meinen; zulässig, sobald eins von beiden belegt ist.
 const EITHER =
   /\b(?:ausgeschaltet|ausschalten|eliminiert|eliminieren|eliminierung(?:en)?|erledigt|erledigen|erwischt|besiegt)\b/i;
@@ -58,12 +62,48 @@ export function unsupportedClaims(text: string, events: GameEvent[]) {
   if ((deathBy || DEATH.test(rest)) && !death)
     problems.push('behauptet deinen Tod, den keine Meldung belegt');
   if (killed && !kill) problems.push('behauptet einen Kill, den keine Meldung belegt');
+  // Replay-Ereignisse sind gezählt und vermessen; nur mit ihnen lassen sich Snipes, Knocks,
+  // Serien und Entfernungen prüfen. Clips ohne Replay prüft das wie bisher.
+  if (events.some((e) => e.source === 'replay'))
+    problems.push(...exactClaims(rest, events, killed));
   if (!killed && EITHER.test(rest) && !kill && !death)
     problems.push('behauptet ein Ausschalten, das keine Meldung belegt');
   if (WIN.test(text) && !has(events, WINS))
     problems.push('behauptet einen Sieg, den keine Meldung belegt');
   if (LOSS.test(text) && !has(events, LOSSES))
     problems.push('behauptet eine Niederlage, die keine Meldung belegt');
+  return problems;
+}
+
+function exactClaims(text: string, events: GameEvent[], killed: boolean) {
+  const problems: string[] = [];
+  const kill = has(events, KILLS);
+  if (SNIPE.test(text) && !killed && !kill)
+    problems.push('behauptet einen Kill, den keine Meldung belegt');
+  if (KNOCK.test(text) && !kill && !has(events, ['knock']))
+    problems.push('behauptet einen Knock, den kein Ereignis belegt');
+  const series = seriesIn(text);
+  const counted = Math.max(
+    0,
+    ...events.map((e) =>
+      e.kind === 'multikill'
+        ? (e.count ?? 2)
+        : e.kind === 'ace'
+          ? 5
+          : KILLS.includes(e.kind)
+            ? 1
+            : 0,
+    ),
+  );
+  if (series > counted) problems.push(`behauptet ${series} Kills in Folge, belegt sind ${counted}`);
+  const meters = distanceIn(text);
+  const farthest = Math.max(0, ...events.map((e) => e.distance ?? 0));
+  if (meters !== undefined && meters > farthest + 5)
+    problems.push(
+      farthest
+        ? `übertreibt die Entfernung (belegt sind ${Math.round(farthest)} m)`
+        : 'nennt eine Entfernung, die kein Ereignis belegt',
+    );
   return problems;
 }
 
@@ -82,19 +122,101 @@ export function titleProblems(title: string, events: GameEvent[], headlineEvents
   if (/^du\b/i.test(title.trim())) problems.push('beginnt mit "Du", ist aber eine Überschrift');
   if (/\b(?:ich|mich|mir|mein\w*)\b/i.test(title)) problems.push('spricht in der Ich-Form');
   const main = headlineEvents[0];
-  if (main && !problems.length && !mentions(title, main.kind))
+  if (main?.weapon) {
+    const named = weaponsIn(title);
+    if (named.length && !named.includes(main.weapon))
+      problems.push(`nennt eine andere Waffe, als das Spiel meldet (${label(main)})`);
+  }
+  if (main && !problems.length && !mentions(title, main))
     problems.push(`benennt das wichtigste belegte Ereignis nicht (${label(main)})`);
+  else if (main && !problems.length && !mentionsDetail(title, main))
+    problems.push(`lässt das Besondere am Ereignis weg (${label(main)})`);
   return problems;
 }
 
-function mentions(title: string, kind: EventKind) {
+/** Zahl einer genannten Serie: "Doppel-Kill" 2, "Triple Kill" 3. 0 ohne Serie. */
+function seriesIn(text: string) {
+  const series: [RegExp, number][] = [
+    [/\b(?:fünffach|penta)\w*/i, 5],
+    [/\b(?:vierfach|quad)\w*/i, 4],
+    [/\b(?:dreifach|triple)\w*/i, 3],
+    [/\b(?:doppel|double|zweifach)(?:-?kills?|-?eliminierung\w*|\b)/i, 2],
+  ];
+  return series.find(([pattern]) => pattern.test(text))?.[1] ?? 0;
+}
+
+/** Genannte Entfernung in Metern: "über 180 m", "180-m-Snipe", "200 Meter". */
+function distanceIn(text: string) {
+  const match = /\b(\d{2,4})\s*-?\s*m(?:eter[n]?)?\b/i.exec(text);
+  return match ? Number(match[1]) : undefined;
+}
+
+const WEAPON_WORDS: [Weapon[], RegExp][] = [
+  [['sniper', 'noscope'], /snipe|sniper|scharfschütz|no-?scope/i],
+  [['shotgun'], /schrot|shotgun|pump/i],
+  [['smg'], /\bmp\b|maschinenpistole|\bsmg\b/i],
+  [['pistol'], /(?<!maschinen)pistole|\bpistol\b|revolver/i],
+  [['rifle'], /(?<!scharfschützen)gewehr|\brifle\b|\bar\b|\bdmr\b/i],
+  [['explosive'], /granate|rakete|sprengstoff|explosion|\bc4\b/i],
+  [['bow'], /\bbogen\b|\bbow\b/i],
+  [['melee'], /spitzhacke|nahkampf|pickaxe|melee/i],
+  [['minigun'], /minigun/i],
+  [['lmg'], /\bl?mg\b/i],
+  [['vehicle'], /fahrzeug|überfahren/i],
+];
+
+/** Waffen, die ein Text nennt. */
+function weaponsIn(text: string) {
+  return WEAPON_WORDS.filter(([, pattern]) => pattern.test(text)).flatMap(([weapons]) => weapons);
+}
+
+/**
+ * Was ein Ereignis aus dem Replay besonders macht, soll der Titel tragen: die Zahl einer Serie,
+ * einen Snipe oder eine große Entfernung. Gelesene Meldungen haben solche Angaben nicht.
+ */
+function mentionsDetail(title: string, event: GameEvent) {
+  if (event.kind === 'multikill' && event.count)
+    return seriesIn(title) === Math.min(event.count, 5) || title.includes(String(event.count));
+  if (!['kill', 'knock'].includes(event.kind)) return true;
+  const far = (event.distance ?? 0) >= 100;
+  const sniped = event.weapon === 'sniper' || event.weapon === 'noscope';
+  if (!far && !sniped) return true;
+  return (
+    (far && distanceIn(title) !== undefined) || (sniped && weaponsIn(title).includes(event.weapon!))
+  );
+}
+
+function mentions(title: string, event: GameEvent) {
+  const kind = event.kind;
   const trade = /abtausch|\btrade\b|gegenseitig/i;
+  if (kind === 'knock') return KNOCK.test(title);
   if (kind === 'death')
     return [DEATH_BY, DEATH_ACTIVE, DEATH, EITHER, AFTER_DEATH, trade].some((p) => p.test(title));
-  if (KILLS.includes(kind)) return [KILL, KILL_ACTIVE, EITHER, trade].some((p) => p.test(title));
+  if (KILLS.includes(kind))
+    return [KILL, KILL_ACTIVE, EITHER, trade, ...(event.source === 'replay' ? [SNIPE] : [])].some(
+      (p) => p.test(title),
+    );
   if (kind === 'clutch') return /clutch|unterzahl|allein|letzte/i.test(title);
   if (WINS.includes(kind)) return WIN.test(title);
   return LOSS.test(title);
+}
+
+/** Entfernung für Titel: abgerundet auf zehn Meter, damit "über" immer stimmt. */
+function over(distance: number | undefined) {
+  return distance !== undefined && distance >= 50
+    ? ` über ${Math.floor(distance / 10) * 10} m`
+    : '';
+}
+
+/** Kurzform eines Replay-Treffers: "Snipe über 180 m", "Kill mit der Schrotflinte". */
+function hitLabel(event: GameEvent, noun: 'Kill' | 'Knock') {
+  if (event.weapon === 'noscope') return `No-Scope-${noun}${over(event.distance)}`;
+  if (event.weapon === 'sniper')
+    return noun === 'Kill' ? `Snipe${over(event.distance)}` : `Snipe-Knock${over(event.distance)}`;
+  if ((event.distance ?? 0) >= 100) return `${noun}${over(event.distance)}`;
+  if (event.weapon && !['storm', 'fall'].includes(event.weapon))
+    return `${noun} ${WEAPON_WITH[event.weapon]}`;
+  return noun === 'Kill' ? 'Gegner ausgeschaltet' : 'Gegner niedergeschlagen';
 }
 
 /** Kurzform eines Ereignisses, für Ersatztitel und Zeitmarken. */
@@ -102,7 +224,7 @@ export function label(event: GameEvent) {
   const text = event.text.toUpperCase();
   switch (event.kind) {
     case 'matchWon':
-      return 'Match gewonnen';
+      return event.source === 'replay' ? 'Victory Royale' : 'Match gewonnen';
     case 'matchLost':
       return 'Match verloren';
     case 'ace':
@@ -110,6 +232,14 @@ export function label(event: GameEvent) {
     case 'clutch':
       return 'Clutch';
     case 'multikill':
+      if (event.count) {
+        const name =
+          ['', '', 'Doppel-Kill', 'Dreifach-Kill', 'Vierfach-Kill', 'Fünffach-Kill'][event.count] ??
+          `${event.count} Kills in Folge`;
+        return event.weapon && !['storm', 'fall'].includes(event.weapon)
+          ? `${name} ${WEAPON_WITH[event.weapon]}`
+          : name;
+      }
       return /DREIFACH|TRIPLE|X\s?3/.test(text)
         ? 'Dreifach-Kill'
         : /VIERFACH|QUAD|X\s?4/.test(text)
@@ -124,8 +254,16 @@ export function label(event: GameEvent) {
     case 'headshot':
       return 'Headshot';
     case 'kill':
-      return 'Gegner ausgeschaltet';
+      return hitLabel(event, 'Kill');
+    case 'knock':
+      return hitLabel(event, 'Knock');
     case 'death':
+      if (event.weapon === 'storm') return 'Im Sturm ausgeschieden';
+      if (event.weapon === 'fall') return 'Durch Fallschaden ausgeschieden';
+      if (event.source === 'replay' && event.weapon) {
+        const how = WEAPON_WITH[event.weapon];
+        return `${how[0].toUpperCase()}${how.slice(1)} ausgeschaltet`;
+      }
       return event.source !== 'spectator' && event.other
         ? `Von ${event.other} ausgeschaltet`
         : 'Ausgeschieden';
@@ -221,7 +359,7 @@ export function tidyHighlights(proposed: Highlight[], events: GameEvent[], durat
   const out: Highlight[] = [];
   // Neben belegten Ereignissen reichen wenige Vorschläge; sonst reihen sich "Kampfbericht",
   // "Schneeumgebung" und "Karte B Site" hinter den eigentlichen Moment.
-  let room = events.some((e) => e.source === 'screen') ? 3 : 5;
+  let room = events.some((e) => e.source === 'screen' || e.source === 'replay') ? 3 : 5;
   const key = (title: string) => title.toLowerCase().replace(/[^a-zäöüß0-9]+/g, '');
   const add = (h: Highlight) => {
     if (!Number.isFinite(h.seconds) || h.seconds < 0 || h.seconds > duration) return;
@@ -238,6 +376,8 @@ export function tidyHighlights(proposed: Highlight[], events: GameEvent[], durat
   for (const e of events)
     if (e.seconds !== null && e.source === 'screen')
       add({ seconds: e.seconds, title: label(e), description: `Meldung: ${e.text}` });
+    else if (e.seconds !== null && e.source === 'replay')
+      add({ seconds: e.seconds, title: label(e), description: `${phrase(e)}.` });
   for (const h of proposed) {
     if (room <= 0) break;
     if (unsupportedClaims(`${h.title} ${h.description}`, events).length || shouting(h.title))

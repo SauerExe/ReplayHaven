@@ -53,6 +53,15 @@ Beim Spielen kannst du **pausieren** und anschließend mit **Analyse & Upload st
 
 Zum ersten Verbindungstest kannst du **Neue Clips vor dem Upload lokal analysieren** ausschalten. Dann werden Originale ohne KI-Ergebnis archiviert; Ollama ist dafür nicht erforderlich. Beim manuellen Browser-Upload wird die PC-KI ebenfalls nicht aufgerufen.
 
+## Fortnite-Replays (optional)
+
+Fortnite legt von jedem Match ein Replay unter `%LOCALAPPDATA%\FortniteGame\Saved\Demos` ab. Mit **Fortnite-Replays einbeziehen** liest der Client daraus deine Kills, Knocks, dein Ausscheiden und einen Sieg samt Waffenart und Entfernung, statt sie aus Bildschirmmeldungen zu lesen. So entstehen Titel wie „Doppel-Kill mit der Schrotflinte“ oder „Snipe über 180 m“.
+
+- Die Clipzeit ergibt sich aus der Uhrzeit im NVIDIA-Dateinamen und dem Zeitpunkt, zu dem die Datei geschrieben wurde. Originale werden dafür nur gelesen.
+- Ein Replay nennt nicht, wer aufgenommen hat. Der Client erkennt dein Konto daran, dass es in fast jedem Replay dieses PCs vorkommt, und an der Match-Statistik. Bleibt es unklar, nutzt er das Replay nicht. Eindeutig wird es, wenn du deine **Epic-Konto-ID** einträgst; sie steht auf epicgames.com in deinen Kontoeinstellungen.
+- Ein Clip aus einem Match, das noch läuft, wartet bis zu dessen Ende, höchstens 45 Minuten. Danach wird er wie bisher nur mit Bildern analysiert.
+- In Fortnite muss die Aufzeichnung von Replays eingeschaltet sein. Der Client liest nur den Kopf und die Ereignisse eines Replays, nicht das ganze Match.
+
 ## Was tatsächlich passiert
 
 - Die lokale KI erhält 24 oder 48 verkleinerte Einzelbilder in aufeinanderfolgenden Paketen. **Ton wird nicht analysiert.** Schnelle Ereignisse können zwischen den Bildern liegen; Ergebnisse sind Vorschläge.
@@ -74,6 +83,7 @@ Zum ersten Verbindungstest kannst du **Neue Clips vor dem Upload lokal analysier
 | Modell fehlt                           | **Modell laden** wählen und warten.                                                                                                      |
 | GPU-Speicher knapp / Spiel ruckelt     | Client pausieren und nach dem Spielen fortsetzen. Mit 24 Bildern beginnen. Während der Analyse zeigt `ollama ps` die GPU-Nutzung.        |
 | Datei bleibt ausstehend                | Warten, bis die Aufnahme fertig geschrieben ist. Unterstützt: MP4, M4V, MOV, WebM, MKV; maximal 2 GB, 30 Minuten und 8K pro Aufnahme.    |
+| Fortnite-Clip bleibt ausstehend        | Er wartet auf das Ende seines Matches. Nach dem Match oder spätestens nach 45 Minuten geht es weiter.                                    |
 | Kein KI-Titel                          | Prüfen, ob die Client-Analyse aktiv war. Bereits archivierte Dateien werden durch späteres Einschalten nicht automatisch nachanalysiert. |
 | Kein Windows-Download unter Geräte     | Das Image kennt keine Download-Adresse. `REPLAYHAVEN_CLIENT_DOWNLOAD_URL` in `.env` setzen oder den Installer nach `release/` legen.     |
 

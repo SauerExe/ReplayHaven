@@ -15,6 +15,11 @@ All notable changes to this project are documented here. The format follows
   Qwen3-VL, uploads originals plus AI results, retries after connection loss.
 - Docker image (linux/amd64, linux/arm64), Compose setup and `setup-server.sh`.
 - GitHub Actions for CI and releases (installer, GHCR image, release assets).
+- Optional Fortnite replay events: with "Fortnite-Replays einbeziehen" the client reads the
+  match replays in `%LOCALAPPDATA%\FortniteGame\Saved\Demos` and takes your kills, knocks,
+  elimination and victory from them, with weapon class and distance, instead of reading them
+  from on-screen messages. Clips from a match still in progress wait until it ends (at most
+  45 minutes). `npm run fortnite` shows what the replays contribute to your clips without AI.
 
 ### Changed
 

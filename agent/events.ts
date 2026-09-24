@@ -13,21 +13,45 @@ export type EventKind =
   | 'headshot'
   | 'ace'
   | 'clutch'
+  | 'knock'
   | 'death'
   | 'roundWon'
   | 'roundLost'
   | 'matchWon'
   | 'matchLost';
 
+/** Waffenart oder Todesursache, wie sie ein Spiel-Replay nennt (agent/fortnite.ts). */
+export type Weapon =
+  | 'pistol'
+  | 'shotgun'
+  | 'rifle'
+  | 'smg'
+  | 'sniper'
+  | 'noscope'
+  | 'melee'
+  | 'explosive'
+  | 'bow'
+  | 'minigun'
+  | 'lmg'
+  | 'vehicle'
+  | 'trap'
+  | 'storm'
+  | 'fall';
+
 export interface GameEvent {
   kind: EventKind;
   /** Sekunde im Clip; null, wenn nur der Dateiname von NVIDIA das Ereignis nennt. */
   seconds: number | null;
-  /** Die gelesene Meldung, oder das Ereignis aus dem Dateinamen. */
+  /** Die gelesene Meldung, oder das Ereignis aus dem Dateinamen bzw. Replay. */
   text: string;
-  source: 'screen' | 'spectator' | 'nvidia';
+  /** replay: aus den Spielereignissen eines Replays, exakt statt gelesen. */
+  source: 'screen' | 'spectator' | 'nvidia' | 'replay';
   /** Gegner, falls die Meldung ihn nennt: Opfer bei Kills, Verursacher beim eigenen Tod. */
   other?: string;
+  /** Nur aus Replays: Waffe bzw. Ursache, Entfernung in Metern, Zahl der Kills einer Serie. */
+  weapon?: Weapon;
+  distance?: number;
+  count?: number;
 }
 
 export type SeenFrame = Pick<FrameObservation, 'kind' | 'visibleText'> & { seconds: number };
@@ -44,6 +68,7 @@ export const SIGNIFICANCE: Record<EventKind, number> = {
   headshot: 4,
   kill: 3,
   death: 3,
+  knock: 2,
 };
 
 const KILL_CONTEXT = /\bELIMINIERUNG\b|\bKILLS?\b|\bABSCHUSS\b/;
@@ -303,6 +328,22 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
   return found.sort((a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity));
 }
 
+/**
+ * Ersetzt gelesene Kills, Knocks und Tode durch die exakten aus einem Replay. Gelesen kann eine
+ * Meldung auch von einem beobachteten Mitspieler stammen oder doppelt zählen; das Replay kennt
+ * jeden eigenen Treffer genau einmal. Meldungen zu Runde und Match bleiben, ein Sieg steht nur
+ * einmal da. Eine leere Liste aus dem Replay heißt: In diesem Clip gab es nichts davon.
+ */
+export function withReplay(events: GameEvent[], replay: GameEvent[] | undefined) {
+  if (!replay) return events;
+  const exact: EventKind[] = ['kill', 'multikill', 'headshot', 'knock', 'death'];
+  const won = replay.some((e) => e.kind === 'matchWon');
+  return [
+    ...events.filter((e) => !exact.includes(e.kind) && !(won && e.kind === 'matchWon')),
+    ...replay,
+  ].sort((a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity));
+}
+
 /** Stärkstes Ereignis einer Meldung, für die Wahl des Belegbilds. 0 ohne Ereignis. */
 export function eventWeight(text: string, game = '') {
   return Math.max(0, ...eventsInText(text, game).map((k) => SIGNIFICANCE[k]));
@@ -316,10 +357,16 @@ export function eventWeight(text: string, game = '') {
  * (VAL-KNAPP, Prüfung von E17).
  */
 export function headline(events: GameEvent[], momentStart: number): GameEvent[] {
+  // Ein Treffer über große Distanz oder mit dem Scharfschützengewehr ist bemerkenswerter als
+  // ein gewöhnlicher Kill oder der eigene Tod; das weiß nur ein Replay.
+  const notable = (e: GameEvent) =>
+    Number((e.distance ?? 0) >= 100 || e.weapon === 'sniper' || e.weapon === 'noscope');
   const pool = events
     .filter((e) => e.seconds === null || e.seconds >= momentStart)
     .sort(
-      (a, b) => SIGNIFICANCE[b.kind] - SIGNIFICANCE[a.kind] || (b.seconds ?? 0) - (a.seconds ?? 0),
+      (a, b) =>
+        SIGNIFICANCE[b.kind] + notable(b) - (SIGNIFICANCE[a.kind] + notable(a)) ||
+        (b.seconds ?? 0) - (a.seconds ?? 0),
     );
   const first = pool[0];
   if (!first) return [];
@@ -339,6 +386,8 @@ const TAG_FOR: Record<EventKind, string[]> = {
   headshot: ['Kill', 'Headshot'],
   ace: ['Kill', 'Multikill', 'Ace'],
   clutch: ['Clutch'],
+  // Niederschlagen ist kein Kill; ein eigenes Tag gibt es dafür (noch) nicht.
+  knock: [],
   death: ['Tod'],
   roundWon: ['Rundensieg'],
   roundLost: ['Runde verloren'],
@@ -373,6 +422,7 @@ const PHRASE: Record<EventKind, string> = {
   headshot: 'Du hast einen Gegner per Kopfschuss ausgeschaltet',
   ace: 'Du hast das ganze gegnerische Team allein ausgeschaltet (Ace)',
   clutch: 'Du hast eine Runde in Unterzahl entschieden (Clutch)',
+  knock: 'Du hast einen Gegner niedergeschlagen',
   death: 'Du wurdest ausgeschaltet',
   roundWon: 'Dein Team gewinnt die Runde',
   roundLost: 'Dein Team verliert die Runde',
@@ -380,9 +430,56 @@ const PHRASE: Record<EventKind, string> = {
   matchLost: 'Dein Team verliert das Match',
 };
 
+/** Waffe im Dativ, für "mit …" in Sätzen und Titeln. */
+export const WEAPON_WITH: Record<Weapon, string> = {
+  pistol: 'mit der Pistole',
+  shotgun: 'mit der Schrotflinte',
+  rifle: 'mit dem Gewehr',
+  smg: 'mit der MP',
+  sniper: 'mit dem Scharfschützengewehr',
+  noscope: 'mit dem Scharfschützengewehr ohne Zielfernrohr (No-Scope)',
+  melee: 'im Nahkampf',
+  explosive: 'mit Sprengstoff',
+  bow: 'mit dem Bogen',
+  minigun: 'mit der Minigun',
+  lmg: 'mit dem MG',
+  vehicle: 'mit einem Fahrzeug',
+  trap: 'mit einer Falle',
+  storm: 'durch den Sturm',
+  fall: 'durch Fallschaden',
+};
+
+/** Wie viele Kills eine Serie hat, als Wort. */
+export function countWord(count: number) {
+  return count === 2
+    ? 'zwei'
+    : count === 3
+      ? 'drei'
+      : count === 4
+        ? 'vier'
+        : count === 5
+          ? 'fünf'
+          : String(count);
+}
+
 /** Ein Ereignis als Satz aus Sicht des Nutzers, ohne Titelform — sonst schreibt das Modell ab. */
 export function phrase(event: GameEvent) {
-  return `${PHRASE[event.kind]}${event.kind === 'death' && event.other ? ` (von ${event.other})` : ''}`;
+  const base =
+    event.kind === 'multikill' && event.count
+      ? `Du hast ${countWord(event.count)} Gegner kurz nacheinander ausgeschaltet`
+      : PHRASE[event.kind];
+  const details = [
+    event.weapon ? WEAPON_WITH[event.weapon] : '',
+    event.distance !== undefined && event.distance >= 10
+      ? `aus ${Math.round(event.distance)} m Entfernung`
+      : '',
+  ].filter(Boolean);
+  // Die Angaben gehören vor das Partizip: "… mit der Schrotflinte ausgeschaltet".
+  const cut = base.lastIndexOf(' ');
+  const sentence = details.length
+    ? `${base.slice(0, cut)} ${details.join(' ')}${base.slice(cut)}`
+    : base;
+  return `${sentence}${event.kind === 'death' && event.other ? ` (von ${event.other})` : ''}`;
 }
 
 /** Die belegten Ereignisse als Tatsachen für den Prompt der Zusammenfassung. */
@@ -390,6 +487,8 @@ export function describeFacts(events: GameEvent[], momentStart: number) {
   if (!events.length)
     return 'Belegte Ereignisse: keine. Es wurde keine Meldung zu Kill, Tod, Sieg oder Niederlage gelesen, also behaupte nichts davon.';
   const lines = events.map((e) => {
+    if (e.source === 'replay')
+      return `- Sekunde ${e.seconds!.toFixed(1)} (${e.seconds! >= momentStart ? 'Schluss' : 'Vorlauf'}): ${phrase(e)}. Beleg: Spielereignis aus dem Fortnite-Replay, exakt.`;
     if (e.source === 'nvidia')
       return `- Laut NVIDIA, die den Clip als "${e.text}" gespeichert hat: ${PHRASE[e.kind]}. Die Stelle selbst ist in den Bildern nicht belegt.`;
     const where = e.seconds! >= momentStart ? 'Schluss' : 'Vorlauf';

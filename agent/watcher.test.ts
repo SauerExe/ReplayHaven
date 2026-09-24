@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
-import { FolderUploader, gameLabel, recordedGames } from './watcher';
+import { DeferredError, FolderUploader, gameLabel, recordedGames } from './watcher';
 import type { WatchOptions } from './watcher';
 let root: string;
 let options: WatchOptions;
@@ -121,4 +121,46 @@ it('suggests the games of existing recordings by the folder the analysis sees', 
   await writeFile(join(options.folder, 'Fortnite', 'c.mkv'), 'x');
   await writeFile(join(options.folder, 'Fortnite', 'Unterordner', 'd.txt'), 'x');
   expect(await recordedGames(options.folder)).toEqual(['Call of Duty Black Ops 7', 'Fortnite']);
+});
+
+it('keeps a deferred recording queued without reporting an error', async () => {
+  const file = join(options.folder, 'Fortnite 2026.09.24 - 21.10.00.07.DVR.mp4');
+  await writeFile(file, 'test-only bytes');
+  const analysis = {
+    result: {
+      title: 'Doppel-Kill im Turm',
+      description: 'Test',
+      game: 'Fortnite',
+      tags: [],
+      confidence: 'high' as const,
+      uncertainty: '',
+      highlights: [],
+    },
+    duration: 20,
+    model: 'test-model',
+  };
+  const analyze = vi
+    .fn()
+    .mockRejectedValueOnce(new DeferredError('Wartet auf das Ende des Fortnite-Matches …'))
+    .mockResolvedValue(analysis);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) =>
+      url.endsWith('/client-analysis') ? new Response('{}') : Response.json({ clip: { id: 'c1' } }),
+    ),
+  );
+  const statuses: string[] = [];
+  const agent = new FolderUploader({ ...options, analyze, onStatus: (m) => statuses.push(m) });
+  await agent.initialize();
+  await agent.scan(100);
+  await agent.scan(111);
+  expect(agent.error).toBe('');
+  expect(agent.state.uploaded).toBe(0);
+  expect(statuses.at(-1)).toMatch(/Wartet/);
+  // Vor Ablauf der Minute wird nicht erneut gefragt, danach schon.
+  await agent.scan(30000);
+  expect(analyze).toHaveBeenCalledTimes(1);
+  await agent.scan(60200);
+  expect(analyze).toHaveBeenCalledTimes(2);
+  expect(agent.state.uploaded).toBe(1);
 });

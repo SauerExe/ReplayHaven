@@ -64,6 +64,10 @@ function settings() {
     includeExisting: $('include-existing').checked,
     analyze: $('analyze').checked,
     frames: Number($('frames').value),
+    fortniteReplays: $('fortnite-replays').checked,
+    epicAccounts: $('epic-accounts')
+      .value.split(/[\s,;]+/)
+      .filter(Boolean),
   };
 }
 function render(status) {
@@ -131,6 +135,8 @@ void run(async () => {
   $('include-existing').checked = config.includeExisting;
   $('analyze').checked = config.analyze;
   $('frames').value = String(config.frames);
+  $('fortnite-replays').checked = config.fortniteReplays;
+  $('epic-accounts').value = config.epicAccounts.join(', ');
   if (config.hasToken)
     $('token-info').textContent =
       'Zugangsschlüssel ist gespeichert. Leer lassen, um ihn beizubehalten.';

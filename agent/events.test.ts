@@ -1,7 +1,22 @@
 import { expect, it } from 'vitest';
-import { collectEvents, eventsFromFileName, eventsInText, headline, tagsFor } from './events';
-import type { SeenFrame } from './events';
-import { cleanText, fallbackTitle, tidyHighlights, titleProblems, uncertaintyFor } from './wording';
+import {
+  collectEvents,
+  eventsFromFileName,
+  eventsInText,
+  headline,
+  phrase,
+  tagsFor,
+  withReplay,
+} from './events';
+import type { GameEvent, SeenFrame } from './events';
+import {
+  cleanText,
+  fallbackTitle,
+  label,
+  tidyHighlights,
+  titleProblems,
+  uncertaintyFor,
+} from './wording';
 import { CLIP_TAGS } from '../server/schema';
 
 // Meldungen, wie qwen3-vl sie in echten Clips der Sammlung gelesen hat (.docs/messungen).
@@ -330,5 +345,108 @@ it('builds time marks from proven events and drops repeated or unsupported propo
       description: 'Meldung: ELIMINIERT: Gegner_Zwei',
     },
     { seconds: 18.4, title: 'Durch die Tür', description: '' },
+  ]);
+});
+
+// Ereignisse aus einem Fortnite-Replay: exakt gezählt, mit Waffe und Entfernung.
+const replayed = (kind: string, extra: Partial<GameEvent> = {}): GameEvent => ({
+  kind: kind as GameEvent['kind'],
+  seconds: 10,
+  text: '',
+  source: 'replay',
+  ...extra,
+});
+
+it.each([
+  [replayed('kill', { weapon: 'sniper', distance: 183.4 }), 'Snipe über 180 m'],
+  [replayed('kill', { weapon: 'noscope', distance: 12 }), 'No-Scope-Kill'],
+  [replayed('kill', { weapon: 'rifle', distance: 149.1 }), 'Kill über 140 m'],
+  [replayed('kill', { weapon: 'shotgun', distance: 4 }), 'Kill mit der Schrotflinte'],
+  [replayed('kill'), 'Gegner ausgeschaltet'],
+  [replayed('multikill', { count: 2, weapon: 'shotgun' }), 'Doppel-Kill mit der Schrotflinte'],
+  [replayed('multikill', { count: 3 }), 'Dreifach-Kill'],
+  [replayed('knock', { weapon: 'rifle', distance: 175.6 }), 'Knock über 170 m'],
+  [replayed('death', { weapon: 'storm' }), 'Im Sturm ausgeschieden'],
+  [replayed('death', { weapon: 'shotgun', distance: 3 }), 'Mit der Schrotflinte ausgeschaltet'],
+  [replayed('matchWon'), 'Victory Royale'],
+])('labels the replay event %# as %s', (event, expected) => {
+  expect(label(event)).toBe(expected);
+});
+
+it('phrases replay details for the prompt', () => {
+  expect(phrase(replayed('multikill', { count: 2, weapon: 'shotgun' }))).toBe(
+    'Du hast zwei Gegner kurz nacheinander mit der Schrotflinte ausgeschaltet',
+  );
+  expect(phrase(replayed('kill', { weapon: 'sniper', distance: 183.4 }))).toBe(
+    'Du hast einen Gegner mit dem Scharfschützengewehr aus 183 m Entfernung ausgeschaltet',
+  );
+  expect(phrase(replayed('death', { weapon: 'storm' }))).toBe(
+    'Du wurdest durch den Sturm ausgeschaltet',
+  );
+});
+
+const snipe = replayed('kill', { weapon: 'sniper', distance: 183.4 });
+const double = [
+  replayed('kill', { weapon: 'shotgun', distance: 4 }),
+  replayed('kill', { weapon: 'shotgun', distance: 6 }),
+  replayed('multikill', { count: 2, weapon: 'shotgun' }),
+];
+
+it.each([
+  ['Snipe über 180 m', [snipe]],
+  ['Weiter Kill mit dem Sniper', [snipe]],
+  ['Doppel-Kill mit der Schrotflinte', double],
+  ['Doppel-Kill im Treppenhaus', double],
+  ['Knock über 170 m', [replayed('knock', { weapon: 'rifle', distance: 175.6 })]],
+  ['Triple Kill am Turm', [replayed('kill'), replayed('multikill', { count: 3 })]],
+  ['Victory Royale am Berg', [replayed('matchWon')]],
+])('accepts the replay title %s', (title, events) => {
+  expect(titleProblems(title, events, headline(events, 0))).toEqual([]);
+});
+
+it.each([
+  ['Dreifach-Kill mit der Schrotflinte', double, /3 Kills in Folge, belegt sind 2/],
+  ['Snipe über 250 m', [snipe], /übertreibt die Entfernung/],
+  ['Kill mit der Schrotflinte', [snipe], /andere Waffe/],
+  ['Kill am Turm', [snipe], /Besondere/],
+  ['Knock am Turm', [replayed('death')], /Knock/],
+  [
+    'Gegner auf 90 m erwischt',
+    [replayed('kill', { weapon: 'shotgun', distance: 4 })],
+    /Entfernung/,
+  ],
+])('rejects the replay title %s', (title, events, problem) => {
+  expect(titleProblems(title, events, headline(events, 0)).join(' ')).toMatch(problem);
+});
+
+it('keeps checking titles of clips without replay as before', () => {
+  // Ohne Replay ist eine Serie nicht gezählt; der Titel darf sie nennen wie bisher.
+  expect(
+    titleProblems('Doppel-Kill im Lagerhaus', [at('kill')], headline([at('kill')], 0)),
+  ).toEqual([]);
+  expect(titleProblems('Knock am Turm', [], [])).toEqual([]);
+});
+
+it('replaces read kills and deaths by the exact ones of a replay and keeps results', () => {
+  const read = collectEvents(
+    [frame(15, 'ELIMINIERT: Gegner_Zwei'), frame(18, 'SIEG', 'result')],
+    'Fortnite 2025.02.14 - 16.55.58.18.Eliminiert.DVR.mp4',
+  );
+  expect(read.map((e) => e.source)).toEqual(['screen', 'screen', 'nvidia']);
+  const merged = withReplay(read, [replayed('kill', { seconds: 14.2, weapon: 'shotgun' })]);
+  expect(merged.map((e) => [e.kind, e.source])).toEqual([
+    ['kill', 'replay'],
+    ['matchWon', 'screen'],
+  ]);
+  // Ein leeres Replay-Ergebnis heißt: kein eigener Kill im Clip.
+  expect(withReplay(read, []).map((e) => e.kind)).toEqual(['matchWon']);
+  expect(withReplay(read, undefined)).toBe(read);
+  expect(tidyHighlights([], merged, 20)).toEqual([
+    {
+      seconds: 14.2,
+      title: 'Kill mit der Schrotflinte',
+      description: 'Du hast einen Gegner mit der Schrotflinte ausgeschaltet.',
+    },
+    { seconds: 18, title: 'Match gewonnen', description: 'Meldung: SIEG' },
   ]);
 });
