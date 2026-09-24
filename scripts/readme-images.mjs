@@ -132,7 +132,7 @@ function demoClips() {
   };
   return [
     clip('ace-inferno', 'Counter-Strike 2', 'cs2-4', 'Ace auf Inferno', 1.5, 54, {
-      tags: ['Ace', 'Rundensieg', 'Inferno'],
+      tags: ['Ace', 'Multikill', 'Headshot', 'Rundensieg'],
       favorite: true,
       description:
         'Fünf Gegner in einer Runde, der letzte hinter den Fässern in der Gasse. Die Runde endet mit dem Rundensieg.',
@@ -145,7 +145,7 @@ function demoClips() {
       ],
     }),
     clip('apex-final', 'Apex Legends', 'apex-2', 'Champion mit dem letzten Schuss', 3, 51, {
-      tags: ['Sieg', 'Teamplay'],
+      tags: ['Sieg', 'Clutch', 'Teamplay'],
       description:
         'Der letzte Trupp fällt am Kraterrand, danach erscheint der Champion-Bildschirm.',
     }),
@@ -155,7 +155,7 @@ function demoClips() {
       description: 'Ein langer Bosskampf mit knappem Ende.',
     }),
     clip('mirage-triple', 'Counter-Strike 2', 'cs2-2', 'Triple Kill auf Mirage', 7, 47, {
-      tags: ['Triple Kill', 'Mirage'],
+      tags: ['Multikill', 'Rundensieg', 'Mirage'],
     }),
     clip('forza-drift', 'Forza Horizon 5', 'forza-2', 'Der sauberste Drift bisher', 26, 31, {
       tags: ['Drift'],
@@ -168,16 +168,20 @@ function demoClips() {
       tags: ['Teamplay'],
     }),
     clip('clutch-inferno', 'Counter-Strike 2', 'cs2-1', 'Clutch 1 gegen 3 auf Inferno', 50, 58, {
-      tags: ['Clutch', 'Inferno'],
+      tags: ['Clutch', 'Rundensieg', 'Inferno'],
       favorite: true,
     }),
     clip('elden-view', 'ELDEN RING', 'elden-3', 'Die Aussicht war es wert', 74, 31, {
       tags: ['Atmosphäre'],
     }),
-    clip('forza-rain', 'Forza Horizon 5', 'forza-4', 'Nur noch diese eine Kurve', 98, 36),
-    clip('night-drive', 'Cyberpunk 2077', 'cyberpunk-3', 'Plan B: einfach weiterfahren', 120, 64),
+    clip('forza-rain', 'Forza Horizon 5', 'forza-4', 'Nur noch diese eine Kurve', 98, 36, {
+      tags: ['Lustig', 'Crash'],
+    }),
+    clip('night-drive', 'Cyberpunk 2077', 'cyberpunk-3', 'Plan B: einfach weiterfahren', 120, 64, {
+      tags: ['Fail', 'Lustig'],
+    }),
     clip('headshot-dust', 'Counter-Strike 2', 'cs2-3', 'Doppel-Kill per Headshot', 140, 23, {
-      tags: ['Headshot'],
+      tags: ['Multikill', 'Headshot'],
     }),
   ];
 }
@@ -410,11 +414,12 @@ async function appShots(browser, video) {
   await settle(page);
   await save(page, 'app-game.jpg');
 
-  await page.goto(`${base}/collections/clutches`);
-  await page.getByRole('heading', { name: 'Beste Clutches', level: 1 }).waitFor();
+  // Eine automatische Sammlung: entsteht allein aus den Tags der Clips.
+  await page.goto(`${base}/collections/auto/mehrfach-kills`);
+  await page.getByRole('heading', { name: 'Mehrfach-Kills', level: 1 }).waitFor();
   await page.waitForTimeout(300);
   await settle(page);
-  await save(page, 'app-collection.jpg');
+  await save(page, 'app-smart.jpg');
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}/`);

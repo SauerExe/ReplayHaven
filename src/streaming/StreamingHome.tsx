@@ -72,7 +72,9 @@ export function StreamingHome({
         href={row.href}
         onNavigate={onNavigate}
         action={
-          onCreateCollection ? { label: 'Neue Sammlung', onClick: onCreateCollection } : undefined
+          row.id === 'sammlungen' && onCreateCollection
+            ? { label: 'Neue Sammlung', onClick: onCreateCollection }
+            : undefined
         }
       >
         {row.items.map((item) => (

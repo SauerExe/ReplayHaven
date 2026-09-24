@@ -1,6 +1,7 @@
 import { canContinue } from '../data/repository';
 import { formatRemaining, formatWhen, isNew } from './format';
 import type { StreamClip, StreamCollection, StreamLibrary } from './model';
+import { smartCollections, smartHref } from './smart';
 
 export interface ClipTileData {
   clip: StreamClip;
@@ -27,6 +28,8 @@ export interface CollectionTileData {
   meta?: string;
   /** Spiele in der Sammlung, für die kleinen Cover unter dem Titel. */
   games?: { key: string; name: string; cover: string }[];
+  /** Markiert automatische Sammlungen. */
+  automatic?: boolean;
 }
 
 interface RowBase {
@@ -231,6 +234,18 @@ export function buildRows(
     title: 'Deine Sammlungen',
     href: '/collections',
     items: library.collections.map((collection) => collectionTile(collection, byId)),
+  });
+
+  rows.push({
+    kind: 'collections',
+    id: 'automatisch',
+    title: 'Automatisch sortiert',
+    href: '/collections',
+    items: smartCollections(library.clips).map((collection) => ({
+      ...collectionTile(collection, byId),
+      href: smartHref(collection.id),
+      automatic: true,
+    })),
   });
 
   return rows.filter((row) => row.items.length > 0);

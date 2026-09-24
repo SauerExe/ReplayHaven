@@ -11,6 +11,9 @@ const Collections = lazy(() =>
 const CollectionDetail = lazy(() =>
   import('./streaming/CollectionsPage').then((m) => ({ default: m.StreamingCollectionDetailPage })),
 );
+const SmartCollection = lazy(() =>
+  import('./streaming/CollectionsPage').then((m) => ({ default: m.StreamingSmartCollectionPage })),
+);
 const ClipDetail = lazy(() => import('./pages/ClipDetail'));
 const SharePage = lazy(() => import('./pages/ClipDetail').then((m) => ({ default: m.SharePage })));
 const Devices = lazy(() => import('./pages/Devices'));
@@ -37,6 +40,7 @@ export function App() {
             <Route path="clips/:id" element={<ClipDetail />} />
             <Route path="collections" element={<Collections />} />
             <Route path="collections/:id" element={<CollectionDetail />} />
+            <Route path="collections/auto/:id" element={<SmartCollection />} />
             <Route path="devices" element={<Devices />} />
             <Route path="settings" element={<Settings />} />
             <Route

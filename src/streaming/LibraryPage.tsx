@@ -203,7 +203,7 @@ export default function StreamingLibraryPage() {
         <div className="stream-page-actions">
           <button
             type="button"
-            className="stream-pill"
+            className="stream-action"
             aria-pressed={selecting}
             onClick={() => {
               setSelecting(!selecting);
@@ -219,7 +219,7 @@ export default function StreamingLibraryPage() {
           </button>
           <button
             type="button"
-            className="stream-pill stream-pill--primary"
+            className="stream-action stream-action--primary"
             onClick={() => action({ kind: 'upload' })}
           >
             <Upload size={17} strokeWidth={2.4} aria-hidden="true" />
@@ -299,18 +299,18 @@ export default function StreamingLibraryPage() {
         </label>
         <button
           type="button"
-          className="stream-pill stream-filter-toggle"
+          className="stream-action stream-filter-toggle"
           aria-expanded={filtersOpen}
           onClick={() => setFiltersOpen((open) => !open)}
         >
           <SlidersHorizontal size={17} strokeWidth={2.4} aria-hidden="true" />
           Filter
-          {extraFilters > 0 && <span className="stream-pill-count">{extraFilters}</span>}
+          {extraFilters > 0 && <span className="stream-action-count">{extraFilters}</span>}
         </button>
         <div className="stream-filters" data-open={filtersOpen}>
           <button
             type="button"
-            className="stream-pill"
+            className="stream-action"
             aria-pressed={filters.favorite}
             onClick={() => set('favorite', filters.favorite ? '' : '1')}
           >
@@ -439,7 +439,7 @@ export default function StreamingLibraryPage() {
         <div className="stream-bulk">
           <button
             type="button"
-            className="stream-pill"
+            className="stream-action"
             onClick={() =>
               setSelected(selectedIds.length === clips.length ? [] : clips.map((c) => c.id))
             }

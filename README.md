@@ -40,7 +40,7 @@ Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.
     <td width="50%" valign="top"><b> Originals are sacred</b><br>Nothing on the gaming PC is renamed, moved or deleted. The server keeps an untouched copy, even if you delete the file at home.</td>
   </tr>
   <tr>
-    <td width="50%" valign="top"><b>  A library you want to open</b><br>The newest clip in the spotlight, rows for continue watching, new clips, favourites and each game, a detail view with the AI's jump marks, a full-screen player that skips from highlight to highlight, a library sorted by game with covers from Steam, search, filters and collections, on desktop and phone.</td>
+    <td width="50%" valign="top"><b>  A library you want to open</b><br>The newest clip in the spotlight, rows for continue watching, new clips, favourites and each game, a detail view with the AI's jump marks, a full-screen player that skips from highlight to highlight, a library sorted by game with covers from Steam, search, filters, your own collections and automatic ones built from tags, on desktop and phone.</td>
     <td width="50%" valign="top"><b> One small container</b><br>Node.js, SQLite and FFmpeg in a single Docker image. No GPU needed on the server. Runs on a NAS, a mini PC or any Linux box.</td>
   </tr>
   <tr>
@@ -66,7 +66,7 @@ Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.
     <td width="50%"><img src="docs/images/app-game.jpg" alt="Library filtered to one game with cover, genre, release date and description"><br><sub>Pick a game: cover, genre, release date and description come from Steam.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/app-collection.jpg" alt="Collection page with its games and clips"><br><sub>Collections keep the best moments together and play them in order.</sub></td>
+    <td width="50%"><img src="docs/images/app-smart.jpg" alt="Automatic collection of multi-kills built from clip tags"><br><sub>Automatic collections such as Aces, Clutches, Headshots or Trickshots fill themselves from your tags.</sub></td>
     <td width="50%"><img src="docs/images/client.png" alt="Windows client with recording folder, server connection and local AI settings"><br><sub>The Windows client: pick a folder, connect your server, done.</sub></td>
   </tr>
 </table>
