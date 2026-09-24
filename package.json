@@ -75,7 +75,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^16.4.0",
     "hls.js": "^1.6.13",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^0.577.0",
     "onnxruntime-node": "^1.30.0",
     "prettier": "^3.9.8",
     "react": "^19.1.1",
