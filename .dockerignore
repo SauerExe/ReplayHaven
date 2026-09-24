@@ -18,3 +18,4 @@ tests
 .server.env
 .vscode
 .idea
+public/media

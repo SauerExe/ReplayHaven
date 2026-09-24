@@ -8,6 +8,7 @@ Thanks for helping with ReplayHaven. Bug reports, small fixes and larger feature
 git clone https://github.com/SauerExe/ReplayHaven.git
 cd ReplayHaven
 npm ci
+npm run media:refresh   # optional: demo artwork from Steam, not committed
 npm run dev:all
 ```
 

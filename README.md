@@ -237,8 +237,11 @@ Node.js 24 or newer is required (SQLite is built in). The web UI and server run 
 
 ```bash
 npm ci
+npm run media:refresh  # optional: game artwork for the demo library, fetched from Steam
 npm run dev:all        # web UI on http://localhost:5173, server on 127.0.0.1:8787
 ```
+
+The demo artwork belongs to the game publishers and is not part of the repository; without it the demo library shows empty tiles.
 
 <details>
 <summary><b>All commands</b></summary>

@@ -12,6 +12,9 @@ test-results/
 playwright-report/
 artifacts/
 
+# Demo artwork, fetched locally with `npm run media:refresh` (publisher rights, not MIT)
+public/media/
+
 # Runtime data (server archive, client state)
 vault-data/
 agent-state/

@@ -6,10 +6,11 @@ components ship alongside it under their own terms.
 ## Demo media (`public/media`, `src/data/media.json`)
 
 The example library shows official publisher artwork and streams publisher trailers from
-the Steam CDN. Their sources are listed in `public/media/SOURCES.json`. All rights remain with
-the respective publishers and rights holders. These assets are **not** covered by the MIT
-License; they are included only to demonstrate the interface and may be replaced with your own
-clips. Run `npm run media:refresh` to re-fetch them.
+the Steam CDN. The artwork is **not** part of this repository: `npm run media:refresh` downloads
+it from the Steam store into `public/media` on your machine (ignored by Git) and lists the
+sources in `public/media/SOURCES.json`. All rights remain with the respective publishers and
+rights holders; the assets are not covered by the MIT License and only demonstrate the
+interface. The Docker image and the Windows installer do not contain them.
 
 ## Fonts (`src/streaming/fonts`)
 
