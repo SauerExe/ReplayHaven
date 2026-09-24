@@ -82,3 +82,22 @@ Mit `--account <Epic-Konto-ID>` gilt die eingetragene ID statt der Automatik.
 
 - Eine Spur ist falsch als Mikrofon erkannt: Die Reihenfolge-Regel fällt weg, die Spurnummer wird als Einstellung wählbar.
 - Die Wiedergabe verzerrt: Mischpegel und Begrenzer werden angepasst.
+
+## R6: Karte und Rundenausgang per Texterkennung
+
+**Was sich ändert.** Mit **R6: Karte und Rundenausgang per Texterkennung** (Standard: aus) liest der Client jeden R6-Clip mit PaddleOCR PP-OCRv4 über ONNX Runtime auf der CPU. Er nimmt zwei Bilder je Sekunde in 1280 Pixeln Breite, wie im Blindtest.
+
+- Karte: Der Kartenname muss eine ganze gelesene Zeile sein oder vorne vor Ort und Land stehen („OREGON, USA“), mit Sicherheit ≥ 0,85, in mindestens zwei Bildern. Bei Gleichstand zweier Karten gilt keine.
+- Rundenausgang: Die gelesenen Zeilen laufen durch dasselbe Lexikon wie die Meldungen des Modells, genommen werden nur Runden- und Matchergebnisse. Ein Ergebnis des Modells an derselben Stelle (±5 s) weicht dem der Texterkennung.
+- Titel: Die Karte steht als Tatsache im Prompt. Nennt ein Titel eine andere oder eine nicht erkannte R6-Karte, gibt es eine Rückfrage; der Ersatztitel hängt „auf <Karte>“ an. Ohne die Option bleibt die Titelprüfung wie bisher.
+
+**Werkzeug.** `npm run r6 -- "<R6-Ordner>" --json r6.json` braucht weder KI noch Upload und zeigt je Clip Karte, Ergebnisse und Rechenzeit. Mit `--rows` schreibt es alle gelesenen Zeilen je Bild in die JSON-Datei, um Fehlgriffe nachzuvollziehen.
+
+| Prüfung       | Wie                                                    | Erfolg                                                     | Verwerfen                                                                                   |
+| ------------- | ------------------------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Karte         | Erkannte Karte gegen die Wahrheit, mindestens 26 Clips | Nie falsch; offen ist erlaubt                              | Eine falsche Karte: Die Regel wird strenger (etwa drei Bilder oder feste Bildregion)        |
+| Abdeckung     | Anteil der Clips mit erkannter Karte                   | Wird gemessen und berichtet, keine Schwelle                | —                                                                                           |
+| Rundenausgang | Ergebnisse gegen die Wahrheit                          | Nie falsch; mindestens so viele gefunden wie vom Modell    | Ein falsches Ergebnis: Die Texterkennung liefert keine Rundenergebnisse mehr, nur die Karte |
+| Tags          | Rundensieg, Runde verloren, Sieg, Niederlage           | Mindestens so gut wie bisher (29 von 31 über alle Tags)    | Schlechter als ohne Texterkennung                                                           |
+| Titel (KI)    | R6-Clips mit Option an gegen aus                       | Karte im Titel nur, wenn erkannt; nie eine falsche         | Ein Titel mit falscher Karte                                                                |
+| Kosten        | Rechenzeit laut Trace (`texts.seconds`) je Clip        | Unter 90 s für einen 2-Minuten-Clip, kein Ruckeln im Spiel | Spürbares Ruckeln beim Spielen: weniger Kerne oder nur das Schlussfenster lesen             |

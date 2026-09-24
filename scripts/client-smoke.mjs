@@ -35,6 +35,8 @@ try {
   await expect(page.locator('#pick-folder')).toBeVisible();
   expect(await page.evaluate(() => typeof window.require)).toBe('undefined');
   expect(state.value.config.token).toBe('');
+  // ONNX Runtime und die Texterkennungsmodelle laden im fertigen Client.
+  expect(state.value.texts).toBe('bereit');
   if (!state.value.config.folder) {
     const start = await page.evaluate(() => window.vault.call('start'));
     expect(start.ok).toBe(false);
@@ -64,6 +66,7 @@ try {
       paused: state.value.status.paused,
       nodeIntegration: await page.evaluate(() => typeof window.require),
       savedTokenExposed: !!state.value.config.token,
+      texts: state.value.texts,
     }),
   );
 } finally {

@@ -13,6 +13,10 @@ concurrency:
 permissions:
   contents: read
 
+# ONNX Runtime (Texterkennung im Client) braucht nur die CPU-Dateien, keine CUDA-Pakete von NuGet.
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 jobs:
   checks:
     name: Typecheck, lint, unit tests, build

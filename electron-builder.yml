@@ -15,6 +15,10 @@ files:
 extraResources:
   - from: desktop-bundle/binaries
     to: binaries
+  - from: desktop-bundle/onnxruntime
+    to: onnxruntime
+  - from: desktop-bundle/ocr
+    to: ocr
 asar: true
 win:
   icon: desktop-bundle/icon.ico

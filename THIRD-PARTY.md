@@ -22,6 +22,10 @@ The installer bundles:
   builds via https://github.com/eugeneware/ffmpeg-static and
   https://github.com/SavageCore/node-ffprobe-installer.
 - **Zod** (MIT).
+- **ONNX Runtime** (MIT), only the CPU files for Windows x64, for the optional text
+  recognition of Rainbow Six clips. Source: https://github.com/microsoft/onnxruntime.
+- **PaddleOCR PP-OCRv4** text detection and recognition models (Apache-2.0), as ONNX files from
+  `@gutenye/ocr-models` (MIT). Source: https://github.com/PaddlePaddle/PaddleOCR.
 
 Ollama and the Qwen3-VL model are **not** bundled. The client only opens the official Ollama
 download page and pulls the model when you click the button. See https://ollama.com and

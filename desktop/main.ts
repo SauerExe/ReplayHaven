@@ -17,6 +17,8 @@ import { FolderUploader, recordedGames } from '../agent/watcher';
 import { LocalAnalyzer, checkOllama, pullModel, DEFAULT_MODEL, OLLAMA_URL } from '../agent/ollama';
 import { playerNamesSchema, savedPlayerNames, tidyPlayerNames } from '../agent/players';
 import { defaultDemosFolder, FortniteReplays } from '../agent/fortnite';
+import { TextReader } from '../agent/ocr';
+import { ClipTexts } from '../agent/r6';
 import { MediaProcessor } from '../server/media';
 
 const configSchema = z.object({
@@ -34,6 +36,8 @@ const configSchema = z.object({
   fortniteReplays: z.boolean().default(false),
   // Eigene Epic-Konto-IDs; leer: Der Client erkennt das Konto aus den Replays selbst.
   epicAccounts: z.array(z.string()).max(10).default([]),
+  // Karte und Rundenausgang in R6 per Texterkennung (agent/r6.ts), etwa eine Minute CPU je Clip.
+  r6Texts: z.boolean().default(false),
 });
 type ClientConfig = z.infer<typeof configSchema>;
 let config: ClientConfig = {
@@ -47,6 +51,7 @@ let config: ClientConfig = {
   frames: 24,
   fortniteReplays: false,
   epicAccounts: [],
+  r6Texts: false,
 };
 let window: BrowserWindow;
 let tray: Tray;
@@ -119,10 +124,28 @@ async function saveConfig(value: unknown) {
   emit({ message: 'Einstellungen gespeichert. Bereit zum Starten.' });
   return publicConfig();
 }
+/** Mitgelieferte Dateien neben dem App-Archiv: FFmpeg, ONNX Runtime, Texterkennungsmodelle. */
+function resource(name: string) {
+  return app.isPackaged ? join(process.resourcesPath, name) : resolve('desktop-bundle', name);
+}
+const ocrModels = () => ({
+  det: join(resource('ocr'), 'ch_PP-OCRv4_det_infer.onnx'),
+  rec: join(resource('ocr'), 'ch_PP-OCRv4_rec_infer.onnx'),
+  keys: join(resource('ocr'), 'ppocr_keys_v1.txt'),
+});
+/** Lädt die Texterkennung einmal zur Probe; für den Rauchtest des fertigen Clients. */
+async function checkTexts() {
+  try {
+    const reader = await TextReader.load(ocrModels(), 1, resource('onnxruntime'));
+    await reader.read({ width: 64, height: 32, data: new Uint8Array(64 * 32 * 3) });
+    await reader.close();
+    return 'bereit';
+  } catch (error) {
+    return `Fehler: ${error instanceof Error ? error.message : 'unbekannt'}`;
+  }
+}
 function media() {
-  const binaries = app.isPackaged
-    ? join(process.resourcesPath, 'binaries')
-    : resolve('desktop-bundle', 'binaries');
+  const binaries = resource('binaries');
   return new MediaProcessor({
     ffmpeg: join(binaries, 'ffmpeg.exe'),
     ffprobe: join(binaries, 'ffprobe.exe'),
@@ -165,6 +188,10 @@ async function start() {
     config.analyze && config.fortniteReplays && defaultDemosFolder()
       ? new FortniteReplays({ folder: defaultDemosFolder(), accounts: config.epicAccounts })
       : undefined;
+  const texts =
+    config.analyze && config.r6Texts
+      ? new ClipTexts({ media: processor, models: ocrModels(), runtime: resource('onnxruntime') })
+      : undefined;
   const analyzer = new LocalAnalyzer({
     url: OLLAMA_URL,
     model: DEFAULT_MODEL,
@@ -178,6 +205,12 @@ async function start() {
       ? {
           replays: (path: string, game: string, duration: number) =>
             replays.forClip(path, game, duration),
+        }
+      : {}),
+    ...(texts
+      ? {
+          texts: (path: string, game: string, signal: AbortSignal) =>
+            texts.forClip(path, game, signal),
         }
       : {}),
     onProgress: (message) => emit({ message }),
@@ -299,7 +332,13 @@ else {
             };
           }
         });
-      handle('vault:load', () => ({ config: publicConfig(), status }));
+      // Der Rauchtest prüft, ob ONNX Runtime und die Modelle im fertigen Client laden.
+      const texts = process.env.REPLAYHAVEN_SMOKE ? checkTexts() : undefined;
+      handle('vault:load', async () => ({
+        config: publicConfig(),
+        status,
+        ...(texts ? { texts: await texts } : {}),
+      }));
       handle('vault:save', saveConfig);
       handle('vault:folder', async () => {
         const result = await dialog.showOpenDialog(window, {

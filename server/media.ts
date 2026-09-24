@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdir, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -297,6 +297,62 @@ export class MediaProcessor {
       return !match || match[1] === '-inf' ? -Infinity : Number(match[1]);
     };
     return { mean: level('mean_volume'), max: level('max_volume') };
+  }
+  /**
+   * Bilder als rohe RGB-Pixel, eins nach dem anderen, für Texterkennung ohne Bildbibliothek.
+   * `fps` Bilder je Sekunde in `width` Pixeln Breite; jedes trägt die Mitte seines Abschnitts
+   * als Sekunde, wie die Analysebilder. FFmpeg wartet, solange ein Bild verarbeitet wird.
+   */
+  async *rawFrames(
+    original: string,
+    options: { fps: number; width: number; start?: number; signal?: AbortSignal },
+  ): AsyncGenerator<{ seconds: number; frame: { width: number; height: number; data: Buffer } }> {
+    const meta = await this.probe(original);
+    const width = Math.min(options.width, meta.width) & ~1;
+    const height = Math.max(2, Math.round((meta.height * width) / meta.width / 2) * 2);
+    const size = width * height * 3;
+    const start = options.start ?? 0;
+    const child = spawn(
+      this.ffmpeg,
+      [
+        '-nostdin',
+        '-v',
+        'error',
+        '-protocol_whitelist',
+        'file,pipe',
+        ...(start > 0 ? ['-ss', start.toFixed(3)] : []),
+        '-i',
+        original,
+        '-vf',
+        `fps=${options.fps}:start_time=0,scale=${width}:${height}`,
+        '-f',
+        'rawvideo',
+        '-pix_fmt',
+        'rgb24',
+        'pipe:1',
+      ],
+      { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    const stop = () => child.kill();
+    options.signal?.addEventListener('abort', stop);
+    let pending: Buffer = Buffer.alloc(0);
+    let index = 0;
+    try {
+      for await (const chunk of child.stdout as AsyncIterable<Buffer>) {
+        pending = pending.length ? Buffer.concat([pending, chunk]) : chunk;
+        while (pending.length >= size) {
+          const data = Buffer.from(pending.subarray(0, size));
+          pending = pending.subarray(size);
+          yield {
+            seconds: Math.min(meta.duration, start + (index++ + 0.5) / options.fps),
+            frame: { width, height, data },
+          };
+        }
+      }
+    } finally {
+      options.signal?.removeEventListener('abort', stop);
+      if (child.exitCode === null) child.kill();
+    }
   }
   /** Bildausschnitt, der bei Instant-Replay den eigentlichen Moment enthält. */
   private async sample(

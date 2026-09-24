@@ -107,9 +107,28 @@ function exactClaims(text: string, events: GameEvent[], killed: boolean) {
   return problems;
 }
 
+/** Was über den Ort bekannt ist: die erkannte Karte und alle Karten des Spiels. */
+export interface MapContext {
+  map?: string;
+  maps: readonly string[];
+}
+
 /** Was an einem Titel nicht stimmt, als Sätze für die Rückfrage an das Modell. */
-export function titleProblems(title: string, events: GameEvent[], headlineEvents: GameEvent[]) {
+export function titleProblems(
+  title: string,
+  events: GameEvent[],
+  headlineEvents: GameEvent[],
+  place?: MapContext,
+) {
   const problems = unsupportedClaims(title, events);
+  // Eine Karte im Titel muss die erkannte sein; geraten wäre sie oft falsch.
+  const named = place?.maps.find((m) => new RegExp(`\\b${m}\\b`, 'i').test(title));
+  if (named && named !== place?.map)
+    problems.push(
+      place?.map
+        ? `nennt die Karte ${named}, erkannt wurde ${place.map}`
+        : `nennt die Karte ${named}, die nicht erkannt wurde`,
+    );
   if (!title.trim()) problems.push('ist leer');
   if (shouting(title)) problems.push('übernimmt Bildschirmtext in Großbuchstaben');
   if (SCORE.test(title)) problems.push('enthält einen Punktestand oder ein Zahlenverhältnis');
@@ -279,7 +298,9 @@ export function fallbackTitle(
   modelTitles: string[],
   events: GameEvent[],
   mostly: 'loading' | 'menu' | null,
+  map?: string,
 ) {
+  const where = map ? ` auf ${map}` : '';
   // Kill und Tod gegen denselben Gegner im selben Moment sind ein Abtausch (FN-19).
   const death = headlineEvents.find((e) => e.kind === 'death' && e.other);
   const traded = headlineEvents.find(
@@ -290,8 +311,8 @@ export function fallbackTitle(
         (k) => k.kind === 'kill' && k.other?.toLowerCase() === death.other!.toLowerCase(),
       ),
   );
-  if (death && traded) return `Abtausch mit ${death.other}`;
-  if (headlineEvents.length) return headlineEvents.map(label).join(' – ');
+  if (death && traded) return `Abtausch mit ${death.other}${where}`;
+  if (headlineEvents.length) return `${headlineEvents.map(label).join(' – ')}${where}`;
   if (mostly === 'loading') return 'Ladebildschirm';
   if (mostly === 'menu') return 'Im Menü';
   for (const candidate of modelTitles) {
@@ -359,7 +380,7 @@ export function tidyHighlights(proposed: Highlight[], events: GameEvent[], durat
   const out: Highlight[] = [];
   // Neben belegten Ereignissen reichen wenige Vorschläge; sonst reihen sich "Kampfbericht",
   // "Schneeumgebung" und "Karte B Site" hinter den eigentlichen Moment.
-  let room = events.some((e) => e.source === 'screen' || e.source === 'replay') ? 3 : 5;
+  let room = events.some((e) => ['screen', 'replay', 'ocr'].includes(e.source)) ? 3 : 5;
   const key = (title: string) => title.toLowerCase().replace(/[^a-zäöüß0-9]+/g, '');
   const add = (h: Highlight) => {
     if (!Number.isFinite(h.seconds) || h.seconds < 0 || h.seconds > duration) return;
@@ -374,7 +395,7 @@ export function tidyHighlights(proposed: Highlight[], events: GameEvent[], durat
     });
   };
   for (const e of events)
-    if (e.seconds !== null && e.source === 'screen')
+    if (e.seconds !== null && (e.source === 'screen' || e.source === 'ocr'))
       add({ seconds: e.seconds, title: label(e), description: `Meldung: ${e.text}` });
     else if (e.seconds !== null && e.source === 'replay')
       add({ seconds: e.seconds, title: label(e), description: `${phrase(e)}.` });

@@ -44,8 +44,11 @@ export interface GameEvent {
   seconds: number | null;
   /** Die gelesene Meldung, oder das Ereignis aus dem Dateinamen bzw. Replay. */
   text: string;
-  /** replay: aus den Spielereignissen eines Replays, exakt statt gelesen. */
-  source: 'screen' | 'spectator' | 'nvidia' | 'replay';
+  /**
+   * replay: aus den Spielereignissen eines Replays, exakt statt gelesen; ocr: aus der
+   * Texterkennung (agent/r6.ts), nur Runden- und Matchergebnisse.
+   */
+  source: 'screen' | 'spectator' | 'nvidia' | 'replay' | 'ocr';
   /** Gegner, falls die Meldung ihn nennt: Opfer bei Kills, Verursacher beim eigenen Tod. */
   other?: string;
   /** Nur aus Replays: Waffe bzw. Ursache, Entfernung in Metern, Zahl der Kills einer Serie. */
@@ -344,6 +347,22 @@ export function withReplay(events: GameEvent[], replay: GameEvent[] | undefined)
   ].sort((a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity));
 }
 
+/**
+ * Nimmt Runden- und Matchergebnisse aus der Texterkennung hinzu (agent/r6.ts). Sie waren im
+ * Blindtest nie falsch; ein vom Modell gelesenes Ergebnis derselben Stelle (±5 s) weicht ihnen.
+ */
+export function withTexts(events: GameEvent[], texts: GameEvent[] | undefined) {
+  if (!texts?.length) return events;
+  const results: EventKind[] = ['roundWon', 'roundLost', 'matchWon', 'matchLost'];
+  const covered = (e: GameEvent) =>
+    results.includes(e.kind) &&
+    e.seconds !== null &&
+    texts.some((t) => results.includes(t.kind) && Math.abs(t.seconds! - e.seconds!) <= 5);
+  return [...events.filter((e) => !covered(e)), ...texts].sort(
+    (a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity),
+  );
+}
+
 /** Stärkstes Ereignis einer Meldung, für die Wahl des Belegbilds. 0 ohne Ereignis. */
 export function eventWeight(text: string, game = '') {
   return Math.max(0, ...eventsInText(text, game).map((k) => SIGNIFICANCE[k]));
@@ -489,6 +508,8 @@ export function describeFacts(events: GameEvent[], momentStart: number) {
   const lines = events.map((e) => {
     if (e.source === 'replay')
       return `- Sekunde ${e.seconds!.toFixed(1)} (${e.seconds! >= momentStart ? 'Schluss' : 'Vorlauf'}): ${phrase(e)}. Beleg: Spielereignis aus dem Fortnite-Replay, exakt.`;
+    if (e.source === 'ocr')
+      return `- Sekunde ${e.seconds!.toFixed(1)} (${e.seconds! >= momentStart ? 'Schluss' : 'Vorlauf'}): ${phrase(e)}. Beleg: Texterkennung "${e.text}".`;
     if (e.source === 'nvidia')
       return `- Laut NVIDIA, die den Clip als "${e.text}" gespeichert hat: ${PHRASE[e.kind]}. Die Stelle selbst ist in den Bildern nicht belegt.`;
     const where = e.seconds! >= momentStart ? 'Schluss' : 'Vorlauf';

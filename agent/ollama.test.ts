@@ -705,3 +705,128 @@ it('takes kills from the replay, asks for the detail and waits while the match r
       await rm(root, { recursive: true, force: true });
   }
 });
+
+it('names the recognised R6 map and rejects another one', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
+  try {
+    const media = new MediaProcessor({});
+    vi.spyOn(media, 'probe').mockResolvedValue({
+      duration: 20,
+      width: 1920,
+      height: 1080,
+      codec: 'h264',
+      hasAudio: true,
+      audio: [],
+    });
+    vi.spyOn(media, 'frames').mockResolvedValue(
+      Array.from({ length: 8 }, (_, i) => ({ seconds: i * 2.5, base64: `bild-${i}` })),
+    );
+    vi.spyOn(media, 'frameAt').mockResolvedValue('focus-image');
+    const summaries: { messages: { content: string }[] }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string);
+        if (!body.messages.length) return Response.json({ done: true });
+        if (body.format?.properties?.frames)
+          return Response.json({
+            message: {
+              content: JSON.stringify({
+                frames: imagesOf(body).map((_: string, i: number) => ({
+                  frame: i,
+                  kind: 'gameplay',
+                  observation: 'Kampf',
+                  visibleText: '',
+                })),
+              }),
+            },
+          });
+        summaries.push(body);
+        return Response.json({
+          message: {
+            content: JSON.stringify({
+              title: summaries.length === 1 ? 'Rundensieg auf Bank' : 'Rundensieg auf Oregon',
+              description: 'Dein Team holt die Runde.',
+              uncertainty: '',
+              highlights: [],
+            }),
+          },
+        });
+      }),
+    );
+    const texts = vi.fn(async (_path: string, _game: string, signal: AbortSignal) => {
+      expect(signal).toBeInstanceOf(AbortSignal);
+      return {
+        map: 'Oregon',
+        events: [
+          { kind: 'roundWon' as const, seconds: 18, text: 'ROUND WON', source: 'ocr' as const },
+        ],
+        trace: { frames: 40, seconds: 12.5, map: 'Oregon', events: 1 },
+      };
+    });
+    let trace: AnalysisTrace | undefined;
+    const output = await new LocalAnalyzer({
+      url: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      frames: 24,
+      cacheDir: root,
+      media,
+      isPaused: () => false,
+      onTrace: (t) => (trace = t),
+      texts,
+    }).analyze(
+      "R6/Tom Clancy's Rainbow Six Siege 2026.09.24 - 20.00.00.01.DVR.mp4",
+      "Tom Clancy's Rainbow Six Siege",
+    );
+    expect(summaries[0].messages[0].content).toContain('Die Karte ist Oregon');
+    expect(summaries[0].messages[0].content).toContain('Beleg: Texterkennung "ROUND WON"');
+    expect(summaries[1].messages.at(-1)?.content).toContain('erkannt wurde Oregon');
+    expect(output.result).toMatchObject({
+      title: 'Rundensieg auf Oregon',
+      tags: ['Rundensieg'],
+      confidence: 'high',
+      highlights: [{ seconds: 18, title: 'Runde gewonnen' }],
+    });
+    expect(trace?.texts).toEqual({ frames: 40, seconds: 12.5, map: 'Oregon', events: 1 });
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('stops the text recognition when the analysis fails', async () => {
+  const media = new MediaProcessor({});
+  vi.spyOn(media, 'probe').mockResolvedValue({
+    duration: 20,
+    width: 1920,
+    height: 1080,
+    codec: 'h264',
+    hasAudio: true,
+    audio: [],
+  });
+  vi.spyOn(media, 'frames').mockRejectedValue(new Error('Keine Bilder'));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ done: true })),
+  );
+  let stopped: AbortSignal | undefined;
+  const texts = vi.fn(
+    (_path: string, _game: string, signal: AbortSignal) =>
+      new Promise<undefined>((done) => {
+        stopped = signal;
+        signal.addEventListener('abort', () => done(undefined));
+      }),
+  );
+  await expect(
+    new LocalAnalyzer({
+      url: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      frames: 24,
+      cacheDir: tmpdir(),
+      media,
+      isPaused: () => false,
+      texts,
+    }).analyze('R6/clip.mp4', 'R6'),
+  ).rejects.toThrow('Keine Bilder');
+  expect(stopped?.aborted).toBe(true);
+});

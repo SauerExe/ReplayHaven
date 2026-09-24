@@ -123,3 +123,44 @@ it('lists audio tracks, mixes them for playback and extracts one as 16 kHz mono 
       await rm(root, { recursive: true, force: true });
   }
 });
+
+it('streams raw RGB frames labelled with the middle of their interval', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-media-'));
+  try {
+    const media = new MediaProcessor({});
+    const video = join(root, 'test-only.mp4');
+    await runFile(media.ffmpeg, [
+      '-nostdin',
+      '-v',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=black:s=320x180:r=10:d=3,format=yuv420p,geq=lum=20+60*T:cb=128:cr=128',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      video,
+    ]);
+    const frames: { seconds: number; width: number; height: number; mean: number }[] = [];
+    for await (const { seconds, frame } of media.rawFrames(video, { fps: 2, width: 160 })) {
+      const mean = frame.data.reduce((sum, v) => sum + v, 0) / frame.data.length;
+      frames.push({ seconds, width: frame.width, height: frame.height, mean });
+    }
+    expect(frames.map((f) => [f.seconds, f.width, f.height])).toEqual([
+      [0.25, 160, 90],
+      [0.75, 160, 90],
+      [1.25, 160, 90],
+      [1.75, 160, 90],
+      [2.25, 160, 90],
+      [2.75, 160, 90],
+    ]);
+    // Die Helligkeit steigt mit der Zeit: Die Bilder kommen in der richtigen Reihenfolge.
+    expect(frames.every((f, i) => i === 0 || f.mean > frames[i - 1].mean)).toBe(true);
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});

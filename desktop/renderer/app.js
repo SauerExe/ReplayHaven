@@ -65,6 +65,7 @@ function settings() {
     analyze: $('analyze').checked,
     frames: Number($('frames').value),
     fortniteReplays: $('fortnite-replays').checked,
+    r6Texts: $('r6-texts').checked,
     epicAccounts: $('epic-accounts')
       .value.split(/[\s,;]+/)
       .filter(Boolean),
@@ -136,6 +137,7 @@ void run(async () => {
   $('analyze').checked = config.analyze;
   $('frames').value = String(config.frames);
   $('fortnite-replays').checked = config.fortniteReplays;
+  $('r6-texts').checked = config.r6Texts;
   $('epic-accounts').value = config.epicAccounts.join(', ');
   if (config.hasToken)
     $('token-info').textContent =

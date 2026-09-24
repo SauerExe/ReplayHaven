@@ -23,6 +23,11 @@ All notable changes to this project are documented here. The format follows
 - Audio tracks: probing lists every audio track, the microphone track of NVIDIA recordings
   with "Mikrofon als separate Spur" is found by title, level and order, and a track can be
   extracted as 16 kHz mono WAV. `npm run audio` shows the tracks and writes them out to listen.
+- Optional Rainbow Six text recognition: "R6: Karte und Rundenausgang per Texterkennung" reads
+  two frames per second with PaddleOCR PP-OCRv4 on ONNX Runtime (CPU, in parallel to the GPU
+  model) and takes the map name and round results from it. Titles may name the recognised map
+  and no other. Kills are deliberately not read. The Windows client grows by about 45 MB.
+  `npm run r6` shows map and round results per clip without AI.
 
 ### Changed
 

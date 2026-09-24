@@ -24,9 +24,12 @@ import {
   phrase,
   tagsFor,
   withReplay,
+  withTexts,
 } from './events';
 import type { GameEvent } from './events';
 import type { ReplayLookup, ReplayTrace } from './fortnite';
+import { isR6, R6_MAPS } from './r6';
+import type { TextLookup, TextTrace } from './r6';
 import { DeferredError } from './watcher';
 import { cleanText, fallbackTitle, tidyHighlights, titleProblems, uncertaintyFor } from './wording';
 import { namesFor } from './players';
@@ -68,6 +71,8 @@ export interface AnalysisTrace {
   playerNames: string[];
   /** Was ein Replay beitrug oder warum keins (agent/fortnite.ts). */
   replay?: ReplayTrace;
+  /** Was die Texterkennung las (agent/r6.ts). */
+  texts?: TextTrace;
 }
 export interface LocalAnalyzerOptions {
   url: string;
@@ -91,6 +96,11 @@ export interface LocalAnalyzerOptions {
    * Match vorbei ist; ohne Ergebnis oder mit "none" zählen wie bisher nur die Bilder.
    */
   replays?: (path: string, game: string, duration: number) => Promise<ReplayLookup | undefined>;
+  /**
+   * Texterkennung für Karte und Rundenausgang (agent/r6.ts). Sie rechnet auf der CPU, während
+   * die KI auf der GPU sichtet; ohne Ergebnis zählen wie bisher nur die Bilder.
+   */
+  texts?: (path: string, game: string, signal: AbortSignal) => Promise<TextLookup | undefined>;
 }
 type Message = { role: 'user' | 'assistant'; content: string; images?: string[] };
 /**
@@ -238,6 +248,8 @@ export class LocalAnalyzer {
       ),
     };
     let modelMayBeLoaded = false;
+    // Endet die Analyse vorzeitig, endet auch die Texterkennung.
+    const stopReading = new AbortController();
     try {
       // Das Replay zuerst: Wartet der Clip auf das Ende seines Matches, kostet das keine GPU-Zeit.
       // Ein Fehler dabei kostet nur die Replay-Ereignisse, nie die Analyse.
@@ -256,6 +268,26 @@ export class LocalAnalyzer {
         throw new DeferredError(
           'Wartet auf das Ende des Fortnite-Matches, damit das Replay feststeht …',
         );
+      let read = false;
+      const reading = this.options
+        .texts?.(
+          path,
+          game,
+          AbortSignal.any([
+            stopReading.signal,
+            ...(this.options.signal ? [this.options.signal] : []),
+          ]),
+        )
+        .catch((error): TextLookup => ({
+          events: [],
+          trace: {
+            frames: 0,
+            seconds: 0,
+            events: 0,
+            error: error instanceof Error ? error.message : 'unbekannt',
+          },
+        }))
+        .finally(() => (read = true));
       this.options.onProgress?.('Bilder aus deiner Aufnahme werden vorbereitet …');
       const frames = await this.options.media.frames(path, work, duration, this.options.frames);
       if (!frames.length) throw new Error('Keine Bilder aus der Aufnahme lesbar.');
@@ -279,11 +311,20 @@ export class LocalAnalyzer {
         if (trace.lostFrames > Math.max(1, Math.floor(frames.length / 4))) throw observed.failure;
         for (const f of observed.frames) seen.push({ ...f, seconds: batch[f.frame].seconds });
       }
+      if (reading && !read)
+        this.options.onProgress?.('Texterkennung liest Karte und Rundenausgang …');
+      const texts = await reading;
+      if (texts) trace.texts = texts.trace;
+      const map = texts?.map;
       // Das Modell liest die Meldungen, gedeutet werden sie hier (agent/events.ts). Kills und
-      // Tode aus einem Replay sind exakt und ersetzen die gelesenen.
-      const events = withReplay(
-        collectEvents(seen, path, game),
-        replay?.status === 'ok' ? replay.events : undefined,
+      // Tode aus einem Replay sind exakt und ersetzen die gelesenen; Rundenergebnisse aus der
+      // Texterkennung ersetzen die vom Modell gelesenen derselben Stelle.
+      const events = withTexts(
+        withReplay(
+          collectEvents(seen, path, game),
+          replay?.status === 'ok' ? replay.events : undefined,
+        ),
+        texts?.events,
       );
       trace.events = events;
       const weight = new Map(
@@ -332,19 +373,30 @@ export class LocalAnalyzer {
             : 'Sein Spielername ist unbekannt, deshalb keine Aussage darüber, wer wen ausgeschaltet hat, wenn nur Namen zu sehen sind.'
       } Folgt die Ansicht nach seinem Tod einem Mitspieler oder zeigt sie eine Zuschauerperspektive, ist unklar, wessen Sicht zu sehen ist — dann bleibe unpersönlich.`;
       const heads = headline(events, momentStart);
+      // Die Karte kennt nur die Texterkennung; lief sie, darf der Titel keine andere nennen.
+      // Ohne Texterkennung bleibt die Prüfung wie bisher.
+      const place = texts && isR6(game) ? { maps: R6_MAPS, ...(map ? { map } : {}) } : undefined;
+      const mapRule = map
+        ? ` Die Karte ist ${map} (Texterkennung, verlässlich); er darf sie nennen, etwa "… auf ${map}".`
+        : place
+          ? ' Die Karte ist unbekannt; nenne keine.'
+          : '';
       const titleRule = heads.length
         ? `Er benennt das wichtigste belegte Ereignis aus dem Schluss: ${phrase(heads[0])}${heads[1] ? `; er darf es mit diesem verbinden: ${phrase(heads[1])}` : ''}.${heads[0].source === 'replay' ? ' Anzahl, Waffe und Entfernung stammen aus dem Spiel selbst; nenne, was den Moment besonders macht, etwa die Zahl der Kills, einen Snipe oder die Entfernung, und nichts, was dem widerspricht.' : ''}`
         : 'Es gibt kein belegtes Ereignis, also nennt er zuerst, was du im Schluss tust, als Tätigkeit mit Verb, dann ein Detail, das diesen Clip von anderen unterscheidet — nicht bloß Umgebung oder Gegenstände und keine Anzeige.';
       const messages: Message[] = [
         {
           role: 'user',
-          content: `${rules} ${identity}\n${describeFacts(events, momentStart)}\nAufgabe: Schreibe zu dieser Aufnahme einen Titel, eine Beschreibung, eine Unsicherheit und höchstens fünf Zeitmarken. Gesamtdauer ${duration.toFixed(2)} Sekunden. Das beigefügte Bild stammt aus Sekunde ${focus.seconds.toFixed(2)}; es und die belegten Ereignisse sind verlässlich, die Beobachtungen unten sind unzuverlässige Notizen und daran zu prüfen.\nTitel: eine Überschrift aus zwei bis sechs Wörtern auf Deutsch, so wie ein Spieler den Moment einem Freund nennen würde, ohne "Du" am Anfang. ${titleRule} Keine Punktestände, keine Zahlenverhältnisse, keine Rundennummern, keine Wörter in Großbuchstaben, keine Leistungswerte, keinen Bildschirmtext wörtlich.\nBeschreibung: zwei bis drei kurze Sätze in der Du-Form: was du tust, was passiert und wie es ausgeht. Nur, was Bild und belegte Ereignisse tragen. Keine Munition, Lebenspunkte, Uhrzeiten, FPS oder Ping, keine Einblendungen von NVIDIA, Steam oder Discord.\nuncertainty: leer, außer etwas Wesentliches am Geschehen bleibt offen; dann ein kurzer Satz dazu, ohne Bilder, Sekunden oder das Vorgehen zu erwähnen.\nhighlights: höchstens fünf Stellen mit je eigenem Inhalt, Titel ein bis vier Wörter, seconds nur aus den Beobachtungen, zwischen 0 und ${duration.toFixed(2)}.\nTitel und Beschreibung handeln vom Clip, nie vom Vorgehen. Ausgabe JSON nach Schema.\nBeobachtungen: ${JSON.stringify(evidence)}`,
+          content: `${rules} ${identity}\n${describeFacts(events, momentStart)}\nAufgabe: Schreibe zu dieser Aufnahme einen Titel, eine Beschreibung, eine Unsicherheit und höchstens fünf Zeitmarken. Gesamtdauer ${duration.toFixed(2)} Sekunden. Das beigefügte Bild stammt aus Sekunde ${focus.seconds.toFixed(2)}; es und die belegten Ereignisse sind verlässlich, die Beobachtungen unten sind unzuverlässige Notizen und daran zu prüfen.\nTitel: eine Überschrift aus zwei bis sechs Wörtern auf Deutsch, so wie ein Spieler den Moment einem Freund nennen würde, ohne "Du" am Anfang. ${titleRule}${mapRule} Keine Punktestände, keine Zahlenverhältnisse, keine Rundennummern, keine Wörter in Großbuchstaben, keine Leistungswerte, keinen Bildschirmtext wörtlich.\nBeschreibung: zwei bis drei kurze Sätze in der Du-Form: was du tust, was passiert und wie es ausgeht. Nur, was Bild und belegte Ereignisse tragen. Keine Munition, Lebenspunkte, Uhrzeiten, FPS oder Ping, keine Einblendungen von NVIDIA, Steam oder Discord.\nuncertainty: leer, außer etwas Wesentliches am Geschehen bleibt offen; dann ein kurzer Satz dazu, ohne Bilder, Sekunden oder das Vorgehen zu erwähnen.\nhighlights: höchstens fünf Stellen mit je eigenem Inhalt, Titel ein bis vier Wörter, seconds nur aus den Beobachtungen, zwischen 0 und ${duration.toFixed(2)}.\nTitel und Beschreibung handeln vom Clip, nie vom Vorgehen. Ausgabe JSON nach Schema.\nBeobachtungen: ${JSON.stringify(evidence)}`,
           images: [focusImage],
         },
       ];
       let { raw, summary } = await this.summarize(messages, duration);
       const titles = trace.titles;
-      titles.push({ title: summary.title, problems: titleProblems(summary.title, events, heads) });
+      titles.push({
+        title: summary.title,
+        problems: titleProblems(summary.title, events, heads, place),
+      });
       // Ein Titel, der Unbelegtes behauptet oder eine Anzeige abschreibt, bekommt eine
       // Rückfrage mit den konkreten Mängeln; besteht auch die zweite Fassung nicht, gilt ein
       // Ersatztitel aus den belegten Ereignissen.
@@ -365,7 +417,7 @@ export class LocalAnalyzer {
           ({ raw, summary } = retry);
           titles.push({
             title: summary.title,
-            problems: titleProblems(summary.title, events, heads),
+            problems: titleProblems(summary.title, events, heads, place),
           });
         } catch (error) {
           if (!isParseError(error)) throw error;
@@ -384,6 +436,7 @@ export class LocalAnalyzer {
           titles.map((t) => t.title),
           events,
           mostly,
+          map,
         );
       const result = this.assemble(summary, {
         title,
@@ -398,6 +451,7 @@ export class LocalAnalyzer {
       });
       return { result, duration, model: this.options.model };
     } finally {
+      stopReading.abort();
       this.options.onTrace?.(trace);
       if (modelMayBeLoaded) await this.unload();
       // work is a generated UUID strictly beneath this client's dedicated cache directory.
@@ -436,7 +490,7 @@ export class LocalAnalyzer {
       description: description.slice(0, 1800),
       game: context.game.slice(0, 100),
       tags: tagsFor(events, seen, CLIP_TAGS),
-      confidence: heads.some((e) => e.source === 'screen' || e.source === 'replay')
+      confidence: heads.some((e) => ['screen', 'replay', 'ocr'].includes(e.source))
         ? 'high'
         : playing
           ? 'medium'

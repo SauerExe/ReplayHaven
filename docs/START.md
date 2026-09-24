@@ -62,6 +62,14 @@ Fortnite legt von jedem Match ein Replay unter `%LOCALAPPDATA%\FortniteGame\Save
 - Ein Clip aus einem Match, das noch läuft, wartet bis zu dessen Ende, höchstens 45 Minuten. Danach wird er wie bisher nur mit Bildern analysiert.
 - In Fortnite muss die Aufzeichnung von Replays eingeschaltet sein. Der Client liest nur den Kopf und die Ereignisse eines Replays, nicht das ganze Match.
 
+## Rainbow Six Siege: Karte und Rundenausgang (optional)
+
+Mit **R6: Karte und Rundenausgang per Texterkennung** liest der Client in R6-Clips zwei Bilder je Sekunde mit einer Texterkennung (PaddleOCR über ONNX Runtime, auf der CPU). Daraus nimmt er den Kartennamen und Rundenergebnisse wie „ROUND WON“, sodass Titel wie „Rundensieg auf Oregon“ möglich werden.
+
+- Eine Karte zählt erst, wenn sie in mindestens zwei Bildern sicher gelesen wurde. Ein Titel darf dann keine andere Karte nennen.
+- Kills liest die Texterkennung bewusst nicht. Wer eine Killfeed-Zeile verursacht hat und ob sie zum Clip gehört, ließ sich so nicht verlässlich klären.
+- Die Texterkennung braucht etwa eine Minute CPU-Zeit je Clip. Sie läuft gleichzeitig mit der KI, die auf der Grafikkarte rechnet, und nutzt höchstens die Hälfte der Prozessorkerne.
+
 ## Was tatsächlich passiert
 
 - Die lokale KI erhält 24 oder 48 verkleinerte Einzelbilder in aufeinanderfolgenden Paketen. **Ton wird nicht analysiert.** Schnelle Ereignisse können zwischen den Bildern liegen; Ergebnisse sind Vorschläge.
