@@ -400,12 +400,17 @@ it.each([
   ['Knock über 170 m', [replayed('knock', { weapon: 'rifle', distance: 175.6 })]],
   ['Triple Kill am Turm', [replayed('kill'), replayed('multikill', { count: 3 })]],
   ['Victory Royale am Berg', [replayed('matchWon')]],
+  // So formuliert der Prompt selbst ("zwei Gegner kurz nacheinander"), und so heißt der Ersatztitel.
+  ['Zwei schnelle Kills', double],
+  ['Zwei Gegner mit der Schrotflinte ausgeschaltet', double],
+  ['Snipe-Knock über 180 m', [replayed('knock', { weapon: 'sniper', distance: 183.4 })]],
 ])('accepts the replay title %s', (title, events) => {
   expect(titleProblems(title, events, headline(events, 0))).toEqual([]);
 });
 
 it.each([
   ['Dreifach-Kill mit der Schrotflinte', double, /3 Kills in Folge, belegt sind 2/],
+  ['Drei Kills mit der Schrotflinte', double, /3 Kills, belegt sind 2/],
   ['Snipe über 250 m', [snipe], /übertreibt die Entfernung/],
   ['Kill mit der Schrotflinte', [snipe], /andere Waffe/],
   ['Kill am Turm', [snipe], /Besondere/],

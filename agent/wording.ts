@@ -1,4 +1,4 @@
-import { WEAPON_WITH, phrase } from './events';
+import { WEAPON_WITH, countWord, phrase } from './events';
 import type { EventKind, GameEvent, Weapon } from './events';
 
 /**
@@ -78,7 +78,8 @@ export function unsupportedClaims(text: string, events: GameEvent[]) {
 function exactClaims(text: string, events: GameEvent[], killed: boolean) {
   const problems: string[] = [];
   const kill = has(events, KILLS);
-  if (SNIPE.test(text) && !killed && !kill)
+  // "Snipe-Knock über 180 m" beschreibt einen Knock, keinen Kill.
+  if (SNIPE.test(text) && !killed && !kill && !has(events, ['knock']))
     problems.push('behauptet einen Kill, den keine Meldung belegt');
   if (KNOCK.test(text) && !kill && !has(events, ['knock']))
     problems.push('behauptet einen Knock, den kein Ereignis belegt');
@@ -96,6 +97,9 @@ function exactClaims(text: string, events: GameEvent[], killed: boolean) {
     ),
   );
   if (series > counted) problems.push(`behauptet ${series} Kills in Folge, belegt sind ${counted}`);
+  const claimed = killsIn(text);
+  const kills = events.filter((e) => e.kind === 'kill').length;
+  if (claimed > kills) problems.push(`behauptet ${claimed} Kills, belegt sind ${kills}`);
   const meters = distanceIn(text);
   const farthest = Math.max(0, ...events.map((e) => e.distance ?? 0));
   if (meters !== undefined && meters > farthest + 5)
@@ -164,6 +168,16 @@ function seriesIn(text: string) {
   return series.find(([pattern]) => pattern.test(text))?.[1] ?? 0;
 }
 
+const NUMBERS: Record<string, number> = { zwei: 2, drei: 3, vier: 4, fünf: 5 };
+/** Genannte Zahl an Kills: "Drei Kills in Folge", "zwei schnelle Abschüsse", "4 Kills". 0 sonst. */
+function killsIn(text: string) {
+  const match =
+    /\b(zwei|drei|vier|fünf|\d+)\s+(?:[\wäöüß-]+\s+)?(?:kills?|abschüsse|eliminierungen)\b/i.exec(
+      text,
+    );
+  return match ? (NUMBERS[match[1].toLowerCase()] ?? Number(match[1])) : 0;
+}
+
 /** Genannte Entfernung in Metern: "über 180 m", "180-m-Snipe", "200 Meter". */
 function distanceIn(text: string) {
   const match = /\b(\d{2,4})\s*-?\s*m(?:eter[n]?)?\b/i.exec(text);
@@ -195,7 +209,12 @@ function weaponsIn(text: string) {
  */
 function mentionsDetail(title: string, event: GameEvent) {
   if (event.kind === 'multikill' && event.count)
-    return seriesIn(title) === Math.min(event.count, 5) || title.includes(String(event.count));
+    return (
+      seriesIn(title) === Math.min(event.count, 5) ||
+      killsIn(title) === event.count ||
+      new RegExp(`\\b${countWord(event.count)}\\b`, 'i').test(title) ||
+      title.includes(String(event.count))
+    );
   if (!['kill', 'knock'].includes(event.kind)) return true;
   const far = (event.distance ?? 0) >= 100;
   const sniped = event.weapon === 'sniper' || event.weapon === 'noscope';
