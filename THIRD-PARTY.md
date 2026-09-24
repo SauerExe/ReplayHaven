@@ -32,6 +32,11 @@ The measurement tool `npm run laughs` (not part of the client) downloads **YAMNe
 revision and SHA-256, and keeps it in a local cache. It is neither bundled nor redistributed.
 Source: https://github.com/tensorflow/models/tree/master/research/audioset/yamnet.
 
+The measurement tool `npm run r6-replays` (not part of the client) builds **r6-dissect** (MIT)
+on your machine with Go, from the maintained fork `Gipson62/r6-dissect` pinned to a commit. It is
+neither bundled nor redistributed. Sources: https://github.com/Gipson62/r6-dissect and the
+original https://github.com/redraskal/r6-dissect.
+
 Ollama and the Qwen3-VL model are **not** bundled. The client only opens the official Ollama
 download page and pulls the model when you click the button. See https://ollama.com and
 https://ollama.com/library/qwen3-vl for their licenses.

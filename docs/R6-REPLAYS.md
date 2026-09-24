@@ -2,7 +2,7 @@
 
 **Ziel.** Genaue R6-Ereignisse für Titel wie „Ace auf Oregon“ oder „Doppel-Kill per Kopfschuss“. Den dichten Killfeed per Texterkennung zu lesen ist gescheitert. Die Quelle wären hier die Match-Replay-Dateien, die das Spiel selbst schreibt.
 
-Stand: Recherche vom 2026-09-24. Gemessen ist nichts; eine aktuelle `.rec`-Datei lag hier nicht vor. Nichts davon ist eingebaut.
+Stand 2026-09-24: Das Messwerkzeug `npm run r6-replays` ist gebaut (siehe unten); in die Analyse ist nichts eingebaut. Geprüft ist es nur an den neun Beispielrunden von r6-dissect (Y8S1 bis Y9S1) und an einem gerenderten Clip. Eine aktuelle `.rec`-Datei und echte R6-Clips lagen hier nicht vor.
 
 ## Was das Spiel schreibt
 
@@ -16,14 +16,14 @@ Stand: Recherche vom 2026-09-24. Gemessen ist nichts; eine aktuelle `.rec`-Datei
 
 Grundlage ist der Parser r6-dissect (MIT, Go).
 
-| Angabe                                          | Quelle          | Hinweis                                                                 |
-| ----------------------------------------------- | --------------- | ----------------------------------------------------------------------- |
-| Karte, Spielmodus, Match-Art, Rundennummer      | Kopf            | Exakt                                                                   |
-| Aufnehmender Spieler                            | Kopf            | Exakt über `recordingplayerid`; keine Heuristik wie bei Fortnite        |
-| Punktestand, Sieger, Siegbedingung, Rolle       | Kopf und Pakete | Siegbedingung etwa „Gegner ausgeschaltet“, „Defuser entschärft“, „Zeit“ |
-| Kills mit Schütze, Opfer, Kopfschuss, Rundenuhr | Pakete (Muster) | Auch DBNO und Finish-off; Teamkills filtert der Parser heraus           |
-| Defuser gelegt oder entschärft, Operatoren      | Pakete und Kopf |                                                                         |
-| Waffe                                           | nicht enthalten | Titel mit Waffe bleiben bei R6 also aus                                 |
+| Angabe                                          | Quelle          | Hinweis                                                               |
+| ----------------------------------------------- | --------------- | --------------------------------------------------------------------- |
+| Karte, Spielmodus, Match-Art, Rundennummer      | Kopf            | Exakt                                                                 |
+| Aufnehmender Spieler                            | Kopf            | Über die Ubisoft-Profil-ID, sonst die Spieler-ID; keine Heuristik     |
+| Punktestand, Sieger, Siegbedingung, Rolle       | Kopf und Pakete | Siegbedingung etwa „Gegner ausgeschaltet“, „Bombe entschärft“, „Zeit“ |
+| Kills mit Schütze, Opfer, Kopfschuss, Rundenuhr | Pakete (Muster) | Auch DBNO und Finish-off; Teamkills filtert der Parser heraus         |
+| Defuser gelegt oder entschärft, Operatoren      | Pakete und Kopf |                                                                       |
+| Waffe                                           | nicht enthalten | Titel mit Waffe bleiben bei R6 also aus                               |
 
 **Daraus ableitbar:**
 
@@ -49,10 +49,10 @@ Eine Uhrzeit steht nur im Kopf (`datetime`) und in der Dateizeit. Der Kopf ist v
 **Vorschlag**
 
 1. **Runde wählen über die Uhrzeit.** Das Clipfenster kommt wie bei Fortnite aus NVIDIA-Namen und Dateizeit. Das Rundenfenster reicht von der Kopfzeit bis zur letzten Schreibzeit der Datei. Ob der Kopf UTC oder Ortszeit ist, entscheidet wie bei Fortnite die Dateizeit.
-2. **Sekunde bestimmen über die Rundenuhr im Bild.** Die vorhandene Texterkennung liest dafür nur den kleinen Ausschnitt oben in der Mitte, etwa ein Bild je Sekunde. Liest sie bei Clipsekunde 12 „1:51“, gilt für jeden Kill der Runde: Clipsekunde = 12 + (111 − Kill-Sekunden). Mehrere Anker müssen übereinstimmen (Clipsekunde + Uhr bleibt innerhalb einer Phase gleich), Ausreißer fallen weg.
+2. **Sekunde bestimmen über die Rundenuhr im Bild.** Die vorhandene Texterkennung liest dafür nur den Ausschnitt oben in der Mitte, zwei Bilder je Sekunde, bis zehn Lesungen übereinstimmen. Liest sie bei Clipsekunde 12 „1:51“, gilt für jeden Kill der Runde: Clipsekunde = 12 + (111 − Kill-Sekunden). Mehrere Anker müssen übereinstimmen (Clipsekunde + Uhr bleibt innerhalb einer Phase gleich), Ausreißer fallen weg.
 3. **Ohne lesbare Uhr** gibt es keine Kills, nur Angaben zur ganzen Runde wie Karte und Rundenausgang.
 
-Kosten: Die Texterkennung auf dem Ausschnitt dürfte wenige Sekunden je Clip brauchen, statt etwa 70 s für ganze Bilder. Nicht gemessen. Trägt der Weg, liefert das Replay Karte und Rundenausgang genauer als die jetzige Texterkennung auf ganzen Bildern.
+Kosten, gemessen am gerenderten Clip: etwa 70 ms CPU je Ausschnitt und 1,2 s bis zum sicheren Anker, samt Laden der Modelle, statt etwa 70 s für ganze Bilder. Wo die Uhr im echten HUD steht, ist noch nicht vermessen. Trägt der Weg, liefert das Replay Karte und Rundenausgang genauer als die jetzige Texterkennung auf ganzen Bildern.
 
 ## Umsetzung: zwei Wege
 
@@ -79,9 +79,32 @@ Kosten: Die Texterkennung auf dem Ausschnitt dürfte wenige Sekunden je Clip bra
 | Titel        | R6-Clips mit und ohne Replay-Ereignisse, von dir bewertet      | Mehr Titel, die treffen, woran du dich erinnerst (Ace, Clutch, Kopfschüsse); kein Widerspruch zum Clip                                            | Kein Gewinn gegenüber heute: Option bleibt aus                                        |
 | Season-Patch | Nach dem nächsten Patch das Messwerkzeug erneut laufen lassen  | Liest weiter oder meldet eine unbekannte Version, statt Falsches zu liefern                                                                       | Falsches ohne Meldung: Plausibilitätsprüfung verschärfen oder verwerfen               |
 
-## Nächste Schritte, wenn du sie freigibst
+## Messwerkzeug `npm run r6-replays`
+
+Es ändert nichts an der Analyse und lädt nichts hoch.
 
 1. In R6 Match Replay einschalten, ein paar Matches spielen und Clips wie gewohnt speichern.
-2. Ein Messwerkzeug `npm run r6-replays` bauen: Runden und eigene Kills listen, Clips zuordnen, ohne Einbau in die Analyse.
-3. Den Zeitanker über die Rundenuhr im Bild ergänzen.
-4. Erst nach bestandener Messung einbauen, hinter einer Option, die zunächst aus ist.
+2. Einmalig den Parser bauen: `npm run r6-replays -- --build`. Das holt den Fork per Git auf dem gepinnten Commit `e360e2b` und baut ihn mit Go. Fehlt Go: `winget install GoLang.Go`, danach ein neues Terminal. Das Programm liegt dann unter `%LOCALAPPDATA%\ReplayHaven\tools`.
+3. Messen: `npm run r6-replays -- --clips "D:\Clips\Tom Clancy's Rainbow Six Siege" --uhr --json r6.json --csv zeit.csv`. Ohne Ordnerangabe sucht es `MatchReplay` im Installationsordner von Ubisoft Connect und Steam. Liegt das Spiel woanders, kommt der Ordner als erstes Argument.
+
+**Ausgabe**
+
+- **Je Match:** Karte, Match-Art, Season, Runden, gewonnene Runden, eigene Kills samt Kopfschüssen, Tode. Diese Zahlen mit der Übersicht im Spiel vergleichen (Stufe Lesbarkeit).
+- **Je Runde:** Seite, Ausgang mit Siegbedingung, eigene Kills mit Rundenuhr, Serien (höchstens 12 s Abstand), Ace, Clutch und eigener Tod.
+- **Warnungen:** Killfeed und Statistik weichen voneinander ab, ein Kill nennt unbekannte Spieler, oder die Season ist neuer als der Parserstand (Stufe Season-Patch).
+- **Je Clip:** die Runde über die Uhrzeit, sonst „keine Runde“ mit Grund (Stufe Rundenwahl).
+- **Mit `--uhr`:** zusätzlich die gelesene Rundenuhr, der Anker und jeder eigene Kill und Tod als Clipsekunde (Stufe Zeit). Kills nach dem Legen des Entschärfers bleiben „Zeit offen“. Mit `--csv` kommt je Kill und Tod eine Zeile dazu, mit leerer Spalte für die Sekunde, die du im Video siehst.
+- **Namen:** Der eigene Spielername steht nur im Terminal. Die JSON-Datei enthält weder Namen noch Konto- oder Match-IDs.
+
+**Geprüft ist bisher**
+
+- **Beispielrunden:** Parser und Auswertung an den neun Beispielrunden von r6-dissect (Y8S1 bis Y9S1). In sieben wurde der eigene Spieler erkannt, zwei sind Zuschauer-Aufnahmen. In einer Runde traf nur die Profil-ID, nicht die Spieler-ID. Eine Runde dauerte hier 2 bis 6 s.
+- **Rundenuhr:** an einem gerenderten Clip von 30 s mit Uhr oben in der Mitte. Alle 60 Lesungen stimmten, die Kills lagen auf eine halbe Sekunde genau.
+- **Durchlauf:** Eine Beispielrunde mit angepasster Dateizeit und dazu ein gerenderter Clip mit NVIDIA-Namen wurden richtig zugeordnet und verankert.
+
+**Nicht geprüft:** aktuelle Seasons, echte Clips, die Lage der Uhr im echten HUD und die Zeit nach dem Legen des Entschärfers. Genau das klärt die Messung.
+
+## Nächste Schritte
+
+1. Du lässt das Messwerkzeug über deine Matches und Clips laufen und vergleichst mit der Übersicht im Spiel und den Videos. Die JSON-Datei enthält keine Spielernamen und lässt sich gefahrlos weitergeben.
+2. Erst nach bestandener Messung wird es eingebaut, hinter einer Option, die zunächst aus ist. Dafür kommt der Go-Build in die Release-Pipeline.

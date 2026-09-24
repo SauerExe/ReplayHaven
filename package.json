@@ -33,6 +33,7 @@
     "audio": "tsx agent/audio-cli.ts",
     "laughs": "tsx agent/laughs-cli.ts",
     "r6": "tsx agent/r6-cli.ts",
+    "r6-replays": "tsx agent/r6-replays-cli.ts",
     "client:prepare": "node scripts/build-client.mjs",
     "client:dev": "npm run client:prepare && electron desktop-bundle",
     "client:build": "npm run client:prepare && electron-builder --config electron-builder.yml --win nsis --x64",

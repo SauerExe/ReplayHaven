@@ -104,4 +104,4 @@ Mit `--account <Epic-Konto-ID>` gilt die eingetragene ID statt der Automatik.
 | Titel (KI)    | R6-Clips mit Option an gegen aus                       | Karte im Titel nur, wenn erkannt; nie eine falsche         | Ein Titel mit falscher Karte                                                                |
 | Kosten        | Rechenzeit laut Trace (`texts.seconds`) je Clip        | Unter 90 s für einen 2-Minuten-Clip, kein Ruckeln im Spiel | Spürbares Ruckeln beim Spielen: weniger Kerne oder nur das Schlussfenster lesen             |
 
-Genauere R6-Ereignisse samt Kills könnten aus den Match-Replays des Spiels kommen. Diesen Weg beschreibt `docs/R6-REPLAYS.md` samt eigenem Messplan; gebaut ist davon noch nichts.
+Genauere R6-Ereignisse samt Kills könnten aus den Match-Replays des Spiels kommen. Diesen Weg beschreibt `docs/R6-REPLAYS.md` samt eigenem Messplan. Gebaut ist das Messwerkzeug `npm run r6-replays`; eingebaut ist davon noch nichts.

@@ -27,6 +27,13 @@ All notable changes to this project are documented here. The format follows
   YAMNet on the CPU (downloaded on first use, pinned by SHA-256) and lists them per clip with
   time and strength, plus per-window scores for calibrating the threshold. The analysis does
   not use it yet.
+- `npm run r6-replays`: a measurement tool for Rainbow Six match replays. It builds the
+  maintained r6-dissect fork from a pinned commit on first use (needs Go and Git), lists per
+  match and round the map, side, outcome and your kills with the round clock, series, ace and
+  clutch, and assigns clips to rounds by time. With `--uhr` it reads the round clock at the top
+  of each assigned clip and converts your kills and death to clip seconds; `--csv` writes them
+  with an empty column for the second you see in the video. The JSON output holds no player
+  names or IDs. The analysis does not use it yet.
 - Optional Rainbow Six text recognition: "R6: Karte und Rundenausgang per Texterkennung" reads
   two frames per second with PaddleOCR PP-OCRv4 on ONNX Runtime (CPU, in parallel to the GPU
   model) and takes the map name and round results from it. Titles may name the recognised map
