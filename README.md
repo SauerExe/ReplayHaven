@@ -40,7 +40,7 @@ Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.
     <td width="50%" valign="top"><b> Originals are sacred</b><br>Nothing on the gaming PC is renamed, moved or deleted. The server keeps an untouched copy, even if you delete the file at home.</td>
   </tr>
   <tr>
-    <td width="50%" valign="top"><b>  A library you want to open</b><br>The newest clip in the spotlight, rows for recent clips and favourites, search and filters per game, collections, resume playback and a keyboard-friendly player, on desktop and phone.</td>
+    <td width="50%" valign="top"><b>  A library you want to open</b><br>The newest clip in the spotlight, rows for continue watching, new clips, favourites and each game, a detail view with the AI's jump marks, a full-screen player that skips from highlight to highlight, search, filters and collections, on desktop and phone.</td>
     <td width="50%" valign="top"><b> One small container</b><br>Node.js, SQLite and FFmpeg in a single Docker image. No GPU needed on the server. Runs on a NAS, a mini PC or any Linux box.</td>
   </tr>
   <tr>
@@ -58,12 +58,16 @@ Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.
 
 <table>
   <tr>
+    <td width="50%"><img src="docs/images/app-detail.jpg" alt="Clip details with description, tags and the AI's jump marks"><br><sub>Open a clip for details and the AI's jump marks, or play it right away.</sub></td>
+    <td width="50%"><img src="docs/images/app-player.jpg" alt="Full-screen player with highlight markers on the timeline"><br><sub>The full-screen player marks every highlight and jumps to the next one.</sub></td>
+  </tr>
+  <tr>
     <td width="50%"><img src="docs/images/app-ai.jpg" alt="AI summary of a clip with title suggestion, tags and highlight timestamps"><br><sub>What the local AI returns for a clip: title, description, tags and jump marks.</sub></td>
     <td width="50%"><img src="docs/images/client.png" alt="Windows client with recording folder, server connection and local AI settings"><br><sub>The Windows client: pick a folder, connect your server, done.</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/images/app-library.jpg" alt="Library with search, filters and clip grid"><br><sub>Search and filter the whole archive.</sub></td>
-    <td width="50%"><img src="docs/images/app-clip.jpg" alt="Clip page with player"><br><sub>Every clip with player, notes and the original for download.</sub></td>
+    <td width="50%"><img src="docs/images/app-clip.jpg" alt="Clip page with player"><br><sub>Every clip also has its own page with player, notes and the original for download.</sub></td>
   </tr>
 </table>
 
@@ -187,15 +191,6 @@ Operations, backups, reverse proxies and server-side AI are covered in [docs/SER
 
 ## What's next
 
-A streaming-style home page is ready in [`src/streaming`](src/streaming) and waits to be wired in: a big hero, rows per game, a detail view with the AI's jump marks and a full-screen player with highlight markers. Try it with `npm run dev` at `/streaming-preview.html`.
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/streaming-home.jpg" alt="Preview of the streaming-style home page"></td>
-    <td width="50%"><img src="docs/images/streaming-detail.jpg" alt="Preview of the clip detail view with jump marks"></td>
-  </tr>
-</table>
-
 Ideas for later: user accounts and share links, translations of the interface, and audio cues such as laughs in the microphone track. Audio and Rainbow Six replay events only go into the analysis once measurements on real clips show that they help.
 
 ## FAQ
@@ -267,7 +262,7 @@ npm run dev:all        # web UI on http://localhost:5173, server on 127.0.0.1:87
 
 | Directory | Contents                                                                              |
 | --------- | ------------------------------------------------------------------------------------- |
-| `src`     | React web UI, domain models, demo data layer; `src/streaming` holds the new home page |
+| `src`     | React web UI, domain models, demo data layer; home page and player in `src/streaming` |
 | `server`  | Fastify API, SQLite, media processing, optional AI providers                          |
 | `agent`   | Folder watcher, upload retries, Ollama integration, game extras and measurement tools |
 | `desktop` | Electron client (main, preload, renderer)                                             |

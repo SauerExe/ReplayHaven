@@ -194,3 +194,30 @@ test('Im App-Rahmen hängen Details und Player an der Adresse, Zurück schließt
   await expect(detail).toBeHidden();
   await expect(page).not.toHaveURL(/clip=/);
 });
+
+test('Die App startet mit der Streaming-Startseite, der Detaildialog passt aufs Handy', async ({
+  page,
+}) => {
+  await page.route('**/api/**', (route) =>
+    route.fulfill({ status: 503, json: { error: 'Kein Server im Test.' } }),
+  );
+  await page.route(
+    (url) => url.hostname !== 'localhost',
+    (route) => route.fulfill({ status: 404, body: '' }),
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.locator('.stream-hero')).toBeVisible();
+  await page.getByRole('button', { name: 'Details', exact: true }).first().click();
+  const detail = page.getByRole('dialog');
+  await expect(detail).toBeVisible();
+  await expect(page).toHaveURL(/[?&]clip=/);
+  // aspect-ratio samt Mindesthöhe schob den Kopf des Dialogs einmal auf 533 px Breite.
+  const close = detail.getByRole('button', { name: 'Schließen' });
+  const box = await close.boundingBox();
+  expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  await close.click();
+  await expect(detail).toBeHidden();
+  await expect(page).not.toHaveURL(/clip=/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});

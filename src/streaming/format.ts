@@ -85,8 +85,10 @@ export const confidenceLabel: Record<Confidence, string> = {
   low: 'niedrig',
 };
 
+/** Wer analysiert hat: der Windows-Client auf dem Gaming-PC, die KI des Servers oder Gemini. */
 export function providerLabel(provider: string): string {
-  if (provider === 'local') return 'Lokal auf deinem PC';
+  if (provider === 'client') return 'Auf deinem Gaming-PC';
+  if (provider === 'local') return 'KI auf dem Server';
   if (provider === 'gemini') return 'Gemini (Google)';
   return provider;
 }
