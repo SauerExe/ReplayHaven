@@ -1,11 +1,6 @@
 /*
- * Startseite im Streaming-Stil mit Detaildialog und Player. Noch nicht eingebunden.
- *
- * Einbau in zwei Schritten:
- * 1. src/main.tsx: nach den anderen Stylesheets `import './streaming/streaming.css';`
- * 2. src/App.tsx: `import { StreamingHomeContainer } from './streaming';` und in der Index-Route
- *    `<Route index element={<Home />} />` durch `<Route index element={<StreamingHomeContainer />} />`
- *    ersetzen.
+ * Startseite im Streaming-Stil mit Detaildialog und Player: die Index-Route in App.tsx, das
+ * Stylesheet bindet main.tsx ein.
  *
  * Details und Player hängen an `?clip=<id>` und `?play=<id>`, der Zurück-Button schließt sie.
  * Der Kopfbereich aus dem Entwurf ist `StreamingHeaderContainer` und kann den Header in Layout.tsx

@@ -8,11 +8,11 @@ for (const width of [1440, 390])
     const measure = () =>
       page.evaluate(() => ({
         header: document.querySelector('.header-inner')!.getBoundingClientRect().toJSON(),
-        hero: document.querySelector('.hero-content')!.getBoundingClientRect().toJSON(),
+        hero: document.querySelector('.stream-hero-content')!.getBoundingClientRect().toJSON(),
         viewport: document.documentElement.clientWidth,
         scroll: window.scrollY,
       }));
-    await expect(page.locator('.hero-content')).toBeVisible();
+    await expect(page.locator('.stream-hero-content')).toBeVisible();
     const before = await measure();
     await trigger.click();
     await expect(page.getByRole('menu')).toBeVisible();

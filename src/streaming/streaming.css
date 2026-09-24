@@ -1017,6 +1017,9 @@
   position: relative;
   isolation: isolate;
   aspect-ratio: 16 / 9;
+  /* Sonst macht aspect-ratio aus der Mindesthöhe eine Mindestbreite (300 px hoch = 533 px breit),
+     und auf dem Handy rutscht der Schließen-Button aus dem Bild. */
+  max-width: 100%;
   min-height: 360px;
   padding: 88px 48px 48px;
   display: flex;
@@ -1698,7 +1701,8 @@
     color: var(--stream-accent);
   }
 
-  .stream-home {
+  /* Platz nur für die eigene Tab-Leiste; im Layout der App bringt dessen Leiste ihren Abstand mit. */
+  .stream-tabbar ~ .stream-home {
     padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
 }

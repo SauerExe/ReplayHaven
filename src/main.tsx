@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import '@fontsource-variable/inter';
 import './styles.css';
 import './analysis.css';
+import './streaming/streaming.css';
 import { VaultProvider } from './data/store';
 import { App } from './App';
 ReactDOM.createRoot(document.getElementById('root')!).render(

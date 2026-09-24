@@ -3,7 +3,7 @@ import { Link, Route, Routes } from 'react-router-dom';
 import { ActionProvider } from './components/Actions';
 import { Layout } from './components/Layout';
 import { EmptyState } from './components/Cards';
-import Home from './pages/Home';
+import { StreamingHomeContainer } from './streaming';
 const Library = lazy(() => import('./pages/Library'));
 const Collections = lazy(() => import('./pages/Collections'));
 const CollectionDetail = lazy(() =>
@@ -30,7 +30,7 @@ export function App() {
       >
         <Routes>
           <Route element={<Layout />}>
-            <Route index element={<Home />} />
+            <Route index element={<StreamingHomeContainer />} />
             <Route path="library" element={<Library />} />
             <Route path="clips/:id" element={<ClipDetail />} />
             <Route path="collections" element={<Collections />} />

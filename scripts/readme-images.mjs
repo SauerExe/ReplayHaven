@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,9 +9,9 @@ import sharp from 'sharp';
 
 /**
  * Erzeugt die Bilder der README in docs/images: die Web-Bibliothek mit Beispieldaten und einem
- * nachgestellten Server, die neue Startseite aus der Vorschau, den Windows-Client und aus
- * docs/images/src Banner, Social-Preview und Architekturgrafik. Nach Änderungen an der
- * Oberfläche einfach neu laufen lassen: npm run readme:images
+ * nachgestellten Server, den Windows-Client und aus docs/images/src Banner, Social-Preview und
+ * Architekturgrafik. Nach Änderungen an der Oberfläche einfach neu laufen lassen:
+ * npm run readme:images
  */
 
 const root = resolve(import.meta.dirname, '..');
@@ -282,9 +282,22 @@ async function mockServer(context, video) {
       });
     return route.fulfill({ status: 404, json: { error: 'Nicht Teil der Demo.' } });
   });
-  await context.route(`${base}/demo/clip.webm`, (route) =>
-    route.fulfill({ path: video, contentType: 'video/webm' }),
-  );
+  // Mit Byte-Bereichen, sonst kann Chromium im Video nicht springen.
+  const bytes = await readFile(video);
+  await context.route(`${base}/demo/clip.webm`, (route) => {
+    const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers().range ?? '');
+    const start = range ? Number(range[1]) : 0;
+    const end = range?.[2] ? Number(range[2]) : bytes.length - 1;
+    return route.fulfill({
+      status: range ? 206 : 200,
+      body: bytes.subarray(start, end + 1),
+      contentType: 'video/webm',
+      headers: {
+        'accept-ranges': 'bytes',
+        ...(range ? { 'content-range': `bytes ${start}-${end}/${bytes.length}` } : {}),
+      },
+    });
+  });
   await context.addInitScript((state) => {
     localStorage.setItem('replayhaven.v1', JSON.stringify(state));
   }, vault);
@@ -339,6 +352,26 @@ async function appShots(browser, video) {
   await settle(page);
   await save(page, 'app-home.jpg');
 
+  // Details und Player der Startseite hängen an ?clip= und ?play=. Per Klick geöffnet zeigt der
+  // Dialog keinen Tastaturfokus-Rahmen.
+  await page.getByRole('button', { name: 'Details', exact: true }).first().click();
+  await page.getByRole('dialog').waitFor();
+  await page.waitForTimeout(500);
+  await settle(page);
+  await save(page, 'app-detail.jpg');
+
+  await page.goto(`${base}/?play=ace-inferno`);
+  await page.waitForFunction(
+    () => (document.querySelector('.stream-player video')?.readyState ?? 0) >= 2,
+  );
+  // Angehalten bleiben die Bedienelemente stehen; zweimal vorspulen zeigt etwas Fortschritt.
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: '10 Sekunden vor' }).click();
+  await page.getByRole('button', { name: '10 Sekunden vor' }).click();
+  await page.mouse.move(720, 400);
+  await page.waitForTimeout(500);
+  await save(page, 'app-player.jpg');
+
   await page.goto(`${base}/library`);
   await page.getByText('Triple Kill auf Mirage').first().waitFor();
   await settle(page);
@@ -364,22 +397,6 @@ async function appShots(browser, video) {
   await page.waitForTimeout(600);
   await settle(page);
   await save(page, 'app-mobile.jpg');
-  await context.close();
-}
-
-async function previewShots(browser) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await context.newPage();
-  await page.goto(`${base}/streaming-preview.html`);
-  await page.locator('.stream-hero').waitFor();
-  await page.waitForTimeout(600);
-  await settle(page);
-  await save(page, 'streaming-home.jpg');
-  await page.getByRole('button', { name: 'Details' }).first().click();
-  await page.getByRole('dialog').waitFor();
-  await page.waitForTimeout(500);
-  await settle(page);
-  await save(page, 'streaming-detail.jpg');
   await context.close();
 }
 
@@ -458,7 +475,6 @@ try {
   console.log(`Bilder nach ${out}:`);
   const video = await demoVideo(work);
   await appShots(browser, video);
-  await previewShots(browser);
   await clientShot(browser);
   await graphics(browser);
 } finally {
