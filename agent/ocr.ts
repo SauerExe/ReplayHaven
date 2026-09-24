@@ -259,6 +259,21 @@ export function developmentModels(root = process.cwd()): OcrModels {
   };
 }
 
+/**
+ * Ob ONNX Runtime an einer fehlenden Bibliothek scheiterte, unter Windows meist an der Visual C++
+ * Runtime (unter anderem MSVCP140_ATOMIC_WAIT.dll). Windows meldet das je nach Sprache englisch
+ * oder deutsch; der Fehlercode von Node ist in beiden Fällen derselbe.
+ */
+export function missingLibrary(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  return (
+    (error as NodeJS.ErrnoException | undefined)?.code === 'ERR_DLOPEN_FAILED' ||
+    /specified (module|procedure) could not be found|angegebene (Modul|Prozedur) wurde nicht gefunden/i.test(
+      message,
+    )
+  );
+}
+
 export class TextReader {
   private constructor(
     private readonly ort: typeof import('onnxruntime-node'),

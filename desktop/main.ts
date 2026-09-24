@@ -17,7 +17,7 @@ import { FolderUploader, recordedGames } from '../agent/watcher';
 import { LocalAnalyzer, checkOllama, pullModel, DEFAULT_MODEL, OLLAMA_URL } from '../agent/ollama';
 import { playerNamesSchema, savedPlayerNames, tidyPlayerNames } from '../agent/players';
 import { defaultDemosFolder, FortniteReplays } from '../agent/fortnite';
-import { TextReader } from '../agent/ocr';
+import { missingLibrary, TextReader } from '../agent/ocr';
 import { ClipTexts } from '../agent/r6';
 import { MediaProcessor } from '../server/media';
 
@@ -133,15 +133,21 @@ const ocrModels = () => ({
   rec: join(resource('ocr'), 'ch_PP-OCRv4_rec_infer.onnx'),
   keys: join(resource('ocr'), 'ppocr_keys_v1.txt'),
 });
-/** Lädt die Texterkennung einmal zur Probe; für den Rauchtest des fertigen Clients. */
-async function checkTexts() {
+/**
+ * Lädt die Texterkennung einmal zur Probe: vor dem Start mit R6-Option und im Rauchtest des
+ * fertigen Clients. Gibt nichts zurück, wenn sie bereit ist, sonst einen Hinweis zum Beheben.
+ */
+async function textsProblem() {
   try {
     const reader = await TextReader.load(ocrModels(), 1, resource('onnxruntime'));
     await reader.read({ width: 64, height: 32, data: new Uint8Array(64 * 32 * 3) });
     await reader.close();
-    return 'bereit';
+    return undefined;
   } catch (error) {
-    return `Fehler: ${error instanceof Error ? error.message : 'unbekannt'}`;
+    const message = error instanceof Error ? error.message.trim() : 'unbekannt';
+    return missingLibrary(error)
+      ? `Die R6-Texterkennung braucht die „Microsoft Visual C++ Redistributable“ (x64) in einer aktuellen Fassung. Installiere sie von Microsoft oder schalte die Option aus. (${message})`
+      : `Die R6-Texterkennung lässt sich nicht laden: ${message}`;
   }
 }
 function media() {
@@ -180,6 +186,9 @@ async function start() {
   if (config.analyze) {
     const ai = await checkOllama();
     if (!ai.installed) throw new Error('Installiere zuerst Ollama und lade das lokale Modell.');
+    // Sonst liefe die Option still ins Leere: Jeder Clip käme ohne Karte zurück.
+    const problem = config.r6Texts ? await textsProblem() : undefined;
+    if (problem) throw new Error(problem);
   }
   aborter = new AbortController();
   paused = false;
@@ -333,7 +342,9 @@ else {
           }
         });
       // Der Rauchtest prüft, ob ONNX Runtime und die Modelle im fertigen Client laden.
-      const texts = process.env.REPLAYHAVEN_SMOKE ? checkTexts() : undefined;
+      const texts = process.env.REPLAYHAVEN_SMOKE
+        ? textsProblem().then((problem) => problem ?? 'bereit')
+        : undefined;
       handle('vault:load', async () => ({
         config: publicConfig(),
         status,

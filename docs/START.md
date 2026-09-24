@@ -84,18 +84,19 @@ Mit **R6: Karte und Rundenausgang per Texterkennung** liest der Client in R6-Cli
 
 ## Fehler beheben
 
-| Problem                                | Nächster Schritt                                                                                                                         |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Server nicht erreichbar                | Adresse im Browser prüfen; auf dem Server `docker compose ps` und `docker compose logs --tail=80` ausführen.                             |
-| „Diese Herkunft ist nicht freigegeben“ | `REPLAYHAVEN_PUBLIC_ORIGIN` in `.env` muss genau der Browseradresse entsprechen. Danach `docker compose up -d`.                          |
-| Schlüssel falsch                       | Den Schlüssel erneut eingeben. Er steht auf dem Server in `.env`.                                                                        |
-| Ollama nicht erreichbar                | Ollama unter Windows starten, dann **Verbindung prüfen**.                                                                                |
-| Modell fehlt                           | **Modell laden** wählen und warten.                                                                                                      |
-| GPU-Speicher knapp / Spiel ruckelt     | Client pausieren und nach dem Spielen fortsetzen. Mit 24 Bildern beginnen. Während der Analyse zeigt `ollama ps` die GPU-Nutzung.        |
-| Datei bleibt ausstehend                | Warten, bis die Aufnahme fertig geschrieben ist. Unterstützt: MP4, M4V, MOV, WebM, MKV; maximal 2 GB, 30 Minuten und 8K pro Aufnahme.    |
-| Fortnite-Clip bleibt ausstehend        | Er wartet auf das Ende seines Matches. Nach dem Match oder spätestens nach 45 Minuten geht es weiter.                                    |
-| Kein KI-Titel                          | Prüfen, ob die Client-Analyse aktiv war. Bereits archivierte Dateien werden durch späteres Einschalten nicht automatisch nachanalysiert. |
-| Kein Windows-Download unter Geräte     | Das Image kennt keine Download-Adresse. `REPLAYHAVEN_CLIENT_DOWNLOAD_URL` in `.env` setzen oder den Installer nach `release/` legen.     |
+| Problem                                   | Nächster Schritt                                                                                                                          |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Server nicht erreichbar                   | Adresse im Browser prüfen; auf dem Server `docker compose ps` und `docker compose logs --tail=80` ausführen.                              |
+| „Diese Herkunft ist nicht freigegeben“    | `REPLAYHAVEN_PUBLIC_ORIGIN` in `.env` muss genau der Browseradresse entsprechen. Danach `docker compose up -d`.                           |
+| Schlüssel falsch                          | Den Schlüssel erneut eingeben. Er steht auf dem Server in `.env`.                                                                         |
+| Ollama nicht erreichbar                   | Ollama unter Windows starten, dann **Verbindung prüfen**.                                                                                 |
+| Modell fehlt                              | **Modell laden** wählen und warten.                                                                                                       |
+| GPU-Speicher knapp / Spiel ruckelt        | Client pausieren und nach dem Spielen fortsetzen. Mit 24 Bildern beginnen. Während der Analyse zeigt `ollama ps` die GPU-Nutzung.         |
+| Datei bleibt ausstehend                   | Warten, bis die Aufnahme fertig geschrieben ist. Unterstützt: MP4, M4V, MOV, WebM, MKV; maximal 2 GB, 30 Minuten und 8K pro Aufnahme.     |
+| Fortnite-Clip bleibt ausstehend           | Er wartet auf das Ende seines Matches. Nach dem Match oder spätestens nach 45 Minuten geht es weiter.                                     |
+| Start meldet „Visual C++ Redistributable“ | Die R6-Texterkennung braucht sie. Die aktuelle x64-Fassung von Microsoft installieren und erneut starten, oder die R6-Option ausschalten. |
+| Kein KI-Titel                             | Prüfen, ob die Client-Analyse aktiv war. Bereits archivierte Dateien werden durch späteres Einschalten nicht automatisch nachanalysiert.  |
+| Kein Windows-Download unter Geräte        | Das Image kennt keine Download-Adresse. `REPLAYHAVEN_CLIENT_DOWNLOAD_URL` in `.env` setzen oder den Installer nach `release/` legen.      |
 
 ## Grenzen
 

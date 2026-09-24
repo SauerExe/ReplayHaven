@@ -8,6 +8,7 @@ import {
   detInput,
   developmentModels,
   joinRows,
+  missingLibrary,
   recInput,
   resizeRgb,
   TextReader,
@@ -69,6 +70,18 @@ it('decodes CTC output without blanks and repeats', () => {
   const read = ctcDecode(probs, steps.length, 7, keys);
   expect(read.text).toBe('ce a');
   expect(read.score).toBeCloseTo(0.8, 5);
+});
+
+it('recognises a missing runtime library in English and German Windows messages', () => {
+  const dlopen = Object.assign(
+    new Error('The specified module could not be found.\r\n\\\\?\\C:\\x\\onnxruntime_binding.node'),
+    { code: 'ERR_DLOPEN_FAILED' },
+  );
+  expect(missingLibrary(dlopen)).toBe(true);
+  expect(missingLibrary(new Error('Das angegebene Modul wurde nicht gefunden.'))).toBe(true);
+  expect(missingLibrary(new Error('Die angegebene Prozedur wurde nicht gefunden.'))).toBe(true);
+  expect(missingLibrary(new Error("Cannot find module './models/det.onnx'"))).toBe(false);
+  expect(missingLibrary(undefined)).toBe(false);
 });
 
 it('joins words of one line and keeps separate lines apart', () => {
