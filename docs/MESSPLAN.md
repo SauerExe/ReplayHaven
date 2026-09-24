@@ -59,3 +59,26 @@ Mit `--account <Epic-Konto-ID>` gilt die eingetragene ID statt der Automatik.
 - Die Codierung der Todesursachen ist an Replays bis Version 32.00 (2024) geprüft; neuere Saisons können sie verschoben haben.
 - Wo in NVIDIA-Namen das Speichern steht und wo der Aufnahmebeginn, entscheidet der Änderungszeitpunkt der Datei, bei Clips unter etwa 17 Sekunden bleibt das offen.
 - In Teammatches kann die Match-Statistik erst beim Ausscheiden des letzten Teammitglieds entstehen; dann trägt dieser Hinweis nicht.
+
+## Tonspuren und Mikrofon
+
+**Was sich ändert.**
+
+- `ffprobe` liefert alle Tonspuren einer Aufnahme.
+- Die Mikrofonspur wird erkannt: zuerst am Titel, dann an den Pegeln (stumme Spuren zählen nicht), dann an der Reihenfolge (Spielton zuerst, Mikrofon danach). Bleibt es offen, gibt es keine Mikrofonspur statt einer geratenen.
+- Eine Spur lässt sich als WAV mit 16 kHz mono herauslösen.
+- Die Analyse nutzt den Ton noch nicht.
+- Auf dem Server bekommen Aufnahmen mit mehreren Tonspuren eine Wiedergabekopie mit gemischtem Ton. Das Bild wird dabei kopiert, nicht neu kodiert.
+
+**Messung.** Schalte in der NVIDIA App „Mikrofon als separate Spur“ ein und nimm zehn Clips aus verschiedenen Spielen auf, in denen du sprichst. Dann `npm run audio -- "<Ordner>" --out "<WAV-Ordner>"` und die Spuren anhören; dazu die Clips im Archiv abspielen.
+
+**Erfolg.**
+
+- Die Mikrofonspur ist in allen zehn Clips richtig erkannt oder bleibt offen, nie falsch.
+- Im Archiv sind Spielton und Stimme zu hören, ohne hörbares Übersteuern.
+- Clips mit nur einer Spur bleiben unverändert: Sie bekommen keine Wiedergabekopie.
+
+**Verwerfen**, wenn eines davon eintritt:
+
+- Eine Spur ist falsch als Mikrofon erkannt: Die Reihenfolge-Regel fällt weg, die Spurnummer wird als Einstellung wählbar.
+- Die Wiedergabe verzerrt: Mischpegel und Begrenzer werden angepasst.

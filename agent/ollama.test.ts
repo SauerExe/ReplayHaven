@@ -26,6 +26,7 @@ it('sends sequential small image batches followed by a text summary, validates r
       height: 1080,
       codec: 'h264',
       hasAudio: true,
+      audio: [],
     });
     vi.spyOn(media, 'frames').mockResolvedValue(
       Array.from({ length: 8 }, (_, i) => ({ seconds: i * 15, base64: 'test-image' })),
@@ -105,6 +106,7 @@ it('never focuses a loading screen and names the player only when known', async 
       height: 1080,
       codec: 'h264',
       hasAudio: true,
+      audio: [],
     });
     // Erste vier Bilder Ladebildschirm, danach Spielgeschehen — wie bei einem echten
     // NVIDIA-Automatikclip (.docs/README.md, Testmaterial FN-15).
@@ -179,6 +181,7 @@ it('names only the player names that belong to the clip game', async () => {
       height: 1080,
       codec: 'h264',
       hasAudio: true,
+      audio: [],
     });
     vi.spyOn(media, 'frames').mockResolvedValue(
       Array.from({ length: 4 }, (_, i) => ({ seconds: i * 4, base64: `bild-${i}` })),
@@ -264,6 +267,7 @@ it.each([
         height: 1080,
         codec: 'h264',
         hasAudio: true,
+        audio: [],
       });
       vi.spyOn(media, 'frames').mockResolvedValue(
         Array.from({ length: 8 }, (_, i) => ({ seconds: i * 2.5, base64: `bild-${i}` })),
@@ -349,6 +353,7 @@ it('retries a batch with the wrong number of frames and keeps what it can', asyn
       height: 1080,
       codec: 'h264',
       hasAudio: true,
+      audio: [],
     });
     vi.spyOn(media, 'frames').mockResolvedValue(
       Array.from({ length: 8 }, (_, i) => ({ seconds: i * 2.5, base64: `bild-${i}` })),
@@ -471,6 +476,7 @@ it.each(['pause', 'abort', 'invalid-json', 'http-error', 'summary-error', 'unloa
         height: 1080,
         codec: 'h264',
         hasAudio: true,
+        audio: [],
       });
       vi.spyOn(media, 'frames').mockResolvedValue(
         Array.from({ length: 8 }, (_, i) => ({ seconds: i * 15, base64: 'test-image' })),
@@ -585,6 +591,7 @@ it('takes kills from the replay, asks for the detail and waits while the match r
       height: 1080,
       codec: 'h264',
       hasAudio: true,
+      audio: [],
     });
     const frames = vi
       .spyOn(media, 'frames')

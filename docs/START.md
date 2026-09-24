@@ -67,6 +67,7 @@ Fortnite legt von jedem Match ein Replay unter `%LOCALAPPDATA%\FortniteGame\Save
 - Die lokale KI erhält 24 oder 48 verkleinerte Einzelbilder in aufeinanderfolgenden Paketen. **Ton wird nicht analysiert.** Schnelle Ereignisse können zwischen den Bildern liegen; Ergebnisse sind Vorschläge.
 - Im voreingestellten Modus werden keine Aufnahmen an einen Cloud-KI-Anbieter gesendet.
 - Der Server bekommt das unveränderte Original einschließlich eventuell aufgenommenem Ton. Er erstellt ein Thumbnail und bei Bedarf eine H.264-Wiedergabekopie.
+- Nimmt die NVIDIA App das Mikrofon als eigene Spur auf („Mikrofon als separate Spur“), mischt die Wiedergabekopie alle Tonspuren. Ein Browser spielt sonst nur die erste Spur, und deine Stimme fehlt. Das Bild wird dabei nur kopiert, das Original behält die getrennten Spuren.
 - Auf dem PC werden Originale weder umbenannt noch verschoben oder gelöscht. Der KI-Titel ist der Anzeigename im Archiv.
 - Nach Verbindungsfehlern wird erneut versucht. Fertige Analysen bleiben bis zur Bestätigung zwischengespeichert. Der Server erkennt doppelte Dateien anhand ihres Inhalts.
 - **Aus Bibliothek entfernen** blendet den Eintrag aus; seine Originaldatei bleibt auf dem Server. Eine automatische Speicherbereinigung gibt es noch nicht.

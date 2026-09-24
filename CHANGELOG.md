@@ -20,6 +20,9 @@ All notable changes to this project are documented here. The format follows
   elimination and victory from them, with weapon class and distance, instead of reading them
   from on-screen messages. Clips from a match still in progress wait until it ends (at most
   45 minutes). `npm run fortnite` shows what the replays contribute to your clips without AI.
+- Audio tracks: probing lists every audio track, the microphone track of NVIDIA recordings
+  with "Mikrofon als separate Spur" is found by title, level and order, and a track can be
+  extracted as 16 kHz mono WAV. `npm run audio` shows the tracks and writes them out to listen.
 
 ### Changed
 
@@ -34,6 +37,10 @@ All notable changes to this project are documented here. The format follows
   model only the names for the clip's game. A name from earlier versions applies to every game.
 
 ### Fixed
+
+- Recordings with a separate microphone track play with your voice in the library: the
+  playback copy mixes all audio tracks (the video is copied, not re-encoded), since browsers
+  only play the first track. Server-side analysis with audio hears the mix as well.
 
 - Analyses no longer fail when the model numbers frames across batches or returns one frame
   too few; unreadable batches are retried once and partially recovered.
