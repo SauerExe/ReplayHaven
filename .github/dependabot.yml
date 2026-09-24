@@ -9,6 +9,10 @@ updates:
       dev-dependencies:
         dependency-type: development
         update-types: [minor, patch]
+    # Große npm-Versionen erst nach dem Umbau der Weboberfläche: Sie verlangen Änderungen an deren Dateien.
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
