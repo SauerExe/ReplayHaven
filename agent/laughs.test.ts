@@ -1,0 +1,131 @@
+import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve, sep } from 'node:path';
+import { expect, it } from 'vitest';
+import {
+  ensureModel,
+  findMoments,
+  HOP,
+  LaughDetector,
+  modelFolder,
+  monoFrom,
+  SAMPLE_RATE,
+  WINDOW,
+  windowCount,
+} from './laughs';
+import type { ModelFile, WindowScore } from './laughs';
+
+const windows = (laugh: number[]): WindowScore[] =>
+  laugh.map((value, i) => ({
+    seconds: (i * HOP) / SAMPLE_RATE,
+    laugh: value,
+    shout: 0,
+    speech: 0,
+  }));
+
+it('counts a laugh only where two of three windows agree, and merges close hits', () => {
+  // Ein einzelnes Fenster über der Schwelle (Sekunde 3,36) reicht nicht.
+  const moments = findMoments(windows([0.1, 0.5, 0.2, 0.6, 0.1, 0.1, 0.1, 0.9, 0.1]), 'laugh', 0.3);
+  expect(moments).toEqual([{ kind: 'laugh', start: 0.48, end: 2.4, peak: 0.6 }]);
+  // Zwei Treffer mit einem Fenster Lücke bilden einen Moment, drei Fenster Lücke zwei.
+  const split = findMoments(windows([0.5, 0.5, 0, 0, 0, 0.5, 0.5]), 'laugh', 0.3);
+  expect(split.map((m) => [m.start, m.end])).toEqual([
+    [0, 1.44],
+    [2.4, 3.84],
+  ]);
+  expect(findMoments(windows([0.5, 0.5]), 'laugh', 0.3)).toEqual([]);
+  expect(findMoments(windows([0.29, 0.29, 0.29]), 'laugh', 0.3)).toEqual([]);
+});
+
+it('takes the loud channel of a one-sided microphone instead of halving it', () => {
+  const tone = Float32Array.from({ length: 1600 }, (_, i) => 0.5 * Math.sin(i / 3));
+  const quiet = new Float32Array(1600).fill(0.001);
+  expect(monoFrom([tone, quiet])).toMatchObject({ channel: 'links', samples: tone });
+  expect(monoFrom([quiet, tone])).toMatchObject({ channel: 'rechts', samples: tone });
+  const both = monoFrom([tone, tone]);
+  expect(both.channel).toBe('beide');
+  expect(both.samples[5]).toBeCloseTo(tone[5]);
+  expect(monoFrom([tone])).toMatchObject({ channel: 'mono', samples: tone });
+});
+
+it('knows how many windows YAMNet returns', () => {
+  expect(windowCount(0)).toBe(0);
+  // Kürzer als ein Fenster: aufgefüllt auf eines.
+  expect(windowCount(8000)).toBe(1);
+  // Ein Fenster liest 0,975 s: 0,96 s plus den Rest des letzten STFT-Rahmens.
+  expect(windowCount(WINDOW + 240)).toBe(1);
+  expect(windowCount(WINDOW + 241)).toBe(2);
+  expect(windowCount(WINDOW + 240 + HOP + 1)).toBe(3);
+  expect(windowCount(60 * SAMPLE_RATE)).toBe(124);
+});
+
+it('loads the model once, checks its hash and keeps a broken download away', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-laughs-'));
+  try {
+    const bytes = Buffer.from('kein echtes Modell, nur Bytes für den Test');
+    const model: ModelFile = {
+      url: 'https://example.invalid/model/yamnet.onnx',
+      bytes: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    };
+    let calls = 0;
+    const serve =
+      (body: Buffer): typeof fetch =>
+      async () => {
+        calls++;
+        return new Response(new Uint8Array(body));
+      };
+    const path = await ensureModel(root, model, serve(bytes));
+    expect(path).toBe(join(root, 'yamnet.onnx'));
+    expect(await readFile(path)).toEqual(bytes);
+    // Liegt es schon richtig da, wird nichts geladen.
+    await ensureModel(root, model, serve(bytes));
+    expect(calls).toBe(1);
+    // Eine falsche Datei landet nicht im Ordner, auch keine halbe.
+    const other = await mkdtemp(join(tmpdir(), 'replayhaven-laughs-'));
+    try {
+      await expect(ensureModel(other, model, serve(Buffer.from('manipuliert')))).rejects.toThrow(
+        /Prüfsumme/,
+      );
+      expect(await readdir(other)).toEqual([]);
+    } finally {
+      await rm(other, { recursive: true, force: true });
+    }
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-laughs-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});
+
+// Mit dem echten Modell nur, wenn es schon geladen ist; der Test lädt nichts aus dem Netz.
+const yamnet = process.env.REPLAYHAVEN_YAMNET ?? join(modelFolder(), 'yamnet.onnx');
+it.skipIf(!existsSync(yamnet))(
+  'scores long tracks in pieces exactly like in one run',
+  async () => {
+    const samples = Float32Array.from(
+      { length: 30 * SAMPLE_RATE + 1234 },
+      (_, i) => 0.3 * Math.sin((2 * Math.PI * 440 * i) / SAMPLE_RATE) * (i % 16000 < 8000 ? 1 : 0),
+    );
+    const whole = await LaughDetector.load(yamnet, { threads: 2 });
+    const pieces = await LaughDetector.load(yamnet, { threads: 2, framesPerRun: 7 });
+    try {
+      const a = await whole.scores(samples);
+      const b = await pieces.scores(samples);
+      expect(a).toHaveLength(windowCount(samples.length));
+      expect(b).toHaveLength(a.length);
+      for (let i = 0; i < a.length; i++) {
+        expect(b[i].seconds).toBe(a[i].seconds);
+        expect(b[i].laugh).toBeCloseTo(a[i].laugh, 4);
+        expect(b[i].speech).toBeCloseTo(a[i].speech, 4);
+      }
+      // Ein Ton ist kein Lachen.
+      expect(findMoments(a, 'laugh', 0.3)).toEqual([]);
+    } finally {
+      await whole.close();
+      await pieces.close();
+    }
+  },
+  60000,
+);

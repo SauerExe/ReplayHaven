@@ -27,6 +27,11 @@ The installer bundles:
 - **PaddleOCR PP-OCRv4** text detection and recognition models (Apache-2.0), as ONNX files from
   `@gutenye/ocr-models` (MIT). Source: https://github.com/PaddlePaddle/PaddleOCR.
 
+The measurement tool `npm run laughs` (not part of the client) downloads **YAMNet** by Google
+(Apache-2.0) on first use, as the unchanged ONNX conversion `audiomagic/yamnet-onnx` pinned to a
+revision and SHA-256, and keeps it in a local cache. It is neither bundled nor redistributed.
+Source: https://github.com/tensorflow/models/tree/master/research/audioset/yamnet.
+
 Ollama and the Qwen3-VL model are **not** bundled. The client only opens the official Ollama
 download page and pulls the model when you click the button. See https://ollama.com and
 https://ollama.com/library/qwen3-vl for their licenses.

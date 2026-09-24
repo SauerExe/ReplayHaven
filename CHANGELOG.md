@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format follows
 - Audio tracks: probing lists every audio track, the microphone track of NVIDIA recordings
   with "Mikrofon als separate Spur" is found by title, level and order, and a track can be
   extracted as 16 kHz mono WAV. `npm run audio` shows the tracks and writes them out to listen.
+- `npm run laughs`: a measurement tool that finds laughs and shouts in the microphone track with
+  YAMNet on the CPU (downloaded on first use, pinned by SHA-256) and lists them per clip with
+  time and strength, plus per-window scores for calibrating the threshold. The analysis does
+  not use it yet.
 - Optional Rainbow Six text recognition: "R6: Karte und Rundenausgang per Texterkennung" reads
   two frames per second with PaddleOCR PP-OCRv4 on ONNX Runtime (CPU, in parallel to the GPU
   model) and takes the map name and round results from it. Titles may name the recognised map

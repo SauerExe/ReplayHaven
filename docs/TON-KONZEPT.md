@@ -10,6 +10,7 @@ Dieses Konzept stützt sich auf eine Recherche vom 2026-09-24 mit 63 Quellen. Ge
 - Eine Spur lässt sich als WAV mit 16 kHz mono herauslösen, dem Eingangsformat von YAMNet und Whisper.
 - `npm run audio -- "<Ordner>" --out "<WAV-Ordner>"` zeigt Spuren und Pegel und schreibt jede Spur zum Anhören heraus.
 - Die Wiedergabekopie mischt alle Spuren, weitere Spuren mittig gefaltet. Sonst fehlte die Stimme im Browser, oder sie käme nur auf einem Ohr an.
+- `npm run laughs` misst Stufe 1, ohne die Analyse zu ändern (siehe unten).
 
 ## Stufe 1: Lacher und Rufe finden
 
@@ -35,7 +36,23 @@ Dieses Konzept stützt sich auf eine Recherche vom 2026-09-24 mit 63 Quellen. Ge
 
 **Systemspur.** Stimmen und Lachen der Mitspieler aus Discord stehen, wenn überhaupt, nur in der Systemspur, gemischt mit Spielsound. Das gilt nur, wenn Discord über das Standardgerät läuft. Stufe 1 läuft dort getrennt und mit höherer Schwelle; ob sie brauchbar ist, klärt erst die Messung.
 
-**Kosten.** YAMNet braucht etwa 69 Mio. Multiplikationen je Fenster. Hochgerechnet aus einer TensorFlow-Messung liegt eine Minute Audio unter 2 s CPU; mit ONNX Runtime auf einem Desktop-Prozessor vermutlich deutlich weniger. Das ist nicht gemessen.
+**Kosten.** YAMNet braucht etwa 69 Mio. Multiplikationen je Fenster. Mit ONNX Runtime im Cloud-Container kostete eine Minute Audio etwa 0,3 s CPU (zwei Threads). Auf deinem PC zeigt `npm run laughs` den Wert je Lauf.
+
+**Messwerkzeug.** `npm run laughs -- "<Ordner>" --json lacher.json --scores fenster.csv` nimmt je Clip die erkannte Mikrofonspur (oder mit `--track 2` eine feste), liest sie mit 16 kHz, bei einseitigem Mikrofon nur den lauten Kanal, und zeigt:
+
+- Lacher und Rufe mit Beginn, Ende und Stärke,
+- den höchsten Lachwert des Clips und den Anteil der Fenster mit Sprache,
+- die Rechenzeit je Minute Mikrofonspur.
+
+`--scores` schreibt die Werte jedes Fensters als CSV (Semikolon, Dezimalkomma) zum Kalibrieren; `--threshold` setzt die Schwelle (Standard 0,3). Clips ohne eigene Mikrofonspur überspringt es. YAMNet lädt es beim ersten Lauf nach `%LOCALAPPDATA%\ReplayHaven\models` und prüft Größe und SHA-256.
+
+**Vorab geprüft,** keine Messung im Sinne des Messplans:
+
+- Ein 60-s-Testclip mit fünf kurzen Lachern (1–2 s) aus der Sammlung ESC-50, dazwischen Tastatur, Feuerwerk, Atmen und Klatschen: Die Schwelle 0,3 fand einen der fünf Lacher, 0,2 drei, 0,1 vier, jeweils ohne Fehlalarm.
+- 130 s vorgelesene Sprache (LibriSpeech) ergaben bei keiner dieser Schwellen einen Lacher.
+- Rechenzeit im Cloud-Container mit zwei Threads: etwa 0,3 s CPU je Minute Audio.
+
+Beim Kalibrieren an deinen Clips lohnt es sich also, auch 0,2 und 0,1 zu prüfen. Echte Mikrofonspuren mit aufgeregtem Reden und Spielton im Headset fehlen in diesem Test; entscheiden müssen deine Clips.
 
 **Alternative: CED-tiny** (Apache-2.0, 6,7 MB, AudioSet-mAP 48,1 statt 30,6). Es ist ein Clip-Tagger, die Zeitauflösung entsteht erst über eigene Fenster. Es kommt nur in Frage, wenn YAMNet an der Messung scheitert.
 
@@ -91,6 +108,6 @@ Dieses Konzept stützt sich auf eine Recherche vom 2026-09-24 mit 63 Quellen. Ge
 ## Nächste Schritte, wenn du sie freigibst
 
 1. Eine echte NVIDIA-App-Aufnahme mit getrennter Mikrofonspur prüfen (`npm run audio`).
-2. Ein Messwerkzeug `npm run laughs` bauen: YAMNet laden, Lacher je Clip listen, ohne Einbau in die Analyse.
+2. ~~Ein Messwerkzeug `npm run laughs` bauen~~: erledigt, siehe Stufe 1.
 3. Die Schwelle kalibrieren, dann Whisper als zweites Messwerkzeug.
 4. Erst nach bestandener Messung einbauen, hinter einer Option.

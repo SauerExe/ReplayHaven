@@ -31,6 +31,7 @@
     "agent": "tsx agent/index.ts",
     "fortnite": "tsx agent/fortnite-cli.ts",
     "audio": "tsx agent/audio-cli.ts",
+    "laughs": "tsx agent/laughs-cli.ts",
     "r6": "tsx agent/r6-cli.ts",
     "client:prepare": "node scripts/build-client.mjs",
     "client:dev": "npm run client:prepare && electron desktop-bundle",

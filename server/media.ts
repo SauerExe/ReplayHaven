@@ -316,6 +316,58 @@ export class MediaProcessor {
     return { mean: level('mean_volume'), max: level('max_volume') };
   }
   /**
+   * Eine Tonspur als Samples mit 16 kHz, je Kanal ein Feld (höchstens zwei). Ein Mono-Mikrofon
+   * liegt oft nur auf einem Kanal einer Stereospur; mit getrennten Kanälen lässt sich der laute
+   * nehmen, statt beide zu mitteln und 6 dB zu verlieren.
+   */
+  async pcm(original: string, track: number, channels: number): Promise<Float32Array[]> {
+    const count = Math.min(2, Math.max(1, channels));
+    const child = spawn(
+      this.ffmpeg,
+      [
+        '-nostdin',
+        '-v',
+        'error',
+        '-protocol_whitelist',
+        'file,pipe',
+        '-i',
+        original,
+        '-map',
+        `0:a:${track}`,
+        '-ac',
+        String(count),
+        '-ar',
+        '16000',
+        '-f',
+        'f32le',
+        'pipe:1',
+      ],
+      { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let failure: Error | undefined;
+    child.once('error', (error) => (failure = error));
+    const closed = new Promise<number | null>((done) => child.once('close', done));
+    let log = '';
+    child.stderr?.on('data', (text: Buffer) => (log = (log + text.toString()).slice(-2000)));
+    const parts: Buffer[] = [];
+    for await (const chunk of child.stdout as AsyncIterable<Buffer>) parts.push(chunk);
+    const code = await closed;
+    if (failure) throw failure;
+    if (code !== 0) throw new Error(`FFmpeg brach beim Lesen des Tons ab: ${log.trim() || code}`);
+    // Kopie in einen eigenen Speicherblock: Float32Array verlangt eine durch vier teilbare Lage.
+    const bytes = new Uint8Array(Buffer.concat(parts));
+    const samples = new Float32Array(bytes.buffer, 0, bytes.length >> 2);
+    if (count === 1) return [samples];
+    const length = samples.length >> 1;
+    const left = new Float32Array(length);
+    const right = new Float32Array(length);
+    for (let i = 0; i < length; i++) {
+      left[i] = samples[2 * i];
+      right[i] = samples[2 * i + 1];
+    }
+    return [left, right];
+  }
+  /**
    * Bilder als rohe RGB-Pixel, eins nach dem anderen, für Texterkennung ohne Bildbibliothek.
    * `fps` Bilder je Sekunde in `width` Pixeln Breite; jedes trägt die Mitte seines Abschnitts
    * als Sekunde, wie die Analysebilder. FFmpeg wartet, solange ein Bild verarbeitet wird.

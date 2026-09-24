@@ -212,6 +212,56 @@ it.skipIf(process.platform === 'win32')(
   },
 );
 
+it('decodes a track as 16 kHz samples, channel by channel', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-media-'));
+  try {
+    const media = new MediaProcessor({});
+    const video = join(root, 'test-only.mp4');
+    // Ein Ton nur auf dem linken Kanal, wie ein Mono-Mikrofon in einer Stereospur.
+    await runFile(media.ffmpeg, [
+      '-nostdin',
+      '-v',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=black:s=160x90:r=10:d=1',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:duration=1:sample_rate=48000',
+      '-filter_complex',
+      '[1:a]pan=stereo|c0=c0|c1=0*c0[a]',
+      '-map',
+      '0:v',
+      '-map',
+      '[a]',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-shortest',
+      video,
+    ]);
+    const rms = (samples: Float32Array) =>
+      Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length);
+    const [left, right] = await media.pcm(video, 0, 2);
+    expect(left.length).toBeGreaterThan(15000);
+    expect(left.length).toBeLessThan(17500);
+    expect(rms(left)).toBeGreaterThan(0.05);
+    expect(rms(right)).toBeLessThan(0.001);
+    const mono = await media.pcm(video, 0, 1);
+    expect(mono).toHaveLength(1);
+    await expect(media.pcm(video, 3, 1)).rejects.toThrow(/FFmpeg brach beim Lesen des Tons ab/);
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});
+
 it('puts a microphone that sits on one channel in the middle of the playback mix', async () => {
   const root = await mkdtemp(join(tmpdir(), 'replayhaven-media-'));
   try {
