@@ -329,6 +329,7 @@ export class MediaProcessor {
     const height = Math.max(2, Math.round((meta.height * width) / meta.width / 2) * 2);
     const size = width * height * 3;
     const start = options.start ?? 0;
+    if (options.signal?.aborted) return;
     const child = spawn(
       this.ffmpeg,
       [
@@ -348,24 +349,43 @@ export class MediaProcessor {
         'rgb24',
         'pipe:1',
       ],
-      { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] },
+      { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
     );
+    // Ohne Zuhörer würde ein gescheiterter Start (FFmpeg fehlt oder ist gesperrt) als
+    // ungefangener Fehler den ganzen Client treffen.
+    let failure: Error | undefined;
+    child.once('error', (error) => (failure = error));
+    const closed = new Promise<number | null>((done) => child.once('close', done));
+    let log = '';
+    child.stderr?.on('data', (text: Buffer) => (log = (log + text.toString()).slice(-2000)));
     const stop = () => child.kill();
     options.signal?.addEventListener('abort', stop);
-    let pending: Buffer = Buffer.alloc(0);
+    // Teile sammeln und je Bild einmal zusammenfügen, nicht bei jedem 64-KB-Stück neu kopieren.
+    const parts: Buffer[] = [];
+    let buffered = 0;
     let index = 0;
     try {
       for await (const chunk of child.stdout as AsyncIterable<Buffer>) {
-        pending = pending.length ? Buffer.concat([pending, chunk]) : chunk;
-        while (pending.length >= size) {
-          const data = Buffer.from(pending.subarray(0, size));
-          pending = pending.subarray(size);
+        parts.push(chunk);
+        buffered += chunk.length;
+        while (buffered >= size) {
+          const all = parts.length === 1 ? parts[0] : Buffer.concat(parts, buffered);
+          const rest = all.subarray(size);
+          parts.length = 0;
+          if (rest.length) parts.push(rest);
+          buffered = rest.length;
           yield {
             seconds: Math.min(meta.duration, start + (index++ + 0.5) / options.fps),
-            frame: { width, height, data },
+            frame: { width, height, data: all.subarray(0, size) },
           };
         }
       }
+      const code = await closed;
+      if (options.signal?.aborted) return;
+      if (failure) throw failure;
+      // Bricht das Dekodieren ab, sähe das sonst aus wie ein Clip ohne Text.
+      if (code !== 0)
+        throw new Error(`FFmpeg brach beim Lesen der Bilder ab: ${log.trim() || code}`);
     } finally {
       options.signal?.removeEventListener('abort', stop);
       if (child.exitCode === null) child.kill();

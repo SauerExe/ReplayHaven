@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import sharp from 'sharp';
@@ -164,6 +164,53 @@ it('streams raw RGB frames labelled with the middle of their interval', async ()
       await rm(root, { recursive: true, force: true });
   }
 });
+
+it.skipIf(process.platform === 'win32')(
+  'reports a missing or failing FFmpeg instead of a clip without frames',
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), 'replayhaven-media-'));
+    try {
+      const video = join(root, 'test-only.mp4');
+      await runFile(new MediaProcessor({}).ffmpeg, [
+        '-nostdin',
+        '-v',
+        'error',
+        '-y',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=gray:s=160x90:r=10:d=1',
+        '-pix_fmt',
+        'yuv420p',
+        video,
+      ]);
+      const count = async (media: MediaProcessor, signal?: AbortSignal) => {
+        let frames = 0;
+        for await (const read of media.rawFrames(video, { fps: 2, width: 160, signal }))
+          frames += read.frame.data.length > 0 ? 1 : 0;
+        return frames;
+      };
+      expect(await count(new MediaProcessor({}))).toBe(2);
+      // Fehlt FFmpeg, kommt der Fehler beim Aufrufer an statt als ungefangene Ausnahme.
+      await expect(count(new MediaProcessor({ ffmpeg: join(root, 'fehlt') }))).rejects.toThrow(
+        /ENOENT/,
+      );
+      // Bricht FFmpeg ab, sieht das nicht aus wie ein Clip ohne Text.
+      const failing = join(root, 'bricht-ab.sh');
+      await writeFile(failing, '#!/bin/sh\necho "Invalid data found" >&2\nexit 3\n', {
+        mode: 0o755,
+      });
+      await expect(count(new MediaProcessor({ ffmpeg: failing }))).rejects.toThrow(
+        /brach beim Lesen der Bilder ab: Invalid data found/,
+      );
+      // Ein schon abgebrochener Aufruf endet still und ohne Bild.
+      expect(await count(new MediaProcessor({}), AbortSignal.abort())).toBe(0);
+    } finally {
+      if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
+        await rm(root, { recursive: true, force: true });
+    }
+  },
+);
 
 it('puts a microphone that sits on one channel in the middle of the playback mix', async () => {
   const root = await mkdtemp(join(tmpdir(), 'replayhaven-media-'));
