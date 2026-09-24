@@ -4,10 +4,12 @@ import { ActionProvider } from './components/Actions';
 import { Layout } from './components/Layout';
 import { EmptyState } from './components/Cards';
 import { StreamingHomeContainer } from './streaming';
-const Library = lazy(() => import('./pages/Library'));
-const Collections = lazy(() => import('./pages/Collections'));
+const Library = lazy(() => import('./streaming/LibraryPage'));
+const Collections = lazy(() =>
+  import('./streaming/CollectionsPage').then((m) => ({ default: m.StreamingCollectionsPage })),
+);
 const CollectionDetail = lazy(() =>
-  import('./pages/Collections').then((m) => ({ default: m.CollectionDetail })),
+  import('./streaming/CollectionsPage').then((m) => ({ default: m.StreamingCollectionDetailPage })),
 );
 const ClipDetail = lazy(() => import('./pages/ClipDetail'));
 const SharePage = lazy(() => import('./pages/ClipDetail').then((m) => ({ default: m.SharePage })));

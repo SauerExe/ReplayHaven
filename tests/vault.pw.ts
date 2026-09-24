@@ -1,4 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+/** Clip-Kacheln im Raster von Bibliothek und Sammlung. */
+const tiles = (page: Page) => page.locator('.stream-grid .stream-tile--clip');
 test('Fehlende Medien, Verarbeitungszustand und leere Bibliothek sind bedienbar', async ({
   page,
 }) => {
@@ -15,7 +17,7 @@ test('Fehlende Medien, Verarbeitungszustand und leere Bibliothek sind bedienbar'
   await page.goto('/clips/elden-2');
   await expect(page.getByRole('heading', { name: 'Clip wird verarbeitet' })).toBeVisible();
   await page.goto('/library?status=processing');
-  await expect(page.locator('.clip-card')).toHaveCount(1);
+  await expect(tiles(page)).toHaveCount(1);
   await page.evaluate(() => {
     const state = JSON.parse(localStorage.getItem('replayhaven.v1')!);
     state.clips = [];
@@ -30,17 +32,22 @@ test('Fehlende Medien, Verarbeitungszustand und leere Bibliothek sind bedienbar'
 test('Suche, Filter und Favoriten bleiben konsistent und gespeichert', async ({ page }) => {
   await page.goto('/library');
   await page.getByRole('textbox', { name: 'Bibliothek durchsuchen' }).fill('Clutch');
-  await page.getByLabel('Spiel filtern').selectOption('cs2');
-  await expect(page.locator('.clip-card')).toHaveCount(4);
+  await page
+    .getByRole('group', { name: 'Nach Spiel filtern' })
+    .getByRole('button', { name: /^Counter-Strike 2/ })
+    .click();
+  await expect(tiles(page)).toHaveCount(4);
   await page.getByRole('button', { name: 'Favoriten', exact: true }).click();
-  await expect(page.locator('.clip-card')).toHaveCount(1);
-  const card = page.locator('.clip-card').first();
-  await card.getByRole('button', { name: /aus Favoriten entfernen/ }).click();
+  await expect(tiles(page)).toHaveCount(1);
+  await tiles(page)
+    .first()
+    .getByRole('button', { name: /aus Favoriten entfernen/ })
+    .click();
   await expect(page.getByRole('heading', { name: 'Keine Treffer' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Keine Treffer' })).toBeVisible();
   await page.getByRole('button', { name: 'Filter zurücksetzen', exact: true }).click();
-  await expect(page.locator('.clip-card')).toHaveCount(20);
+  await expect(tiles(page)).toHaveCount(20);
 });
 test('Sammlung erstellen, befüllen, umbenennen und nach Neuladen öffnen', async ({ page }) => {
   await page.goto('/collections');
@@ -51,19 +58,19 @@ test('Sammlung erstellen, befüllen, umbenennen und nach Neuladen öffnen', asyn
   await page.getByRole('button', { name: 'Clips hinzufügen', exact: true }).first().click();
   await page.getByRole('checkbox', { name: 'Dieser Boss hatte andere Pläne', exact: true }).check();
   await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
-  await expect(page.locator('.clip-card')).toHaveCount(1);
+  await expect(tiles(page)).toHaveCount(1);
   await page.reload();
-  await expect(page.locator('.clip-card')).toHaveCount(1);
+  await expect(tiles(page)).toHaveCount(1);
   await page.getByRole('button', { name: 'Aktionen für Dieser Boss hatte andere Pläne' }).click();
   await page.getByRole('menuitem', { name: 'Umbenennen' }).click();
   await page.getByLabel('Titel', { exact: true }).fill('Unser Highlight');
   await page.getByRole('button', { name: 'Speichern', exact: true }).click();
   await page.reload();
-  await expect(page.locator('.clip-title')).toHaveText('Unser Highlight');
+  await expect(tiles(page).locator('.stream-tile-title')).toHaveText('Unser Highlight');
   await page.getByRole('button', { name: 'Aus Sammlung entfernen' }).click();
-  await expect(page.locator('.clip-card')).toHaveCount(0);
+  await expect(tiles(page)).toHaveCount(0);
   await page.goto('/library?q=Unser%20Highlight');
-  await expect(page.locator('.clip-card')).toHaveCount(1);
+  await expect(tiles(page)).toHaveCount(1);
 });
 test('Mehrfachauswahl löscht erst nach Bestätigung', async ({ page }) => {
   await page.goto('/library?game=cs2');
@@ -71,12 +78,12 @@ test('Mehrfachauswahl löscht erst nach Bestätigung', async ({ page }) => {
   await page.getByRole('button', { name: 'Alle auswählen', exact: true }).click();
   await page.getByRole('button', { name: 'Auswahl löschen' }).click();
   await page.getByRole('button', { name: 'Abbrechen', exact: true }).click();
-  await expect(page.locator('.clip-card')).toHaveCount(4);
+  await expect(tiles(page)).toHaveCount(4);
   await page.getByRole('button', { name: 'Auswahl löschen' }).click();
   await page.getByRole('button', { name: 'Endgültig löschen' }).click();
-  await expect(page.locator('.clip-card')).toHaveCount(0);
+  await expect(tiles(page)).toHaveCount(0);
   await page.reload();
-  await expect(page.locator('.clip-card')).toHaveCount(0);
+  await expect(tiles(page)).toHaveCount(0);
 });
 test('Echtes externes Video spielt und setzt tatsächlichen Fortschritt fort', async ({ page }) => {
   await page.goto('/clips/elden-1');
@@ -169,8 +176,12 @@ test('Mobile Menüs, Filter, Fokus und Fehlerseiten', async ({ page }) => {
     .getByRole('link', { name: 'Bibliothek' })
     .click();
   await page.getByRole('button', { name: 'Filter', exact: true }).click();
-  await page.getByLabel('Spiel filtern').selectOption('elden');
-  await expect(page.locator('.clip-card')).toHaveCount(4);
+  await expect(page.getByLabel('Status filtern')).toBeVisible();
+  await page
+    .getByRole('group', { name: 'Nach Spiel filtern' })
+    .getByRole('button', { name: /^ELDEN RING/ })
+    .click();
+  await expect(tiles(page)).toHaveCount(4);
   await page
     .getByRole('navigation', { name: 'Mobile Navigation' })
     .getByRole('button', { name: 'Profilmenü' })

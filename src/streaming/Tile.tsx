@@ -166,7 +166,24 @@ export function CollectionTile({
       </span>
       <span className="stream-tile-text">
         <span className="stream-tile-title">{item.title}</span>
-        <span className="stream-tile-meta">{countLabel(item.count)}</span>
+        <span className="stream-tile-meta">{item.meta ?? countLabel(item.count)}</span>
+        {item.games && item.games.length > 0 && (
+          <span className="stream-tile-games">
+            <span className="stream-tile-covers" aria-hidden="true">
+              {item.games.map((game) => (
+                <Picture
+                  key={game.key}
+                  src={game.cover}
+                  className="stream-tile-cover"
+                  sizes="32px"
+                />
+              ))}
+            </span>
+            <span className="stream-tile-meta">
+              {item.games.map((game) => game.name).join(', ')}
+            </span>
+          </span>
+        )}
       </span>
     </a>
   );

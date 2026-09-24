@@ -79,6 +79,26 @@ export function countLabel(count: number): string {
   return `${count} ${count === 1 ? 'Clip' : 'Clips'}`;
 }
 
+/** „aktualisiert heute“, „aktualisiert vor 3 Tagen“, „aktualisiert am 21. Sept.“ */
+export function formatUpdated(iso: string, now: number): string {
+  const when = formatWhen(iso, now, false);
+  if (!when) return '';
+  return /^(Heute|Gestern|Vor )/.test(when)
+    ? `aktualisiert ${when[0].toLocaleLowerCase('de')}${when.slice(1)}`
+    : `aktualisiert am ${when}`;
+}
+
+/** Gesamtlänge mehrerer Clips: „45 Sek.“, „12 Min.“, „1 Std. 5 Min.“. */
+export function formatTotal(totalSeconds: number): string {
+  const whole = Number.isFinite(totalSeconds) && totalSeconds > 0 ? Math.round(totalSeconds) : 0;
+  if (whole < 60) return `${whole} Sek.`;
+  const minutes = Math.round(whole / 60);
+  if (minutes < 60) return `${minutes} Min.`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours} Std. ${rest} Min.` : `${hours} Std.`;
+}
+
 export const confidenceLabel: Record<Confidence, string> = {
   high: 'hoch',
   medium: 'mittel',

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useRef } from 'react';
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Download, Heart, Play, Plus, Sparkles, X } from 'lucide-react';
 import {
@@ -27,6 +27,8 @@ export interface DetailDialogProps {
   onToggleFavorite: (id: string) => void;
   onAddToCollection?: (id: string) => void;
   onEditTags?: (id: string) => void;
+  /** Weitere Aktionen nach den runden Knöpfen, etwa ClipMenu. */
+  menu?: ReactNode;
 }
 
 export function DetailDialog({ clip, onClose, ...props }: DetailDialogProps) {
@@ -80,6 +82,7 @@ function DetailBody({
   onToggleFavorite,
   onAddToCollection,
   onEditTags,
+  menu,
 }: Omit<DetailDialogProps, 'onClose' | 'clip'> & {
   clip: StreamClip;
   playRef: RefObject<HTMLButtonElement | null>;
@@ -158,6 +161,7 @@ function DetailBody({
                 <Download size={20} strokeWidth={2.2} aria-hidden="true" />
               </a>
             )}
+            {menu}
           </div>
         </div>
       </div>

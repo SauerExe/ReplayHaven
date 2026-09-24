@@ -40,7 +40,7 @@ Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.
     <td width="50%" valign="top"><b> Originals are sacred</b><br>Nothing on the gaming PC is renamed, moved or deleted. The server keeps an untouched copy, even if you delete the file at home.</td>
   </tr>
   <tr>
-    <td width="50%" valign="top"><b>  A library you want to open</b><br>The newest clip in the spotlight, rows for continue watching, new clips, favourites and each game, a detail view with the AI's jump marks, a full-screen player that skips from highlight to highlight, search, filters and collections, on desktop and phone.</td>
+    <td width="50%" valign="top"><b>  A library you want to open</b><br>The newest clip in the spotlight, rows for continue watching, new clips, favourites and each game, a detail view with the AI's jump marks, a full-screen player that skips from highlight to highlight, a library sorted by game with covers from Steam, search, filters and collections, on desktop and phone.</td>
     <td width="50%" valign="top"><b> One small container</b><br>Node.js, SQLite and FFmpeg in a single Docker image. No GPU needed on the server. Runs on a NAS, a mini PC or any Linux box.</td>
   </tr>
   <tr>
@@ -58,16 +58,16 @@ Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/app-detail.jpg" alt="Clip details with description, tags and the AI's jump marks"><br><sub>Open a clip for details and the AI's jump marks, or play it right away.</sub></td>
+    <td width="50%"><img src="docs/images/app-detail.jpg" alt="Clip details with the AI's title, description, tags and jump marks"><br><sub>What the local AI found in a clip: title, description, tags and jump marks.</sub></td>
     <td width="50%"><img src="docs/images/app-player.jpg" alt="Full-screen player with highlight markers on the timeline"><br><sub>The full-screen player marks every highlight and jumps to the next one.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/app-ai.jpg" alt="AI summary of a clip with title suggestion, tags and highlight timestamps"><br><sub>What the local AI returns for a clip: title, description, tags and jump marks.</sub></td>
-    <td width="50%"><img src="docs/images/client.png" alt="Windows client with recording folder, server connection and local AI settings"><br><sub>The Windows client: pick a folder, connect your server, done.</sub></td>
+    <td width="50%"><img src="docs/images/app-library.jpg" alt="Library with game covers, search, filters and clip grid"><br><sub>The whole archive, by game, with search and filters.</sub></td>
+    <td width="50%"><img src="docs/images/app-game.jpg" alt="Library filtered to one game with cover, genre, release date and description"><br><sub>Pick a game: cover, genre, release date and description come from Steam.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/app-library.jpg" alt="Library with search, filters and clip grid"><br><sub>Search and filter the whole archive.</sub></td>
-    <td width="50%"><img src="docs/images/app-clip.jpg" alt="Clip page with player"><br><sub>Every clip also has its own page with player, notes and the original for download.</sub></td>
+    <td width="50%"><img src="docs/images/app-collection.jpg" alt="Collection page with its games and clips"><br><sub>Collections keep the best moments together and play them in order.</sub></td>
+    <td width="50%"><img src="docs/images/client.png" alt="Windows client with recording folder, server connection and local AI settings"><br><sub>The Windows client: pick a folder, connect your server, done.</sub></td>
   </tr>
 </table>
 

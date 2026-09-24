@@ -196,6 +196,39 @@ const covers = {
   'Forza Horizon 5': 'forza',
   'Cyberpunk 2077': 'cyberpunk',
 };
+/** Was der Server bei Steam nachschlägt; die Beschreibungen sind eigene Kurztexte. */
+const details = {
+  'Counter-Strike 2': {
+    genre: 'Action, Free to Play',
+    released: '21. Aug. 2012',
+    description: 'Taktischer Team-Shooter: zwei Teams, eine Bombe, Runde für Runde.',
+    source: 'https://store.steampowered.com/app/730/',
+  },
+  'Apex Legends': {
+    genre: 'Action, Free to Play',
+    released: '4. Nov. 2020',
+    description: 'Hero-Shooter im Battle-Royale-Format, in dem Trupps aus drei Legenden kämpfen.',
+    source: 'https://store.steampowered.com/app/1172470/',
+  },
+  'ELDEN RING': {
+    genre: 'Action, Rollenspiel',
+    released: '25. Feb. 2022',
+    description: 'Action-Rollenspiel in einer offenen Welt voller Ruinen und harter Bosse.',
+    source: 'https://store.steampowered.com/app/1245620/',
+  },
+  'Forza Horizon 5': {
+    genre: 'Rennspiel',
+    released: '9. Nov. 2021',
+    description: 'Open-World-Rennspiel quer durch Mexiko.',
+    source: 'https://store.steampowered.com/app/1551360/',
+  },
+  'Cyberpunk 2077': {
+    genre: 'Rollenspiel',
+    released: '10. Dez. 2020',
+    description: 'Rollenspiel in der Megastadt Night City.',
+    source: 'https://store.steampowered.com/app/1091500/',
+  },
+};
 
 /** Was die Web-App lokal speichert: Sammlungen, Fortschritt und Anzeigename. */
 const vault = {
@@ -276,7 +309,7 @@ async function mockServer(context, video) {
           key: name.toLowerCase(),
           label: name,
           name,
-          genre: '',
+          ...details[name],
           cover: `/media/${covers[name]}-cover.webp`,
         })),
       });
@@ -314,18 +347,6 @@ async function save(page, name, options = {}) {
 }
 
 /** Wartet auf Schriften und sichtbare Bilder; Bilder unterhalb laden per Lazy Loading nie. */
-/** Ausschnitt um ein Element, mit etwas Rand, in Seitenkoordinaten (boundingBox misst im Fenster). */
-async function padded(locator, margin) {
-  const box = await locator.boundingBox();
-  const scroll = await locator.page().evaluate(() => ({ x: scrollX, y: scrollY }));
-  return {
-    x: box.x + scroll.x - margin,
-    y: box.y + scroll.y - margin,
-    width: box.width + 2 * margin,
-    height: box.height + 2 * margin,
-  };
-}
-
 const settle = (page) =>
   page.evaluate(async () => {
     await document.fonts.ready;
@@ -374,22 +395,26 @@ async function appShots(browser, video) {
 
   await page.goto(`${base}/library`);
   await page.getByText('Triple Kill auf Mirage').first().waitFor();
+  // Die Maus stand zuletzt mitten im Bild und höbe sonst ein Cover hervor.
+  await page.mouse.move(1420, 140);
   await settle(page);
   await save(page, 'app-library.jpg');
 
-  await page.goto(`${base}/clips/ace-inferno`);
-  await page.getByText('Dein Moment, zusammengefasst').waitFor();
-  await page.waitForFunction(() => (document.querySelector('video')?.readyState ?? 0) >= 2);
-  await page.evaluate(() => document.querySelector('video')?.pause());
+  // Ein Spiel gewählt: oben die Spieleleiste, darunter die Spielinfos und die ersten Clips.
+  await page.goto(`${base}/library?game=${encodeURIComponent('name:Counter-Strike 2')}`);
+  await page.locator('.stream-spotlight').waitFor();
+  await page
+    .locator('.stream-shelf')
+    .evaluate((shelf) => scrollTo(0, shelf.getBoundingClientRect().top + scrollY - 110));
+  await page.waitForTimeout(300);
   await settle(page);
-  await save(page, 'app-clip.jpg');
-  // Die feste Kopfleiste läge sonst über der Überschrift des Ausschnitts.
-  const hidden = await page.addStyleTag({ content: '.header { visibility: hidden; }' });
-  const panel = page.locator('.analysis-panel');
-  await panel.scrollIntoViewIfNeeded();
+  await save(page, 'app-game.jpg');
+
+  await page.goto(`${base}/collections/clutches`);
+  await page.getByRole('heading', { name: 'Beste Clutches', level: 1 }).waitFor();
+  await page.waitForTimeout(300);
   await settle(page);
-  await save(page, 'app-ai.jpg', { fullPage: true, clip: await padded(panel, 24) });
-  await hidden.evaluate((style) => style.remove());
+  await save(page, 'app-collection.jpg');
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}/`);

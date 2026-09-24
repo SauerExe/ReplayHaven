@@ -87,8 +87,12 @@ test('Client-Ergebnis erscheint, bleibt bearbeitbar und wird nach erkanntem Spie
   await page.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect.poll(() => clip.description).toBe('Meine korrigierte Beschreibung');
   await page.goto('/library?game=name%3ATestspiel');
-  await expect(page.locator('.clip-card')).toHaveCount(1);
-  await expect(page.getByLabel('Spiel filtern')).toHaveValue('name:Testspiel');
+  await expect(page.locator('.stream-grid .stream-tile--clip')).toHaveCount(1);
+  await expect(
+    page
+      .getByRole('group', { name: 'Nach Spiel filtern' })
+      .getByRole('button', { name: /^Testspiel/ }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await page.goto('/devices');
   await expect(page.getByRole('link', { name: 'Windows-Client herunterladen' })).toHaveAttribute(
     'href',

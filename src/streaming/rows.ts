@@ -1,6 +1,6 @@
 import { canContinue } from '../data/repository';
 import { formatRemaining, formatWhen, isNew } from './format';
-import type { StreamClip, StreamLibrary } from './model';
+import type { StreamClip, StreamCollection, StreamLibrary } from './model';
 
 export interface ClipTileData {
   clip: StreamClip;
@@ -23,6 +23,10 @@ export interface CollectionTileData {
   thumbnails: string[];
   count: number;
   href: string;
+  /** Ersetzt die Zeile „3 Clips“, etwa auf der Sammlungsseite. */
+  meta?: string;
+  /** Spiele in der Sammlung, für die kleinen Cover unter dem Titel. */
+  games?: { key: string; name: string; cover: string }[];
 }
 
 interface RowBase {
@@ -100,7 +104,49 @@ function clipTile(clip: StreamClip, meta: string, now: number, markNew = false):
   return { clip, meta, isNew: markNew && isNew(clip.recordedAt, now) };
 }
 
-export function buildRows(library: StreamLibrary, now: number): StreamRow[] {
+/** Cover vom Server oder aus den Beispieldaten, sonst das Vorschaubild eines Clips. */
+export function gameCover(clips: StreamClip[]): string {
+  return (
+    clips.find((c) => c.gameCover)?.gameCover || clips.find((c) => c.thumbnail)?.thumbnail || ''
+  );
+}
+
+function gameTile(group: GameGroup): GameTileData {
+  return {
+    key: group.key,
+    name: group.clips[0].game,
+    cover: gameCover(group.clips),
+    count: group.clips.length,
+    href: libraryHref(group.key),
+  };
+}
+
+/** „Deine Spiele“ und die Spieleleiste der Bibliothek: an beiden Stellen dieselben Daten. */
+export function gameTiles(clips: StreamClip[]): GameTileData[] {
+  return groupByGame(newestFirst(clips)).map(gameTile);
+}
+
+export function collectionTile(
+  collection: StreamCollection,
+  byId: Map<string, StreamClip>,
+): CollectionTileData {
+  const clips = collection.clipIds.map((id) => byId.get(id)).filter((c): c is StreamClip => !!c);
+  return {
+    id: collection.id,
+    title: collection.title,
+    thumbnails: clips
+      .map((c) => c.thumbnail)
+      .filter(Boolean)
+      .slice(0, 3),
+    count: clips.length,
+    href: `/collections/${encodeURIComponent(collection.id)}`,
+  };
+}
+
+export function buildRows(
+  library: Pick<StreamLibrary, 'clips' | 'collections'>,
+  now: number,
+): StreamRow[] {
   const sorted = newestFirst(library.clips);
   const when = (clip: StreamClip) => `${clip.game} · ${formatWhen(clip.recordedAt, now)}`;
   const rows: StreamRow[] = [];
@@ -175,16 +221,7 @@ export function buildRows(library: StreamLibrary, now: number): StreamRow[] {
     id: 'spiele',
     title: 'Deine Spiele',
     href: '/library',
-    items: groups.map((group) => ({
-      key: group.key,
-      name: group.clips[0].game,
-      cover:
-        group.clips.find((c) => c.gameCover)?.gameCover ||
-        group.clips.find((c) => c.thumbnail)?.thumbnail ||
-        '',
-      count: group.clips.length,
-      href: libraryHref(group.key),
-    })),
+    items: groups.map(gameTile),
   });
 
   const byId = new Map(library.clips.map((c) => [c.id, c]));
@@ -193,21 +230,7 @@ export function buildRows(library: StreamLibrary, now: number): StreamRow[] {
     id: 'sammlungen',
     title: 'Deine Sammlungen',
     href: '/collections',
-    items: library.collections.map((collection) => {
-      const clips = collection.clipIds
-        .map((id) => byId.get(id))
-        .filter((c): c is StreamClip => !!c);
-      return {
-        id: collection.id,
-        title: collection.title,
-        thumbnails: clips
-          .map((c) => c.thumbnail)
-          .filter(Boolean)
-          .slice(0, 3),
-        count: clips.length,
-        href: `/collections/${encodeURIComponent(collection.id)}`,
-      };
-    }),
+    items: library.collections.map((collection) => collectionTile(collection, byId)),
   });
 
   return rows.filter((row) => row.items.length > 0);

@@ -2005,6 +2005,990 @@
   }
 }
 
+/* Seiten im App-Rahmen: Bibliothek und Sammlungen. Der feste Kopf des Layouts ist 86 px hoch. */
+.stream-page {
+  min-height: 100vh;
+  padding: 124px var(--stream-gutter) 96px;
+  background: var(--stream-bg);
+}
+.stream-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.stream-page-intro {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.stream-page-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--stream-display);
+  font-stretch: 72%;
+  font-size: clamp(48px, 5.2vw, 84px);
+  font-weight: 800;
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: #fff;
+}
+.stream-count {
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--stream-chip);
+  font-family: var(--stream-body);
+  font-stretch: normal;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--stream-dim);
+}
+.stream-page-lead {
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--stream-muted);
+}
+.stream-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Kleine Schaltflächen und Auswahllisten */
+.stream-pill {
+  height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--stream-line);
+  border-radius: 999px;
+  background: var(--stream-panel);
+  color: var(--stream-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.stream-pill:hover {
+  border-color: #4a4a5a;
+  color: #fff;
+}
+.stream-pill[aria-pressed='true'] {
+  border-color: var(--stream-accent);
+  background: rgba(167, 139, 250, 0.14);
+  color: #fff;
+}
+.stream-pill[aria-pressed='true'] svg {
+  color: var(--stream-accent);
+}
+.stream-pill--primary,
+.stream-pill--primary:hover {
+  border-color: #fff;
+  background: #fff;
+  color: #0b0b0f;
+}
+.stream-pill--primary:hover {
+  border-color: #dcdce4;
+  background: #dcdce4;
+}
+.stream-pill-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--stream-accent);
+  color: #0b0b0f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+.stream-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.stream-select select {
+  height: 42px;
+  padding: 0 38px 0 16px;
+  border: 1px solid var(--stream-line);
+  border-radius: 999px;
+  background: var(--stream-panel);
+  color: var(--stream-soft);
+  font-size: 14px;
+  font-weight: 700;
+  appearance: none;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.stream-select select:hover {
+  border-color: #4a4a5a;
+}
+.stream-select select:focus-visible {
+  outline: 2px solid var(--stream-accent);
+  outline-offset: 3px;
+}
+.stream-select[data-active='true'] select {
+  border-color: var(--stream-accent);
+  background: rgba(167, 139, 250, 0.14);
+  color: #fff;
+}
+.stream-select option {
+  background: var(--stream-panel);
+  color: var(--stream-text);
+}
+.stream-select svg {
+  position: absolute;
+  right: 14px;
+  color: var(--stream-muted);
+  pointer-events: none;
+}
+.stream-button--compact {
+  height: 46px;
+  padding: 0 20px 0 16px;
+  gap: 8px;
+  font-size: 16px;
+}
+.stream-text-button {
+  height: 40px;
+  padding: 0 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--stream-nav);
+  transition: color 0.15s ease;
+}
+.stream-text-button:hover {
+  color: #fff;
+}
+
+/* Spieleleiste: dieselben Cover und Zahlen wie „Deine Spiele“ auf der Startseite */
+.stream-shelf {
+  margin: 0 calc(-1 * var(--stream-gutter)) 24px;
+}
+.stream-shelf-track {
+  display: flex;
+  gap: 14px;
+  padding: 10px var(--stream-gutter) 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--stream-gutter);
+  scrollbar-width: none;
+}
+.stream-shelf-track::-webkit-scrollbar {
+  display: none;
+}
+.stream-shelf-track > li {
+  flex: none;
+  scroll-snap-align: start;
+}
+.stream-shelf-item {
+  width: clamp(96px, 8.2vw, 136px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 8px;
+}
+.stream-shelf-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--stream-surface);
+  color: var(--stream-nav);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.2s ease;
+}
+.stream-shelf-img,
+.stream-shelf-media > .stream-picture-fallback {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.stream-shelf-item--all .stream-shelf-media {
+  background: linear-gradient(160deg, #2c2645 0%, #15151c 100%);
+  color: var(--stream-accent);
+}
+.stream-shelf-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--stream-soft);
+}
+.stream-shelf-count {
+  margin-top: -4px;
+  font-size: 12px;
+  color: var(--stream-muted);
+}
+.stream-shelf-item[aria-pressed='true'] .stream-shelf-media {
+  box-shadow: 0 0 0 3px var(--stream-accent);
+}
+.stream-shelf-item[aria-pressed='true'] .stream-shelf-name {
+  color: #fff;
+}
+@media (hover: hover) {
+  .stream-shelf-item:hover .stream-shelf-media {
+    box-shadow:
+      0 0 0 2px #4a4a5a,
+      0 14px 28px rgba(0, 0, 0, 0.5);
+    transform: translateY(calc((var(--stream-lift) - 1) * -50px));
+  }
+  .stream-shelf-item[aria-pressed='true']:hover .stream-shelf-media {
+    box-shadow:
+      0 0 0 3px var(--stream-accent),
+      0 14px 28px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Gewähltes Spiel: Cover, Genre, Erscheinungsdatum und Beschreibung von Steam */
+.stream-spotlight {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-bottom: 28px;
+  padding: 28px;
+  border-radius: 14px;
+  background: var(--stream-panel);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 32px;
+}
+.stream-spotlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(21, 21, 28, 0.5) 0%, rgba(21, 21, 28, 0.94) 55%);
+}
+.stream-spotlight-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+.stream-spotlight-backdrop-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.45;
+  filter: blur(36px) saturate(1.3);
+  transform: scale(1.3);
+}
+.stream-spotlight-backdrop .stream-picture-fallback {
+  display: none;
+}
+/* Feste Höhe: als Rasterelement nähme das Bild sonst die Höhe der Textspalte an. */
+.stream-spotlight-cover {
+  width: 168px;
+  height: 252px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+.stream-spotlight-cover.stream-picture-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--stream-surface);
+  color: var(--stream-muted);
+}
+.stream-spotlight-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.stream-spotlight-title {
+  font-family: var(--stream-display);
+  font-stretch: 72%;
+  font-size: clamp(36px, 4vw, 64px);
+  font-weight: 800;
+  line-height: 0.92;
+  text-transform: uppercase;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.stream-spotlight-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--stream-dim);
+}
+.stream-spotlight-description {
+  max-width: 720px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--stream-soft);
+}
+.stream-spotlight-actions {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Suche und Filter */
+.stream-toolbar {
+  margin-bottom: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.stream-search-field {
+  flex: 1 1 300px;
+  max-width: 520px;
+  height: 46px;
+  padding: 0 8px 0 16px;
+  border: 1px solid var(--stream-line);
+  border-radius: 999px;
+  background: var(--stream-panel);
+  color: var(--stream-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: border-color 0.15s ease;
+}
+.stream-search-field:focus-within {
+  border-color: var(--stream-accent);
+  color: #fff;
+}
+.stream-search-field input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--stream-text);
+  font-size: 15px;
+  outline: none;
+}
+.stream-search-field input::placeholder {
+  color: var(--stream-label);
+}
+.stream-search-clear {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--stream-nav);
+}
+.stream-search-clear:hover {
+  background: var(--stream-chip);
+  color: #fff;
+}
+.stream-filter-toggle {
+  display: none;
+}
+.stream-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.stream-results {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.stream-results-count {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--stream-dim);
+}
+
+/* Raster aus Clip-Kacheln */
+.stream-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 248px), 1fr));
+  gap: 30px 16px;
+}
+/* Die Kachel ist ihr eigener Container: 100cqw ist ihre Breite, wie --stream-tile-w in den Reihen. */
+.stream-tile--clip.stream-tile--grid {
+  width: 100%;
+  container-type: inline-size;
+  --stream-tile-w: 100cqw;
+}
+.stream-tile-badges {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 1;
+  max-width: calc(100% - 96px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.stream-tile-badges .stream-badge {
+  position: static;
+}
+.stream-tile-tools {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+}
+.stream-tile-tool {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(11, 11, 15, 0.76);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+.stream-tile-tool:hover {
+  background: rgba(43, 43, 54, 0.96);
+  transform: scale(var(--stream-pop));
+}
+.stream-tile-tool[data-active='true'] {
+  opacity: 1;
+  color: var(--stream-accent);
+}
+.stream-tile-tool[data-state='open'] {
+  opacity: 1;
+  background: #fff;
+  color: #0b0b0f;
+}
+.stream-tile:focus-within .stream-tile-tool {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .stream-tile:hover .stream-tile-tool {
+    opacity: 1;
+  }
+}
+@media (hover: none) {
+  .stream-tile--grid .stream-tile-tool {
+    opacity: 1;
+  }
+}
+.stream-tile-check {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  background: rgba(11, 11, 15, 0.45);
+  color: #0b0b0f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stream-tile-check[data-selected='true'] {
+  border-color: var(--stream-accent);
+  background: var(--stream-accent);
+}
+.stream-tile--grid.is-selected .stream-tile-media,
+.stream-tile--grid.is-selected:hover .stream-tile-media {
+  box-shadow:
+    0 0 0 3px var(--stream-accent),
+    0 22px 44px rgba(0, 0, 0, 0.5);
+}
+.stream-tile-remove {
+  align-self: flex-start;
+  margin-left: 2px;
+  padding: 5px 10px;
+  border: 1px solid var(--stream-line);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--stream-nav);
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.stream-tile-remove:hover {
+  border-color: var(--stream-danger);
+  color: #fff;
+}
+.stream-narrow-only {
+  display: none;
+}
+.stream-empty--inline {
+  min-height: 0;
+  padding: 72px 16px;
+}
+.stream-empty h2 {
+  font-family: var(--stream-display);
+  font-stretch: 72%;
+  font-size: clamp(34px, 4vw, 48px);
+  font-weight: 800;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+/* Auswahlleiste */
+.stream-bulk {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 45;
+  max-width: calc(100vw - 24px);
+  padding: 8px 10px 8px 8px;
+  border: 1px solid var(--stream-line);
+  border-radius: 999px;
+  background: rgba(21, 21, 28, 0.96);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transform: translateX(-50%);
+}
+.stream-bulk-count {
+  padding: 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--stream-dim);
+}
+.stream-bulk .stream-round {
+  width: 42px;
+  height: 42px;
+  border-width: 1px;
+}
+.stream-round:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.stream-round:disabled:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(21, 21, 28, 0.5);
+}
+.stream-round--danger:not(:disabled):hover {
+  border-color: var(--stream-danger);
+  background: rgba(244, 124, 135, 0.12);
+  color: var(--stream-danger);
+}
+
+/* Aktionsmenü zu einem Clip */
+.stream-menu {
+  z-index: 75;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--stream-line);
+  border-radius: 10px;
+  background: #1a1a22;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
+}
+.stream-menu[data-state='open'] {
+  animation: stream-fade-in 0.12s ease;
+}
+.stream-menu-item {
+  padding: 9px 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--stream-soft);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+.stream-menu-item svg {
+  color: var(--stream-muted);
+}
+.stream-menu-item[data-highlighted] {
+  background: var(--stream-chip);
+  color: #fff;
+}
+.stream-menu-item[data-highlighted] svg {
+  color: #fff;
+}
+.stream-menu-item--danger,
+.stream-menu-item--danger svg,
+.stream-menu-item--danger[data-highlighted],
+.stream-menu-item--danger[data-highlighted] svg {
+  color: var(--stream-danger);
+}
+.stream-menu-item--danger[data-highlighted] {
+  background: rgba(244, 124, 135, 0.14);
+}
+.stream-menu-separator {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--stream-line);
+}
+
+/* Sammlungen */
+.stream-collection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 32px 18px;
+}
+.stream-collection-grid .stream-tile--collection,
+.stream-tile--new-collection {
+  width: 100%;
+}
+.stream-tile--new-collection .stream-tile-media {
+  aspect-ratio: 318 / 180;
+  border: 2px dashed #3a3a48;
+  background: transparent;
+  color: var(--stream-nav);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.stream-tile--new-collection:hover .stream-tile-media {
+  border-color: var(--stream-accent);
+  color: #fff;
+}
+.stream-tile-games {
+  min-width: 0;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stream-tile-covers {
+  flex: none;
+  display: flex;
+}
+.stream-tile-cover {
+  width: 22px;
+  height: 30px;
+  border-radius: 4px;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px var(--stream-bg);
+}
+.stream-tile-cover + .stream-tile-cover {
+  margin-left: -6px;
+}
+.stream-tile-cover.stream-picture-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--stream-surface);
+}
+.stream-tile-cover.stream-picture-fallback svg {
+  width: 12px;
+  height: 12px;
+}
+.stream-collection-page {
+  padding-top: 86px;
+}
+.stream-collection-hero {
+  position: relative;
+  isolation: isolate;
+  min-height: clamp(420px, 38vw, 560px);
+  margin: 0 calc(-1 * var(--stream-gutter)) 36px;
+  padding: 40px var(--stream-gutter) 44px;
+  display: flex;
+  align-items: flex-end;
+}
+.stream-collection-art,
+.stream-collection-shade {
+  position: absolute;
+  inset: 0;
+}
+.stream-collection-art {
+  z-index: -2;
+  overflow: hidden;
+  background: linear-gradient(135deg, #24242e, #15151c);
+}
+.stream-collection-shade {
+  z-index: -1;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(11, 11, 15, 0.95) 0%,
+      rgba(11, 11, 15, 0.78) 38%,
+      rgba(11, 11, 15, 0.2) 75%,
+      rgba(11, 11, 15, 0) 100%
+    ),
+    linear-gradient(180deg, rgba(11, 11, 15, 0) 55%, #0b0b0f 100%);
+}
+.stream-collection-content {
+  width: min(680px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+.stream-back {
+  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--stream-nav);
+  transition: color 0.15s ease;
+}
+.stream-back:hover {
+  color: #fff;
+}
+.stream-collection-meta {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--stream-dim);
+}
+.stream-collection-description {
+  max-width: 560px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--stream-soft);
+}
+.stream-game-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stream-game-chip {
+  padding: 4px 14px 4px 4px;
+  border-radius: 999px;
+  background: rgba(34, 34, 44, 0.88);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--stream-soft);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.stream-game-chip:hover {
+  background: #33333f;
+  color: #fff;
+}
+.stream-game-chip-img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.stream-game-chip-img.stream-picture-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--stream-surface);
+}
+.stream-game-chip-img.stream-picture-fallback svg {
+  width: 14px;
+  height: 14px;
+}
+.stream-game-chip-count {
+  font-size: 12px;
+  color: var(--stream-muted);
+}
+.stream-collection-actions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 860px) {
+  .stream-page {
+    padding-top: 112px;
+  }
+  .stream-collection-page {
+    padding-top: 77px;
+  }
+  .stream-spotlight {
+    gap: 24px;
+  }
+  .stream-spotlight-cover {
+    width: 128px;
+    height: 192px;
+  }
+}
+@media (max-width: 760px) {
+  .stream-filter-toggle {
+    display: inline-flex;
+  }
+  .stream-search-field {
+    max-width: none;
+  }
+  .stream-filters {
+    display: none;
+    width: 100%;
+  }
+  .stream-filters[data-open='true'] {
+    display: flex;
+  }
+}
+@media (max-width: 600px) {
+  .stream-page {
+    padding-top: 96px;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  .stream-collection-page {
+    padding-top: 69px;
+  }
+  .stream-page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .stream-page-title {
+    font-size: 44px;
+  }
+  .stream-page-lead {
+    font-size: 15px;
+  }
+  .stream-page-actions .stream-pill {
+    flex: 1;
+  }
+  .stream-shelf {
+    margin-bottom: 18px;
+  }
+  .stream-shelf-track {
+    gap: 10px;
+  }
+  .stream-shelf-item {
+    width: 84px;
+  }
+  .stream-shelf-name {
+    font-size: 12px;
+  }
+  .stream-spotlight {
+    grid-template-columns: 88px minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+    padding: 16px;
+  }
+  .stream-spotlight-cover {
+    width: 88px;
+    height: 132px;
+  }
+  .stream-spotlight-title {
+    font-size: 30px;
+  }
+  .stream-spotlight-facts {
+    font-size: 13px;
+  }
+  .stream-spotlight-description {
+    font-size: 14px;
+  }
+  .stream-spotlight-actions .stream-button--compact {
+    height: 42px;
+    font-size: 14px;
+  }
+  .stream-toolbar .stream-search-field {
+    flex-basis: 0;
+    min-width: 0;
+  }
+  .stream-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 12px;
+  }
+  .stream-tile--grid .stream-tile-title {
+    font-size: 14px;
+  }
+  .stream-tile--grid .stream-tile-meta {
+    font-size: 12px;
+  }
+  .stream-bulk {
+    left: 12px;
+    right: 12px;
+    bottom: calc(66px + env(safe-area-inset-bottom) + 12px);
+    justify-content: space-between;
+    gap: 8px;
+    border-radius: 16px;
+    transform: none;
+  }
+  /* Für Screenreader bleibt „2 ausgewählt“, sichtbar nur die Zahl: sonst passt die Leiste nicht. */
+  .stream-bulk-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .stream-wide-only {
+    display: none;
+  }
+  .stream-narrow-only {
+    display: inline;
+  }
+  .stream-collection-hero {
+    min-height: 0;
+    margin-bottom: 28px;
+    padding-top: 28px;
+    padding-bottom: 32px;
+  }
+  .stream-collection-description {
+    font-size: 15px;
+  }
+  .stream-collection-actions .stream-button {
+    height: 46px;
+    padding: 0 16px;
+    gap: 8px;
+    font-size: 16px;
+  }
+  .stream-collection-actions .stream-round--large {
+    width: 46px;
+    height: 46px;
+  }
+}
+
 /* Nur für streaming-preview.html: zeigt, was ein Klick in der App auslösen würde. Die Regel steht
    hier und nicht in preview.tsx, weil Tailwind CSS-Dateien nicht nach Klassennamen durchsucht. */
 .stream-preview-notice {

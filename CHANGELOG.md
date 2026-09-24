@@ -27,12 +27,19 @@ All notable changes to this project are documented here. The format follows
   YAMNet on the CPU (downloaded on first use, pinned by SHA-256) and lists them per clip with
   time and strength, plus per-window scores for calibrating the threshold. The analysis does
   not use it yet.
-- New home page in streaming style (`src/streaming`): a hero with the newest analysed clip,
-  rows for continue watching, new, favourites and your top games, game and collection tiles, a
-  clip detail dialog with the AI time stamps and a full-screen player with highlight markers
-  and keyboard controls. Details and player follow the address (`?clip=`, `?play=`), so the
-  back button closes them. `npm run dev` also shows it with sample data at
+- New web UI in streaming style (`src/streaming`). The home page shows a hero with the newest
+  analysed clip, rows for continue watching, new, favourites and your top games, game and
+  collection tiles, a clip detail dialog with the AI time stamps and a full-screen player with
+  highlight markers and keyboard controls. Details and player follow the address (`?clip=`,
+  `?play=`), so the back button closes them. `npm run dev` also shows it with sample data at
   `/streaming-preview.html`; the production build does not include the preview.
+- Library and collections in the same style. The library opens with a shelf of your games
+  with the same covers, names and counts as "Deine Spiele"; picking a game shows its genre,
+  release date and description from Steam, with a link to its store page. Search also finds
+  the Steam name and genre. Search, filters, sorting, selection with favourite, add to
+  collection and delete stay as before, and every clip has a menu for rename, tags, share,
+  download, delete and the full clip page. Collections show their games and total length and
+  play their clips in order.
 - `npm run r6-replays`: a measurement tool for Rainbow Six match replays. It builds the
   maintained r6-dissect fork from a pinned commit on first use (needs Go and Git), lists per
   match and round the map, side, outcome and your kills with the round clock, series, ace and

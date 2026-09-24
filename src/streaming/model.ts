@@ -47,12 +47,30 @@ export interface StreamClip {
 export interface StreamCollection {
   id: string;
   title: string;
+  description?: string;
   clipIds: string[];
+  updatedAt?: string;
+}
+
+/** Spielinfos wie in „Deine Spiele“: vom Server (Steam) oder aus den Beispieldaten. */
+export interface StreamGame {
+  /** Wie StreamClip.gameKey. */
+  key: string;
+  name: string;
+  cover?: string;
+  genre?: string;
+  /** Erscheinungsdatum, wie Steam es liefert, etwa „21. Aug. 2012“. */
+  released?: string;
+  description?: string;
+  /** Steam-Seite des Spiels. */
+  source?: string;
 }
 
 export interface StreamLibrary {
   clips: StreamClip[];
   collections: StreamCollection[];
+  /** Je gameKey; Clips ohne erkanntes Spiel stehen hier nicht. */
+  games: Record<string, StreamGame>;
 }
 
 export const UNKNOWN_GAME = 'Deine Aufnahme';
@@ -109,6 +127,35 @@ export function toStreamClip(
   };
 }
 
+function toStreamGame(
+  clip: Clip,
+  gameInfo: Record<string, ServerGame>,
+  knownGames: Game[],
+): StreamGame | undefined {
+  if (clip.gameName) {
+    const info = gameInfo[clip.gameName];
+    return {
+      key: `name:${clip.gameName}`,
+      name: info?.name || clip.gameName,
+      cover: info?.cover || undefined,
+      genre: info?.genre || undefined,
+      released: info?.released || undefined,
+      description: info?.description || undefined,
+      source: info?.source || undefined,
+    };
+  }
+  const seed = knownGames.find((g) => g.id === clip.gameId);
+  return (
+    seed && {
+      key: seed.id,
+      name: seed.name,
+      cover: seed.cover || undefined,
+      genre: seed.genre || undefined,
+      source: seed.source || undefined,
+    }
+  );
+}
+
 export function toStreamLibrary(
   state: Pick<VaultState, 'clips' | 'collections' | 'progress'>,
   gameInfo: Record<string, ServerGame> = {},
@@ -118,13 +165,21 @@ export function toStreamLibrary(
     toStreamClip(clip, state.progress[clip.id], gameInfo, knownGames),
   );
   const ids = new Set(clips.map((c) => c.id));
+  const games: Record<string, StreamGame> = {};
+  for (const clip of state.clips) {
+    const game = toStreamGame(clip, gameInfo, knownGames);
+    if (game && !games[game.key]) games[game.key] = game;
+  }
   return {
     clips,
     collections: state.collections.map((c) => ({
       id: c.id,
       title: c.title,
+      description: c.description || undefined,
       clipIds: c.clipIds.filter((id) => ids.has(id)),
+      updatedAt: c.updatedAt || undefined,
     })),
+    games,
   };
 }
 
