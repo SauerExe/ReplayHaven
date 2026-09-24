@@ -43,21 +43,29 @@ const ort = 'desktop-bundle/onnxruntime';
 const native = 'bin/napi-v6/win32/x64';
 await rm(ort, { recursive: true, force: true });
 await mkdir(`${ort}/${native}`, { recursive: true });
-await cp('node_modules/onnxruntime-node/dist', `${ort}/dist`, { recursive: true });
-await copyFile('node_modules/onnxruntime-node/package.json', `${ort}/package.json`);
+// Der JavaScript-Teil samt onnxruntime-common als eine Datei: kein node_modules-Ordner in den
+// Zusatzdateien. Die Binärdatei lädt er weiter relativ zu dist/ nach.
+await build({
+  entryPoints: ['node_modules/onnxruntime-node/dist/index.js'],
+  outfile: `${ort}/dist/index.js`,
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'cjs',
+  external: ['*.node'],
+  logLevel: 'error',
+});
+await writeFile(
+  `${ort}/package.json`,
+  JSON.stringify({
+    name: 'onnxruntime-node',
+    version: require('onnxruntime-node/package.json').version,
+    license: 'MIT',
+    main: 'dist/index.js',
+  }),
+);
 for (const file of ['onnxruntime_binding.node', 'onnxruntime.dll'])
   await copyFile(`node_modules/onnxruntime-node/${native}/${file}`, `${ort}/${native}/${file}`);
-await cp(
-  'node_modules/onnxruntime-common/dist/cjs',
-  `${ort}/node_modules/onnxruntime-common/dist/cjs`,
-  {
-    recursive: true,
-  },
-);
-await copyFile(
-  'node_modules/onnxruntime-common/package.json',
-  `${ort}/node_modules/onnxruntime-common/package.json`,
-);
 await mkdir('desktop-bundle/ocr', { recursive: true });
 for (const file of [
   'ch_PP-OCRv4_det_infer.onnx',
