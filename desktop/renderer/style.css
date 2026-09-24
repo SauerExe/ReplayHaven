@@ -238,6 +238,10 @@ input::placeholder {
   color: #9ca5b8;
   margin: 8px 0 0;
 }
+/* Abstand zum nächsten Feld, wenn ein Hinweis unter einer Option steht. */
+.check + .hint {
+  margin-bottom: 14px;
+}
 .model {
   display: flex;
   align-items: center;

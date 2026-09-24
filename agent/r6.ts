@@ -144,11 +144,15 @@ export class ClipTexts {
   async forClip(path: string, game: string, signal?: AbortSignal): Promise<TextLookup | undefined> {
     if (!isR6(game)) return undefined;
     const started = Date.now();
+    // Scheitert das Laden (Datei gesperrt, Speicher knapp), versucht es der nächste Clip erneut.
     this.reader ??= TextReader.load(
       this.options.models,
       this.options.threads,
       this.options.runtime,
-    );
+    ).catch((error) => {
+      this.reader = undefined;
+      throw error;
+    });
     const reader = await this.reader;
     const frames: FrameText[] = [];
     for await (const { seconds, frame } of this.options.media.rawFrames(path, {

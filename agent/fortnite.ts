@@ -136,6 +136,9 @@ export function replayStart(replay: Replay, toUtc: (naive: number) => number = l
 }
 
 const idOf = (p: ReplayPlayer) => (p.kind === 'player' ? p.id : undefined);
+/** Derselbe Beteiligte; namenlose Bots lassen sich nicht auseinanderhalten. */
+const same = (a: ReplayPlayer, b: ReplayPlayer) =>
+  a.kind !== 'bot' && a.kind === b.kind && a.id === b.id;
 
 /** Alle Spieler-IDs eines Replays. */
 export function playersIn(replay: Replay) {
@@ -262,7 +265,7 @@ export function clipEvents(
       const knock = replay.eliminations
         .filter(
           (k) =>
-            k.knocked && k.time <= e.time && idOf(k.killer) === owner && idOf(k.victim) === victim,
+            k.knocked && k.time <= e.time && idOf(k.killer) === owner && same(k.victim, e.victim),
         )
         .at(-1);
       const bled = e.cause === BLEED_OUT;
@@ -345,7 +348,7 @@ export interface ReplayLookup {
   trace: ReplayTrace;
 }
 
-type Loaded = { path: string; key: string; replay?: Replay; error?: string };
+type Loaded = { path: string; key: string; mtime: number; replay?: Replay; error?: string };
 
 /** In wie vielen anderen fertigen Replays jede Spieler-ID vorkommt. */
 function recurrenceBesides(finished: { path: string; replay: Replay }[], path: string) {
@@ -397,25 +400,30 @@ export class FortniteReplays {
     } catch {
       return [];
     }
+    const paths = names.map((name) => join(this.options.folder, name));
+    // Replays, die Fortnite inzwischen gelöscht hat, fallen aus dem Zwischenspeicher.
+    for (const cached of this.cache.keys()) if (!paths.includes(cached)) this.cache.delete(cached);
+    const infos = await Promise.all(paths.map((path) => stat(path).catch(() => undefined)));
     const loaded: Loaded[] = [];
-    for (const name of names) {
-      const path = join(this.options.folder, name);
-      try {
-        const info = await stat(path);
-        const key = `${info.size}:${info.mtimeMs}`;
-        let entry = this.cache.get(path);
-        if (entry?.key !== key) {
-          try {
-            entry = { path, key, replay: await readReplayFile(path) };
-          } catch (error) {
-            entry = { path, key, error: error instanceof Error ? error.message : 'unlesbar' };
-          }
-          this.cache.set(path, entry);
+    for (const [i, path] of paths.entries()) {
+      const info = infos[i];
+      if (!info) continue; // zwischen Auflisten und Lesen verschwunden
+      const key = `${info.size}:${info.mtimeMs}`;
+      let entry = this.cache.get(path);
+      if (entry?.key !== key) {
+        try {
+          entry = { path, key, mtime: info.mtimeMs, replay: await readReplayFile(path) };
+        } catch (error) {
+          entry = {
+            path,
+            key,
+            mtime: info.mtimeMs,
+            error: error instanceof Error ? error.message : 'unlesbar',
+          };
         }
-        loaded.push(entry);
-      } catch {
-        // Datei zwischen Auflisten und Lesen verschwunden: überspringen.
+        this.cache.set(path, entry);
       }
+      loaded.push(entry);
     }
     return loaded;
   }
@@ -485,10 +493,12 @@ export class FortniteReplays {
     const window = clipWindow(clip, duration, mtime, toUtc);
     if (!window) return none('Aufnahmezeit aus Dateiname und Änderungszeit nicht eindeutig');
     const loaded = await this.load();
+    // Läuft: als live markiert, vor dem Clipende begonnen und seit Clipbeginn noch geschrieben.
+    // Ein Replay, das ein Absturz offen ließ, wird nicht mehr geschrieben und hält nichts auf.
     const running = loaded.find((l) => {
       if (!l.replay?.live) return false;
       const begun = replayStart(l.replay, toUtc);
-      return begun !== undefined && begun <= window.end;
+      return begun !== undefined && begun <= window.end && l.mtime >= window.start;
     });
     if (running)
       return {

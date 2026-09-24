@@ -375,7 +375,10 @@ export class LocalAnalyzer {
       const heads = headline(events, momentStart);
       // Die Karte kennt nur die Texterkennung; lief sie, darf der Titel keine andere nennen.
       // Ohne Texterkennung bleibt die Prüfung wie bisher.
-      const place = texts && isR6(game) ? { maps: R6_MAPS, ...(map ? { map } : {}) } : undefined;
+      const place =
+        texts && !texts.trace.error && isR6(game)
+          ? { maps: R6_MAPS, ...(map ? { map } : {}) }
+          : undefined;
       const mapRule = map
         ? ` Die Karte ist ${map} (Texterkennung, verlässlich); er darf sie nennen, etwa "… auf ${map}".`
         : place

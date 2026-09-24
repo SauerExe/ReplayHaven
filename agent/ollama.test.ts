@@ -830,3 +830,70 @@ it('stops the text recognition when the analysis fails', async () => {
   ).rejects.toThrow('Keine Bilder');
   expect(stopped?.aborted).toBe(true);
 });
+
+it('does not lock the map when the text recognition failed', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
+  try {
+    const media = new MediaProcessor({});
+    vi.spyOn(media, 'probe').mockResolvedValue({
+      duration: 20,
+      width: 1920,
+      height: 1080,
+      codec: 'h264',
+      hasAudio: true,
+      audio: [],
+    });
+    vi.spyOn(media, 'frames').mockResolvedValue(
+      Array.from({ length: 4 }, (_, i) => ({ seconds: i * 5, base64: `bild-${i}` })),
+    );
+    vi.spyOn(media, 'frameAt').mockResolvedValue('focus-image');
+    const summaries: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string);
+        if (!body.messages.length) return Response.json({ done: true });
+        if (body.format?.properties?.frames)
+          return Response.json({
+            message: {
+              content: JSON.stringify({
+                frames: imagesOf(body).map((_: string, i: number) => ({
+                  frame: i,
+                  kind: 'gameplay',
+                  observation: 'Kampf',
+                  visibleText: '',
+                })),
+              }),
+            },
+          });
+        summaries.push(body);
+        return Response.json({
+          message: {
+            content: JSON.stringify({
+              title: 'Kampf um die Treppe auf Bank',
+              description: 'Du verteidigst die Treppe.',
+              uncertainty: '',
+              highlights: [],
+            }),
+          },
+        });
+      }),
+    );
+    const output = await new LocalAnalyzer({
+      url: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      frames: 24,
+      cacheDir: root,
+      media,
+      isPaused: () => false,
+      texts: async () => {
+        throw new Error('ONNX Runtime fehlt');
+      },
+    }).analyze('R6/clip.mp4', "Tom Clancy's Rainbow Six Siege");
+    expect(summaries).toHaveLength(1);
+    expect(output.result.title).toBe('Kampf um die Treppe auf Bank');
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});

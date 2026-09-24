@@ -151,9 +151,50 @@ export class MediaProcessor {
     let playbackFile = original;
     const playable = extension === '.mp4' && meta.codec === 'h264';
     // Mehrere Tonspuren: Das Bild bleibt, wenn es abspielbar ist; nur der Ton wird gemischt.
-    if (!playable || meta.audio.length > 1) {
+    const mix = meta.audio.length > 1;
+    if (!playable || mix) {
       playbackFile = join(directory, 'playback.mp4');
-      await runFile(
+      const copy = (audio: string[]) =>
+        runFile(
+          this.ffmpeg,
+          [
+            '-nostdin',
+            '-v',
+            'error',
+            '-y',
+            '-protocol_whitelist',
+            'file,pipe',
+            '-i',
+            original,
+            '-map',
+            '0:v:0',
+            ...audio,
+            ...(playable
+              ? ['-c:v', 'copy']
+              : ['-c:v', 'libx264', '-preset', 'fast', '-crf', '22', '-pix_fmt', 'yuv420p']),
+            '-c:a',
+            'aac',
+            '-b:a',
+            mix ? '160k' : '128k',
+            '-movflags',
+            '+faststart',
+            '-threads',
+            '2',
+            playbackFile,
+          ],
+          30 * 60000,
+        );
+      // Lässt sich eine Zusatzspur nicht mischen (leer oder unlesbar), gilt wie früher die erste.
+      if (mix) await copy(mixedAudio(meta.audio.length)).catch(() => copy(['-map', '0:a:0?']));
+      else await copy(['-map', '0:a:0?']);
+    }
+    return { ...meta, playbackFile };
+  }
+  async analysisVideo(original: string, directory: string, includeAudio: boolean) {
+    const output = join(directory, 'analysis.mp4');
+    const tracks = includeAudio ? (await this.probe(original)).audio.length : 0;
+    const encode = (audio: string[]) =>
+      runFile(
         this.ffmpeg,
         [
           '-nostdin',
@@ -166,67 +207,36 @@ export class MediaProcessor {
           original,
           '-map',
           '0:v:0',
-          ...(meta.audio.length > 1 ? mixedAudio(meta.audio.length) : ['-map', '0:a:0?']),
-          ...(playable
-            ? ['-c:v', 'copy']
-            : ['-c:v', 'libx264', '-preset', 'fast', '-crf', '22', '-pix_fmt', 'yuv420p']),
-          '-c:a',
-          'aac',
-          '-b:a',
-          meta.audio.length > 1 ? '160k' : '128k',
-          '-movflags',
-          '+faststart',
+          ...audio,
+          '-vf',
+          "scale=w='min(1280,iw)':h=-2",
+          '-r',
+          '8',
+          '-c:v',
+          'libx264',
+          '-preset',
+          'fast',
+          '-crf',
+          '30',
+          '-maxrate',
+          '800k',
+          '-bufsize',
+          '1600k',
+          '-pix_fmt',
+          'yuv420p',
+          ...(includeAudio ? ['-c:a', 'aac', '-b:a', '48k'] : ['-an']),
           '-threads',
           '2',
-          playbackFile,
+          '-movflags',
+          '+faststart',
+          output,
         ],
-        30 * 60000,
+        20 * 60000,
       );
-    }
-    return { ...meta, playbackFile };
-  }
-  async analysisVideo(original: string, directory: string, includeAudio: boolean) {
-    const output = join(directory, 'analysis.mp4');
-    const tracks = includeAudio ? (await this.probe(original)).audio.length : 0;
-    await runFile(
-      this.ffmpeg,
-      [
-        '-nostdin',
-        '-v',
-        'error',
-        '-y',
-        '-protocol_whitelist',
-        'file,pipe',
-        '-i',
-        original,
-        '-map',
-        '0:v:0',
-        ...(tracks > 1 ? mixedAudio(tracks) : includeAudio ? ['-map', '0:a:0?'] : []),
-        '-vf',
-        "scale=w='min(1280,iw)':h=-2",
-        '-r',
-        '8',
-        '-c:v',
-        'libx264',
-        '-preset',
-        'fast',
-        '-crf',
-        '30',
-        '-maxrate',
-        '800k',
-        '-bufsize',
-        '1600k',
-        '-pix_fmt',
-        'yuv420p',
-        ...(includeAudio ? ['-c:a', 'aac', '-b:a', '48k'] : ['-an']),
-        '-threads',
-        '2',
-        '-movflags',
-        '+faststart',
-        output,
-      ],
-      20 * 60000,
-    );
+    const single = includeAudio ? ['-map', '0:a:0?'] : [];
+    // Wie bei der Wiedergabekopie: lässt sich nicht mischen, gilt die erste Spur.
+    if (tracks > 1) await encode(mixedAudio(tracks)).catch(() => encode(single));
+    else await encode(single);
     return output;
   }
   /**

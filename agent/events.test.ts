@@ -450,3 +450,19 @@ it('replaces read kills and deaths by the exact ones of a replay and keeps resul
     { seconds: 18, title: 'Match gewonnen', description: 'Meldung: SIEG' },
   ]);
 });
+
+it('gives the bonus for far shots only to own hits and keeps headshots next to replay kills', () => {
+  const sniped = replayed('death', { seconds: 10, weapon: 'sniper', distance: 150 });
+  const kill = replayed('kill', { seconds: 12 });
+  expect(headline([sniped, kill], 0)[0]).toBe(kill);
+  const read = [
+    { kind: 'headshot' as const, seconds: 15, text: 'KOPFSCHUSS', source: 'screen' as const },
+    { kind: 'headshot' as const, seconds: 40, text: 'KOPFSCHUSS', source: 'screen' as const },
+  ];
+  expect(
+    withReplay(read, [replayed('kill', { seconds: 14.2 })]).map((e) => [e.kind, e.seconds]),
+  ).toEqual([
+    ['kill', 14.2],
+    ['headshot', 15],
+  ]);
+});

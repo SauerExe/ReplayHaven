@@ -341,8 +341,16 @@ export function withReplay(events: GameEvent[], replay: GameEvent[] | undefined)
   if (!replay) return events;
   const exact: EventKind[] = ['kill', 'multikill', 'headshot', 'knock', 'death'];
   const won = replay.some((e) => e.kind === 'matchWon');
+  // Kopfschüsse kennt ein Replay nicht: Ein gelesener bleibt, wenn das Replay zur selben Zeit
+  // (±3 s) einen eigenen Kill hat — sonst gehörte er vermutlich einem beobachteten Mitspieler.
+  const backed = (e: GameEvent) =>
+    e.kind === 'headshot' &&
+    e.seconds !== null &&
+    replay.some((r) => r.kind === 'kill' && Math.abs(r.seconds! - e.seconds!) <= 3);
   return [
-    ...events.filter((e) => !exact.includes(e.kind) && !(won && e.kind === 'matchWon')),
+    ...events.filter(
+      (e) => (!exact.includes(e.kind) || backed(e)) && !(won && e.kind === 'matchWon'),
+    ),
     ...replay,
   ].sort((a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity));
 }
@@ -379,7 +387,10 @@ export function headline(events: GameEvent[], momentStart: number): GameEvent[] 
   // Ein Treffer über große Distanz oder mit dem Scharfschützengewehr ist bemerkenswerter als
   // ein gewöhnlicher Kill oder der eigene Tod; das weiß nur ein Replay.
   const notable = (e: GameEvent) =>
-    Number((e.distance ?? 0) >= 100 || e.weapon === 'sniper' || e.weapon === 'noscope');
+    Number(
+      ['kill', 'knock', 'multikill'].includes(e.kind) &&
+        ((e.distance ?? 0) >= 100 || e.weapon === 'sniper' || e.weapon === 'noscope'),
+    );
   const pool = events
     .filter((e) => e.seconds === null || e.seconds >= momentStart)
     .sort(

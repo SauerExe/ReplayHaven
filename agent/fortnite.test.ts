@@ -184,6 +184,22 @@ it('lists the owner events of the clip window with weapon, distance and series',
     ['death', 58, 'storm', undefined, undefined],
   ]);
   expect(events.every((e) => e.source === 'replay')).toBe(true);
+  // Namenlose Bots lassen sich nicht auseinanderhalten: kein geerbter Knock eines anderen Bots.
+  const bots = replayOf({
+    eliminations: [
+      {
+        ...elim(101000, OWNER, OWNER, 6, { knocked: true, ...far }),
+        victim: { kind: 'bot', id: '' },
+      },
+      { ...elim(130000, OWNER, OWNER, 17, near(3)), victim: { kind: 'bot', id: '' } },
+    ],
+  });
+  expect(clipEvents(bots, OWNER, start, window).map((e) => [e.kind, e.weapon, e.distance])).toEqual(
+    [
+      ['knock', 'sniper', 183.4],
+      ['kill', undefined, undefined],
+    ],
+  );
   // Platz 1: Das Match endet im Clip mit dem Sieg.
   const won = replayOf({
     stats: {
@@ -279,11 +295,14 @@ it('maps a finished replay onto a clip, waits for a running match and skips othe
   });
   expect(await replays.forClip(clip, 'VALORANT', 30)).toBeUndefined();
 
+  // Ein Replay, das ein Absturz vor einer Woche offen ließ, hält nichts auf.
+  const live = join(root, 'UnsavedReplay-4.replay');
+  await writeFile(live, buildReplay({ live: true, localStart: saved - 60000 + 2 * 3600000 }));
+  const week = new Date(saved - 7 * 86400000);
+  await utimes(live, week, week);
+  expect((await replays.lookup(clip, 30, saved + 2000)).status).toBe('ok');
   // Ein Match, das vor dem Clipende begann und noch aufnimmt: warten.
-  await writeFile(
-    join(root, 'UnsavedReplay-4.replay'),
-    buildReplay({ live: true, localStart: saved - 60000 + 2 * 3600000 }),
-  );
+  await utimes(live, new Date(saved + 60000), new Date(saved + 60000));
   expect((await replays.lookup(clip, 30, saved + 2000)).status).toBe('wait');
   expect((await replays.forClip(clip, 'Fortnite', 30, saved + 2000 + 60000))?.status).toBe('wait');
   // Nach 45 Minuten zählen die Bilder allein.

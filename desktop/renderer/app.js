@@ -46,9 +46,14 @@ function playerNames() {
     }))
     .filter((entry) => entry.name);
 }
-/** Spiele aus dem Aufnahmeordner als Vorschläge, damit Eintrag und Ordnername zusammenpassen. */
-async function suggestGames() {
-  const games = new Set(await call('games'));
+/**
+ * Spiele aus dem Aufnahmeordner als Vorschläge, damit Eintrag und Ordnername zusammenpassen.
+ * Den Ordner liest der Client nur beim Start und nach der Ordnerwahl, nicht bei jeder Eingabe.
+ */
+let recorded = [];
+async function suggestGames(reload = false) {
+  if (reload) recorded = await call('games');
+  const games = new Set(recorded);
   if ($('game').value.trim()) games.add($('game').value.trim());
   $('game-suggestions').replaceChildren(
     ...[...games].map((game) => Object.assign(document.createElement('option'), { value: game })),
@@ -103,10 +108,10 @@ $('pick-folder').onclick = () =>
   run(async () => {
     const folder = await call('folder');
     if (folder) $('folder').value = folder;
-    await suggestGames();
+    await suggestGames(true);
   });
 $('add-name').onclick = () => addNameRow().focus();
-$('game').onchange = () => run(suggestGames);
+$('game').onchange = () => run(() => suggestGames());
 $('save').onclick = () =>
   run(async () => {
     const result = await call('save', settings());
@@ -143,5 +148,5 @@ void run(async () => {
     $('token-info').textContent =
       'Zugangsschlüssel ist gespeichert. Leer lassen, um ihn beizubehalten.';
   render(status);
-  await suggestGames();
+  await suggestGames(true);
 });

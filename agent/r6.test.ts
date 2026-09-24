@@ -3,9 +3,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import sharp from 'sharp';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { ClipTexts, isR6, mapIn, r6Findings } from './r6';
-import { developmentModels } from './ocr';
+import { developmentModels, TextReader } from './ocr';
 import { MediaProcessor, runFile } from '../server/media';
 import type { FrameText } from './r6';
 import { withTexts } from './events';
@@ -168,3 +168,20 @@ it.skipIf(!existsSync(models.det))(
   },
   60000,
 );
+
+it('loads the models again after a failed attempt', async () => {
+  const load = vi
+    .spyOn(TextReader, 'load')
+    .mockRejectedValueOnce(new Error('Datei gesperrt'))
+    .mockResolvedValue({ read: async () => [], close: async () => {} } as unknown as TextReader);
+  try {
+    const media = { rawFrames: async function* () {} } as unknown as MediaProcessor;
+    const texts = new ClipTexts({ media, models: developmentModels() });
+    const signal = new AbortController().signal;
+    await expect(texts.forClip('clip.mp4', 'R6', signal)).rejects.toThrow('Datei gesperrt');
+    expect((await texts.forClip('clip.mp4', 'R6', signal))?.trace.frames).toBe(0);
+    expect(load).toHaveBeenCalledTimes(2);
+  } finally {
+    load.mockRestore();
+  }
+});
