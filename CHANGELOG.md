@@ -27,6 +27,12 @@ All notable changes to this project are documented here. The format follows
   YAMNet on the CPU (downloaded on first use, pinned by SHA-256) and lists them per clip with
   time and strength, plus per-window scores for calibrating the threshold. The analysis does
   not use it yet.
+- Streaming-style home page under `src/streaming`, not wired in yet: a hero with the newest
+  analysed clip, rows for continue watching, new, favourites and your top games, game and
+  collection tiles, a clip detail dialog with the AI time stamps and a full-screen player with
+  highlight markers and keyboard controls. Details and player follow the address (`?clip=`,
+  `?play=`), so the back button closes them. `npm run dev` shows it with sample data at
+  `/streaming-preview.html`; the production build does not include the preview.
 - `npm run r6-replays`: a measurement tool for Rainbow Six match replays. It builds the
   maintained r6-dissect fork from a pinned commit on first use (needs Go and Git), lists per
   match and round the map, side, outcome and your kills with the round clock, series, ace and

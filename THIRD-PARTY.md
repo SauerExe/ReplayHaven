@@ -11,6 +11,13 @@ the respective publishers and rights holders. These assets are **not** covered b
 License; they are included only to demonstrate the interface and may be replaced with your own
 clips. Run `npm run media:refresh` to re-fetch them.
 
+## Fonts (`src/streaming/fonts`)
+
+The streaming-style home page components use **Archivo** by The Archivo Project Authors (SIL
+Open Font License 1.1), the Latin subset with width and weight axes from
+`@fontsource-variable/archivo` 5.3.0. The license text is in `src/streaming/fonts/OFL.txt`.
+Source: https://github.com/Omnibus-Type/Archivo.
+
 ## Windows client (`ReplayHaven-Client-Setup.exe`)
 
 The installer bundles:
