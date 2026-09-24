@@ -294,13 +294,22 @@ export class TextReader {
     // Im fertigen Client liegt ONNX Runtime neben den FFmpeg-Dateien, nicht im App-Archiv.
     const ort = moduleRequire(runtime ?? 'onnxruntime-node') as typeof import('onnxruntime-node');
     const options = { intraOpNumThreads: threads, interOpNumThreads: 1 };
-    const [det, rec, keys] = await Promise.all([
+    const [det, rec, keys] = await Promise.allSettled([
       ort.InferenceSession.create(models.det, options),
       ort.InferenceSession.create(models.rec, options),
       readFile(models.keys, 'utf8'),
     ]);
+    if (det.status === 'rejected' || rec.status === 'rejected' || keys.status === 'rejected') {
+      // Was schon geladen ist, gleich wieder freigeben, statt es bis zur Speicherbereinigung zu halten.
+      for (const session of [det, rec])
+        if (session.status === 'fulfilled') await session.value.release().catch(() => {});
+      throw [det, rec, keys].find((part) => part.status === 'rejected')!.reason;
+    }
     // Leerzeichen hängt PaddleOCR als letztes Zeichen an (use_space_char).
-    return new TextReader(ort, det, rec, [...keys.replace(/\r/g, '').split('\n'), ' ']);
+    return new TextReader(ort, det.value, rec.value, [
+      ...keys.value.replace(/\r/g, '').split('\n'),
+      ' ',
+    ]);
   }
 
   /** Findet alle Textzeilen eines Bildes und liest sie. */

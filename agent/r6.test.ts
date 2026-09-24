@@ -1,11 +1,13 @@
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join, resolve, sep } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
+import { build } from 'esbuild';
 import sharp from 'sharp';
 import { expect, it, vi } from 'vitest';
-import { ClipTexts, isR6, mapIn, r6Findings } from './r6';
-import { developmentModels, TextReader } from './ocr';
+import { ClipTexts, isR6, mapIn, r6Findings, WorkerTexts } from './r6';
+import { developmentModels, missingLibrary, TextReader } from './ocr';
 import { MediaProcessor, runFile } from '../server/media';
 import type { FrameText } from './r6';
 import { withTexts } from './events';
@@ -161,6 +163,35 @@ it.skipIf(!existsSync(models.det))(
       expect(found?.map).toBe('Oregon');
       expect(found?.events.map((e) => [e.kind, e.seconds])).toEqual([['roundWon', 2.25]]);
       expect(found?.trace).toMatchObject({ frames: 8, map: 'Oregon', events: 1 });
+      // Dasselbe im Worker-Thread, mit dem Bundle, das auch der Client baut.
+      const script = join(root, 'r6-worker.cjs');
+      await build({
+        entryPoints: [join(__dirname, 'r6-worker.ts')],
+        outfile: script,
+        bundle: true,
+        platform: 'node',
+        format: 'cjs',
+        external: ['ffmpeg-static', '@ffprobe-installer/ffprobe'],
+        logLevel: 'error',
+      });
+      const worker = new WorkerTexts({
+        script,
+        data: {
+          models,
+          runtime: dirname(createRequire(__filename).resolve('onnxruntime-node/package.json')),
+          ffmpeg: media.ffmpeg,
+          ffprobe: media.ffprobe,
+          threads: 2,
+        },
+      });
+      try {
+        expect(await worker.problem()).toBeUndefined();
+        const inThread = await worker.forClip(video, "Tom Clancy's Rainbow Six Siege");
+        expect(inThread?.map).toBe('Oregon');
+        expect(inThread?.events.map((e) => [e.kind, e.seconds])).toEqual([['roundWon', 2.25]]);
+      } finally {
+        await worker.close();
+      }
     } finally {
       if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-r6-'))
         await rm(root, { recursive: true, force: true });
@@ -168,6 +199,52 @@ it.skipIf(!existsSync(models.det))(
   },
   60000,
 );
+
+it('passes load errors, aborts and crashes of the text worker on', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-r6-'));
+  try {
+    // Ein gestellter Worker, der das Protokoll von serveTexts spricht.
+    const script = join(root, 'worker.cjs');
+    await writeFile(
+      script,
+      `const { parentPort } = require('node:worker_threads');
+parentPort.on('message', (m) => {
+  if (m.type === 'check')
+    parentPort.postMessage({ id: m.id, error: { message: 'Das angegebene Modul wurde nicht gefunden.', code: 'ERR_DLOPEN_FAILED' } });
+  if (m.type === 'clip' && m.path === 'crash.mp4') process.exit(3);
+  if (m.type === 'abort')
+    parentPort.postMessage({ id: m.id, value: { events: [], trace: { frames: 1, seconds: 0, events: 0 } } });
+});`,
+    );
+    const texts = new WorkerTexts({
+      script,
+      data: { models: developmentModels(), ffmpeg: '', ffprobe: '' },
+    });
+    try {
+      // Der Ladefehler kommt mit seinem Code an, sodass der Hinweis auf die Runtime greift.
+      const problem = await texts.problem();
+      expect(problem?.message).toBe('Das angegebene Modul wurde nicht gefunden.');
+      expect(missingLibrary(problem)).toBe(true);
+      // Ein Abbruch gilt der laufenden Anfrage; sie endet mit dem, was bis dahin gelesen ist.
+      const stop = new AbortController();
+      const reading = texts.forClip('slow.mp4', 'R6', stop.signal);
+      stop.abort();
+      expect((await reading)?.trace.frames).toBe(1);
+      // Stirbt der Worker, scheitert die Anfrage; die nächste startet einen neuen.
+      await expect(texts.forClip('crash.mp4', 'R6')).rejects.toThrow(
+        /unerwartet beendet \(Code 3\)/,
+      );
+      expect(await texts.problem()).toBeInstanceOf(Error);
+      // Andere Spiele erreichen den Worker gar nicht.
+      expect(await texts.forClip('clip.mp4', 'Fortnite')).toBeUndefined();
+    } finally {
+      await texts.close();
+    }
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-r6-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});
 
 it('loads the models again after a failed attempt', async () => {
   const load = vi

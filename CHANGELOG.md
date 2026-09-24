@@ -27,9 +27,10 @@ All notable changes to this project are documented here. The format follows
   two frames per second with PaddleOCR PP-OCRv4 on ONNX Runtime (CPU, in parallel to the GPU
   model) and takes the map name and round results from it. Titles may name the recognised map
   and no other. Kills are deliberately not read. The Windows client grows by about 45 MB.
-  `npm run r6` shows map and round results per clip without AI. With the option on, starting
-  the client first loads the text recognition once and names a missing Microsoft Visual C++
-  runtime instead of leaving every clip without a map.
+  `npm run r6` shows map and round results per clip without AI. The recognition runs in a
+  worker thread and keeps its models across restarts, so the client window stays responsive.
+  With the option on, starting the client first loads it once and names a missing Microsoft
+  Visual C++ runtime instead of leaving every clip without a map.
 
 ### Changed
 

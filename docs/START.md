@@ -69,7 +69,7 @@ Mit **R6: Karte und Rundenausgang per Texterkennung** liest der Client in R6-Cli
 
 - Eine Karte zählt erst, wenn sie in mindestens zwei Bildern sicher gelesen wurde. Ein Titel darf dann keine andere Karte nennen.
 - Kills liest die Texterkennung bewusst nicht. Wer eine Killfeed-Zeile verursacht hat und ob sie zum Clip gehört, ließ sich so nicht verlässlich klären.
-- Die Texterkennung braucht etwa eine Minute CPU-Zeit je Clip. Sie läuft gleichzeitig mit der KI, die auf der Grafikkarte rechnet, und nutzt höchstens die Hälfte der Prozessorkerne.
+- Die Texterkennung braucht etwa eine Minute CPU-Zeit je Clip. Sie läuft gleichzeitig mit der KI, die auf der Grafikkarte rechnet, in einem eigenen Thread, damit das Fenster nicht stockt, und nutzt höchstens die Hälfte der Prozessorkerne.
 - Sie nutzt ONNX Runtime von Microsoft. Deren Windows-Fassung enthält Telemetrie-Ereignisse (ETW). Laut Datenschutzhinweis des Projekts werden sie nur aufgezeichnet, wenn eine Trace-Sitzung läuft, und nur mit deiner Zustimmung zu den Windows-Diagnosedaten übertragen.
 
 ## Was tatsächlich passiert

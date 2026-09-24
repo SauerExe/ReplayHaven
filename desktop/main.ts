@@ -17,8 +17,8 @@ import { FolderUploader, recordedGames } from '../agent/watcher';
 import { LocalAnalyzer, checkOllama, pullModel, DEFAULT_MODEL, OLLAMA_URL } from '../agent/ollama';
 import { playerNamesSchema, savedPlayerNames, tidyPlayerNames } from '../agent/players';
 import { defaultDemosFolder, FortniteReplays } from '../agent/fortnite';
-import { missingLibrary, TextReader } from '../agent/ocr';
-import { ClipTexts } from '../agent/r6';
+import { missingLibrary } from '../agent/ocr';
+import { WorkerTexts } from '../agent/r6';
 import { MediaProcessor } from '../server/media';
 
 const configSchema = z.object({
@@ -59,6 +59,7 @@ let quitting = false;
 let agent: FolderUploader | undefined;
 let loop: ReturnType<typeof setInterval> | undefined;
 let working = false;
+let starting = false;
 let paused = true;
 let aborter = new AbortController();
 let downloadAbort: AbortController | undefined;
@@ -133,22 +134,32 @@ const ocrModels = () => ({
   rec: join(resource('ocr'), 'ch_PP-OCRv4_rec_infer.onnx'),
   keys: join(resource('ocr'), 'ppocr_keys_v1.txt'),
 });
+/** Die Texterkennung läuft in einem eigenen Thread und bleibt über Starts hinweg geladen. */
+let texts: WorkerTexts | undefined;
+function textsWorker() {
+  const binaries = resource('binaries');
+  texts ??= new WorkerTexts({
+    script: resource('r6-worker.cjs'),
+    data: {
+      models: ocrModels(),
+      runtime: resource('onnxruntime'),
+      ffmpeg: join(binaries, 'ffmpeg.exe'),
+      ffprobe: join(binaries, 'ffprobe.exe'),
+    },
+  });
+  return texts;
+}
 /**
  * Lädt die Texterkennung einmal zur Probe: vor dem Start mit R6-Option und im Rauchtest des
  * fertigen Clients. Gibt nichts zurück, wenn sie bereit ist, sonst einen Hinweis zum Beheben.
  */
 async function textsProblem() {
-  try {
-    const reader = await TextReader.load(ocrModels(), 1, resource('onnxruntime'));
-    await reader.read({ width: 64, height: 32, data: new Uint8Array(64 * 32 * 3) });
-    await reader.close();
-    return undefined;
-  } catch (error) {
-    const message = error instanceof Error ? error.message.trim() : 'unbekannt';
-    return missingLibrary(error)
-      ? `Die R6-Texterkennung braucht die „Microsoft Visual C++ Redistributable“ (x64) in einer aktuellen Fassung. Installiere sie von Microsoft oder schalte die Option aus. (${message})`
-      : `Die R6-Texterkennung lässt sich nicht laden: ${message}`;
-  }
+  const error = await textsWorker().problem();
+  if (!error) return undefined;
+  const message = error.message.trim() || 'unbekannt';
+  return missingLibrary(error)
+    ? `Die R6-Texterkennung braucht die „Microsoft Visual C++ Redistributable“ (x64) in einer aktuellen Fassung. Installiere sie von Microsoft oder schalte die Option aus. (${message})`
+    : `Die R6-Texterkennung lässt sich nicht laden: ${message}`;
 }
 function media() {
   const binaries = resource('binaries');
@@ -176,6 +187,16 @@ async function tick() {
   }
 }
 async function start() {
+  // Die Prüfungen vor dem Start dauern; ein zweiter Klick startete sonst eine zweite Verarbeitung.
+  if (starting) throw new Error('Der Start läuft bereits.');
+  starting = true;
+  try {
+    await launch();
+  } finally {
+    starting = false;
+  }
+}
+async function launch() {
   if (!config.folder) throw new Error('Wähle zuerst deinen NVIDIA-Aufnahmeordner.');
   if (working) throw new Error('Der laufende Schritt wird noch beendet.');
   const response = await fetch(`${config.server}/api/status`, {
@@ -197,10 +218,12 @@ async function start() {
     config.analyze && config.fortniteReplays && defaultDemosFolder()
       ? new FortniteReplays({ folder: defaultDemosFolder(), accounts: config.epicAccounts })
       : undefined;
-  const texts =
-    config.analyze && config.r6Texts
-      ? new ClipTexts({ media: processor, models: ocrModels(), runtime: resource('onnxruntime') })
-      : undefined;
+  const reading = config.analyze && config.r6Texts ? textsWorker() : undefined;
+  // Ohne die Option gibt der Worker seine Modelle frei.
+  if (!reading && texts) {
+    void texts.close();
+    texts = undefined;
+  }
   const analyzer = new LocalAnalyzer({
     url: OLLAMA_URL,
     model: DEFAULT_MODEL,
@@ -216,10 +239,10 @@ async function start() {
             replays.forClip(path, game, duration),
         }
       : {}),
-    ...(texts
+    ...(reading
       ? {
           texts: (path: string, game: string, signal: AbortSignal) =>
-            texts.forClip(path, game, signal),
+            reading.forClip(path, game, signal),
         }
       : {}),
     onProgress: (message) => emit({ message }),
@@ -411,5 +434,6 @@ else {
     aborter.abort();
     downloadAbort?.abort();
     if (loop) clearInterval(loop);
+    void texts?.close();
   });
 }

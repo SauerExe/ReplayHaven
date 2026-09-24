@@ -16,6 +16,18 @@ await build({
   external: ['electron', 'ffmpeg-static', '@ffprobe-installer/ffprobe'],
   logOverride: { 'empty-import-meta': 'silent' },
 });
+// Die Texterkennung läuft in einem Worker-Thread (agent/r6.ts). Die Datei liegt wie ONNX Runtime
+// neben dem App-Archiv, sodass der Worker sie ohne asar-Unterstützung lädt.
+await build({
+  entryPoints: ['agent/r6-worker.ts'],
+  outfile: 'desktop-bundle/r6-worker.cjs',
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'cjs',
+  external: ['ffmpeg-static', '@ffprobe-installer/ffprobe'],
+  logOverride: { 'empty-import-meta': 'silent' },
+});
 await build({
   entryPoints: ['desktop/preload.ts'],
   outfile: 'desktop-bundle/preload.cjs',
