@@ -127,7 +127,7 @@ jobs:
             echo "Install \`ReplayHaven-Client-Setup.exe\` on the gaming PC, or download it later from the server's Devices page."
             echo "The installer is not code-signed yet, so Windows SmartScreen asks for confirmation."
           } > assets/NOTES.md
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         if: env.PUBLISH == 'true'
         with:
           body_path: assets/NOTES.md
