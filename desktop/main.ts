@@ -13,8 +13,9 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { FolderUploader } from '../agent/watcher';
+import { FolderUploader, recordedGames } from '../agent/watcher';
 import { LocalAnalyzer, checkOllama, pullModel, DEFAULT_MODEL, OLLAMA_URL } from '../agent/ollama';
+import { playerNamesSchema, savedPlayerNames, tidyPlayerNames } from '../agent/players';
 import { MediaProcessor } from '../server/media';
 
 const configSchema = z.object({
@@ -22,8 +23,9 @@ const configSchema = z.object({
   server: z.string().url().max(500),
   token: z.string().max(1000).default(''),
   game: z.string().max(100),
-  // Ohne eigenen Namen kann die KI Kills und Punktestände der falschen Seite zuordnen.
-  playerName: z.string().max(60).default(''),
+  // Ohne eigenen Namen kann die KI Kills und Punktestände der falschen Seite zuordnen. Je Spiel
+  // ein eigener Name; ein Eintrag ohne Spiel gilt überall (agent/players.ts).
+  playerNames: playerNamesSchema.default([]),
   includeExisting: z.boolean(),
   analyze: z.boolean(),
   frames: z.union([z.literal(24), z.literal(48)]),
@@ -34,7 +36,7 @@ let config: ClientConfig = {
   server: 'http://localhost:8787',
   token: '',
   game: '',
-  playerName: '',
+  playerNames: [],
   includeExisting: false,
   analyze: true,
   frames: 24,
@@ -48,6 +50,8 @@ let working = false;
 let paused = true;
 let aborter = new AbortController();
 let downloadAbort: AbortController | undefined;
+/** Zuletzt im Dialog gewählter Ordner, auch wenn er noch nicht gespeichert ist. */
+let pickedFolder = '';
 let status = {
   running: false,
   paused: true,
@@ -81,6 +85,7 @@ function validateServer(value: string) {
 async function saveConfig(value: unknown) {
   const input = configSchema.parse(value);
   input.server = validateServer(input.server);
+  input.playerNames = tidyPlayerNames(input.playerNames);
   if (working)
     throw new Error('Pausiere den Client und warte, bis der laufende Schritt beendet ist.');
   if (status.running && !paused)
@@ -150,7 +155,7 @@ async function start() {
     media: processor,
     isPaused: () => paused,
     signal: aborter.signal,
-    playerName: config.playerName,
+    playerNames: config.playerNames,
     onProgress: (message) => emit({ message }),
   });
   const stateName = createHash('sha256')
@@ -250,6 +255,7 @@ else {
         const saved = JSON.parse(await readFile(join(root(), 'preferences.json'), 'utf8'));
         config = configSchema.parse({
           ...saved,
+          playerNames: savedPlayerNames(saved),
           token: saved.encryptedToken
             ? safeStorage.decryptString(Buffer.from(saved.encryptedToken, 'base64'))
             : '',
@@ -276,7 +282,14 @@ else {
           properties: ['openDirectory'],
           title: 'NVIDIA-Aufnahmeordner auswählen',
         });
-        return result.canceled ? null : result.filePaths[0];
+        if (result.canceled) return null;
+        pickedFolder = result.filePaths[0];
+        return pickedFolder;
+      });
+      // Nur Ordner, die der Nutzer selbst gewählt hat — keine Pfade aus dem Fenster.
+      handle('vault:games', async () => {
+        const folder = pickedFolder || config.folder;
+        return folder ? await recordedGames(folder).catch(() => []) : [];
       });
       handle('vault:start', () => start());
       handle('vault:pause', () => pause());

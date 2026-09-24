@@ -41,6 +41,8 @@ Danach die Serveradresse im Browser öffnen → **Einstellungen → KI & Server*
 
 Aktiviere **Vorhandene Aufnahmen beim ersten Start mitnehmen**, bevor du erstmals startest, wenn du alte Clips ebenfalls importieren möchtest. Sonst werden sie als übersprungen vorgemerkt. Diese Auswahl gilt pro Aufnahmeordner und Server. Der Spielname ist optional; ohne Eingabe dient der Unterordnername als Hinweis für die KI.
 
+Unter **Deine Spielernamen** trägst du ein, wie du im Spiel heißt. Heißt du je Spiel anders, bekommt jeder Name sein Spiel; vorgeschlagen werden die Spielordner deiner Aufnahmen, damit Eintrag und Ordner zusammenpassen. Ein Name ohne Spiel gilt überall. Die KI erfährt nur die Namen, die zum Spiel des Clips passen, und erkennt daran im Killfeed, welche Seite deine ist.
+
 Der Installer ist derzeit nicht mit einem Herausgeberzertifikat signiert. Windows SmartScreen fragt deshalb einmal nach.
 
 ## 3. Wie bisher aufnehmen

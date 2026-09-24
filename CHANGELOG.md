@@ -24,6 +24,9 @@ All notable changes to this project are documented here. The format follows
   otherwise a plain event title.
 - A new analysis of an already archived clip replaces the previous analysis and its tags;
   titles and tags you set yourself are kept.
+- The Windows client keeps a list of your in-game names instead of a single one. Each name can
+  be tied to a game, suggested from the game folders of your recordings; the analysis tells the
+  model only the names for the clip's game. A name from earlier versions applies to every game.
 
 ### Fixed
 

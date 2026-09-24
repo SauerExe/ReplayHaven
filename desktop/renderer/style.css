@@ -179,6 +179,46 @@ input::placeholder {
 .input-row input {
   height: 37px;
 }
+.names {
+  border: 0;
+  padding: 0;
+  margin: 0 0 15px;
+  min-width: 0;
+}
+.names legend {
+  padding: 0;
+  font-size: 11px;
+  color: #d4d9e3;
+  line-height: 1.6;
+}
+.names legend small {
+  color: #939bb0;
+  font-size: 10px;
+}
+.name-rows {
+  display: grid;
+  gap: 7px;
+  margin-top: 7px;
+}
+.name-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.name-row input {
+  margin-top: 0;
+}
+.remove-name {
+  width: 37px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+}
+.add-name {
+  margin-top: 8px;
+  padding: 7px 10px;
+  font-size: 10px;
+}
 .check {
   display: flex;
   align-items: center;

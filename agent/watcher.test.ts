@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
-import { FolderUploader, gameLabel } from './watcher';
+import { FolderUploader, gameLabel, recordedGames } from './watcher';
 import type { WatchOptions } from './watcher';
 let root: string;
 let options: WatchOptions;
@@ -110,4 +110,15 @@ it('takes the game only from the folder or the explicit setting, and tidies spac
   );
   expect(gameLabel('', join('G:', 'Clips', 'Desktop', 'a.mp4'))).toBe('Desktop');
   expect(gameLabel('  Mein Spiel ', join('G:', 'Clips', 'Valorant', 'a.mp4'))).toBe('Mein Spiel');
+});
+
+it('suggests the games of existing recordings by the folder the analysis sees', async () => {
+  await mkdir(join(options.folder, 'Call of Duty  Black Ops 7'));
+  await mkdir(join(options.folder, 'Fortnite', 'Unterordner'), { recursive: true });
+  await mkdir(join(options.folder, 'Leer'));
+  await writeFile(join(options.folder, 'Call of Duty  Black Ops 7', 'a.mp4'), 'x');
+  await writeFile(join(options.folder, 'Fortnite', 'b.mp4'), 'x');
+  await writeFile(join(options.folder, 'Fortnite', 'c.mkv'), 'x');
+  await writeFile(join(options.folder, 'Fortnite', 'Unterordner', 'd.txt'), 'x');
+  expect(await recordedGames(options.folder)).toEqual(['Call of Duty Black Ops 7', 'Fortnite']);
 });

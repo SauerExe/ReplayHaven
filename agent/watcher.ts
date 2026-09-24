@@ -52,6 +52,14 @@ export function gameLabel(configured: string, path: string) {
   const name = configured.trim() || basename(dirname(path));
   return name.replace(/\s+/g, ' ').trim();
 }
+/**
+ * Die Spiele der vorhandenen Aufnahmen, so benannt, wie die Analyse sie sieht: nach dem Ordner
+ * des Clips. Der Client schlägt sie für die Spielernamen vor, damit Eintrag und Ordner passen.
+ */
+export async function recordedGames(folder: string): Promise<string[]> {
+  const games = new Set((await listVideos(folder)).map((path) => gameLabel('', path)));
+  return [...games].filter(Boolean).sort((a, b) => a.localeCompare(b, 'de'));
+}
 export class FolderUploader {
   state: AgentState = { id: randomUUID(), receipts: {}, uploaded: 0 };
   private observed = new Map<string, { fingerprint: string; since: number }>();

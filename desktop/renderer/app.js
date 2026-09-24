@@ -7,13 +7,60 @@ async function call(action, value) {
 function error(message = '') {
   $('error').textContent = message;
 }
+/** Eine Zeile der Namensliste: Name, Spiel (leer = alle Spiele) und Entfernen. */
+function addNameRow(entry = { name: '', game: '' }) {
+  const row = document.createElement('div');
+  row.className = 'name-row';
+  const name = document.createElement('input');
+  name.className = 'player-name';
+  name.maxLength = 60;
+  name.placeholder = 'Name im Spiel';
+  name.setAttribute('aria-label', 'Spielername');
+  name.value = entry.name;
+  const game = document.createElement('input');
+  game.className = 'player-game';
+  game.maxLength = 100;
+  game.placeholder = 'Alle Spiele';
+  game.setAttribute('aria-label', 'Spiel zu diesem Namen');
+  game.setAttribute('list', 'game-suggestions');
+  game.value = entry.game;
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'secondary remove-name';
+  remove.textContent = '×';
+  remove.title = 'Namen entfernen';
+  remove.setAttribute('aria-label', 'Namen entfernen');
+  remove.onclick = () => {
+    row.remove();
+    if (!$('player-names').children.length) addNameRow();
+  };
+  row.append(name, game, remove);
+  $('player-names').append(row);
+  return name;
+}
+function playerNames() {
+  return [...$('player-names').querySelectorAll('.name-row')]
+    .map((row) => ({
+      name: row.querySelector('.player-name').value.trim(),
+      game: row.querySelector('.player-game').value.trim(),
+    }))
+    .filter((entry) => entry.name);
+}
+/** Spiele aus dem Aufnahmeordner als Vorschläge, damit Eintrag und Ordnername zusammenpassen. */
+async function suggestGames() {
+  const games = new Set(await call('games'));
+  if ($('game').value.trim()) games.add($('game').value.trim());
+  $('game-suggestions').replaceChildren(
+    ...[...games].map((game) => Object.assign(document.createElement('option'), { value: game })),
+  );
+}
 function settings() {
   return {
     folder: $('folder').value,
     server: $('server').value,
     token: $('token').value,
     game: $('game').value,
-    playerName: $('player-name').value,
+    playerNames: playerNames(),
     includeExisting: $('include-existing').checked,
     analyze: $('analyze').checked,
     frames: Number($('frames').value),
@@ -51,7 +98,10 @@ $('pick-folder').onclick = () =>
   run(async () => {
     const folder = await call('folder');
     if (folder) $('folder').value = folder;
+    await suggestGames();
   });
+$('add-name').onclick = () => addNameRow().focus();
+$('game').onchange = () => run(suggestGames);
 $('save').onclick = () =>
   run(async () => {
     const result = await call('save', settings());
@@ -76,7 +126,8 @@ window.vault.onStatus(render);
 void run(async () => {
   const { config, status } = await call('load');
   for (const key of ['folder', 'server', 'game']) $(key).value = config[key];
-  $('player-name').value = config.playerName || '';
+  for (const entry of config.playerNames) addNameRow(entry);
+  if (!config.playerNames.length) addNameRow();
   $('include-existing').checked = config.includeExisting;
   $('analyze').checked = config.analyze;
   $('frames').value = String(config.frames);
@@ -84,4 +135,5 @@ void run(async () => {
     $('token-info').textContent =
       'Zugangsschlüssel ist gespeichert. Leer lassen, um ihn beizubehalten.';
   render(status);
+  await suggestGames();
 });

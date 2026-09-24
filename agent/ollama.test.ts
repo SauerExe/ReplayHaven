@@ -167,6 +167,85 @@ it('never focuses a loading screen and names the player only when known', async 
   }
 });
 
+it('names only the player names that belong to the clip game', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
+  try {
+    const media = new MediaProcessor({});
+    vi.spyOn(media, 'probe').mockResolvedValue({
+      duration: 15,
+      width: 1920,
+      height: 1080,
+      codec: 'h264',
+      hasAudio: true,
+    });
+    vi.spyOn(media, 'frames').mockResolvedValue(
+      Array.from({ length: 4 }, (_, i) => ({ seconds: i * 4, base64: `bild-${i}` })),
+    );
+    vi.spyOn(media, 'frameAt').mockResolvedValue('focus-image');
+    const prompts: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string);
+        if (!body.messages.length) return Response.json({ done: true });
+        prompts.push(body.messages[0]?.content ?? '');
+        if (!body.format?.properties?.frames)
+          return Response.json({ message: { content: JSON.stringify(validResult) } });
+        return Response.json({
+          message: {
+            content: JSON.stringify({
+              frames: imagesOf(body).map((_: string, frame: number) => ({
+                frame,
+                kind: 'gameplay',
+                observation: 'Bild',
+                visibleText: '',
+              })),
+            }),
+          },
+        });
+      }),
+    );
+    const traces: AnalysisTrace[] = [];
+    const analyzer = new LocalAnalyzer({
+      url: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      frames: 24,
+      cacheDir: root,
+      media,
+      isPaused: () => false,
+      onTrace: (trace) => traces.push(trace),
+      playerNames: [
+        { name: 'SpielerEins', game: 'Fortnite' },
+        { name: 'SpielerZwei', game: "Tom Clancy's Rainbow Six Siege" },
+        { name: 'SpielerDrei', game: 'R6' },
+      ],
+    });
+    await analyzer.analyze('Fortnite/clip.mp4', 'Fortnite');
+    // Mit genau einem Namen bleibt der Satz wie bisher.
+    expect(prompts.at(-1)).toContain('Er spielt als "SpielerEins"');
+    expect(prompts.at(-1)).not.toContain('SpielerZwei');
+    expect(traces.at(-1)?.playerNames).toEqual(['SpielerEins']);
+
+    await analyzer.analyze('R6/clip.mp4', "Tom Clancy's Rainbow Six Siege");
+    expect(prompts.at(-1)).toContain('einem dieser Namen: "SpielerZwei", "SpielerDrei"');
+    expect(prompts.at(-1)).not.toContain('SpielerEins');
+
+    await analyzer.analyze('Valorant/clip.mp4', 'VALORANT');
+    expect(prompts.at(-1)).toContain('Spielername ist unbekannt');
+    expect(traces.at(-1)?.playerNames).toEqual([]);
+
+    // Der frühere Einzelname gilt weiter, in jedem Spiel.
+    await new LocalAnalyzer({ ...analyzer.options, playerName: 'SpielerVier' }).analyze(
+      'Valorant/clip.mp4',
+      'VALORANT',
+    );
+    expect(prompts.at(-1)).toContain('Er spielt als "SpielerVier"');
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});
+
 it.each([
   ['Gegner in der Halle ausgeschaltet', 'Gegner in der Halle ausgeschaltet'],
   // Besteht auch die zweite Fassung nicht, trägt das belegte Ereignis den Titel.

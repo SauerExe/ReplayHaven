@@ -47,14 +47,19 @@
             ><input
               id="game"
               maxlength="100"
-              placeholder="Sonst wird der Unterordner als Hinweis verwendet" /></label
-          ><label
-            >Dein Spielername <small>(optional)</small
-            ><input
-              id="player-name"
-              maxlength="60"
-              placeholder="Damit die KI erkennt, welche Seite deine ist" /></label
-          ><label class="check"
+              placeholder="Sonst wird der Unterordner als Hinweis verwendet"
+          /></label>
+          <fieldset class="names">
+            <legend>Deine Spielernamen <small>(optional)</small></legend>
+            <div id="player-names" class="name-rows"></div>
+            <datalist id="game-suggestions"></datalist>
+            <button id="add-name" type="button" class="secondary add-name">+ Weiteren Namen</button>
+            <p class="hint">
+              Heißt du je Spiel anders, trag jeden Namen mit seinem Spiel ein. Ohne Spiel gilt ein
+              Name überall. So erkennt die KI, welche Seite deine ist.
+            </p>
+          </fieldset>
+          <label class="check"
             ><input id="include-existing" type="checkbox" />Vorhandene Aufnahmen beim ersten Start
             mitnehmen</label
           >

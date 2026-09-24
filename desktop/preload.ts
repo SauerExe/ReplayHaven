@@ -3,6 +3,7 @@ const actions = new Set([
   'load',
   'save',
   'folder',
+  'games',
   'start',
   'pause',
   'check',

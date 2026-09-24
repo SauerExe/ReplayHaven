@@ -19,6 +19,8 @@ import type { MediaProcessor } from '../server/media';
 import { collectEvents, describeFacts, eventWeight, headline, phrase, tagsFor } from './events';
 import type { GameEvent } from './events';
 import { cleanText, fallbackTitle, tidyHighlights, titleProblems, uncertaintyFor } from './wording';
+import { namesFor } from './players';
+import type { PlayerName } from './players';
 
 export const DEFAULT_MODEL = 'qwen3-vl:8b';
 export const OLLAMA_URL = 'http://127.0.0.1:11434';
@@ -52,6 +54,8 @@ export interface AnalysisTrace {
   lostFrames: number;
   /** Unbrauchbare Antworten der Sichtung, gekürzt — zur Fehlersuche. */
   rejected: string[];
+  /** Die eigenen Namen, die der Prompt für das Spiel des Clips nannte. */
+  playerNames: string[];
 }
 export interface LocalAnalyzerOptions {
   url: string;
@@ -63,7 +67,12 @@ export interface LocalAnalyzerOptions {
   onProgress?: (message: string) => void;
   onTrace?: (trace: AnalysisTrace) => void;
   signal?: AbortSignal;
-  /** Eigener Spielername, falls bekannt. Ohne ihn bleibt jede Aussage unpersönlich. */
+  /**
+   * Eigene Spielernamen, je Spiel oder für alle Spiele (agent/players.ts). Ohne sie bleibt jede
+   * Aussage darüber, wer wen ausgeschaltet hat, unpersönlich.
+   */
+  playerNames?: PlayerName[];
+  /** Ein Name für alle Spiele, wie in früheren Fassungen; gilt zusätzlich zu `playerNames`. */
   playerName?: string;
 }
 type Message = { role: 'user' | 'assistant'; content: string; images?: string[] };
@@ -203,6 +212,13 @@ export class LocalAnalyzer {
       titles: [],
       lostFrames: 0,
       rejected: [],
+      playerNames: namesFor(
+        [
+          ...(this.options.playerNames ?? []),
+          ...(this.options.playerName ? [{ name: this.options.playerName, game: '' }] : []),
+        ],
+        game,
+      ),
     };
     let modelMayBeLoaded = false;
     try {
@@ -268,10 +284,14 @@ export class LocalAnalyzer {
       // Die Aufnahme stammt vom Bildschirm des Nutzers — das gilt immer und ist stärker als
       // die Frage, ob sein Name irgendwo lesbar ist. Ohne diese Zuordnung beschreibt die KI
       // Bedienelemente statt Ereignisse (.docs/05-experimente.md, E12 und Hebel 5).
+      // Nur die Namen zum Spiel des Clips; mit genau einem Namen bleibt der Satz wie bisher.
+      const names = trace.playerNames;
       const identity = `Die Aufnahme stammt vom Bildschirm des Nutzers, du erzählst aus seiner Sicht in der Du-Form. Meldungen in seinem Blickfeld betreffen ihn selbst: "getötet von X" heißt, dass er von X ausgeschaltet wurde, nicht umgekehrt. ${
-        this.options.playerName
-          ? `Er spielt als ${JSON.stringify(this.options.playerName)}; steht dieser Name in einem Killfeed-Eintrag vor dem Waffensymbol, hat er den anderen ausgeschaltet, steht er dahinter, wurde er selbst ausgeschaltet.`
-          : 'Sein Spielername ist unbekannt, deshalb keine Aussage darüber, wer wen ausgeschaltet hat, wenn nur Namen zu sehen sind.'
+        names.length === 1
+          ? `Er spielt als ${JSON.stringify(names[0])}; steht dieser Name in einem Killfeed-Eintrag vor dem Waffensymbol, hat er den anderen ausgeschaltet, steht er dahinter, wurde er selbst ausgeschaltet.`
+          : names.length
+            ? `Er spielt unter einem dieser Namen: ${names.map((n) => JSON.stringify(n)).join(', ')}; steht einer davon in einem Killfeed-Eintrag vor dem Waffensymbol, hat er den anderen ausgeschaltet, steht er dahinter, wurde er selbst ausgeschaltet.`
+            : 'Sein Spielername ist unbekannt, deshalb keine Aussage darüber, wer wen ausgeschaltet hat, wenn nur Namen zu sehen sind.'
       } Folgt die Ansicht nach seinem Tod einem Mitspieler oder zeigt sie eine Zuschauerperspektive, ist unklar, wessen Sicht zu sehen ist — dann bleibe unpersönlich.`;
       const heads = headline(events, momentStart);
       const titleRule = heads.length
