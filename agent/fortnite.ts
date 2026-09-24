@@ -168,8 +168,8 @@ export interface OwnerResult {
  *   Wer zu Lebzeiten als Schütze ohne Standort vorkommt, war weit weg und ist nicht der Besitzer.
  * Entschieden wird nur mit mindestens drei Punkten und zwei Punkten Vorsprung, also nie allein
  * aus Wiederkehr: Die trennt den Besitzer nicht von festen Mitspielern. Im Teammodus (es gibt
- * Knocks) gibt es keine Entscheidung, sobald ein weiterer Spieler wiederkehrt: Lieber kein Konto
- * als die Kills eines Mitspielers. Dann hilft nur die eingetragene Konto-ID.
+ * Knocks oder Respawns) gibt es keine Entscheidung, sobald ein weiterer Spieler wiederkehrt:
+ * Lieber kein Konto als die Kills eines Mitspielers. Dann hilft nur die eingetragene Konto-ID.
  */
 export function resolveOwner(
   replay: Replay,
@@ -191,7 +191,13 @@ export function resolveOwner(
   const elims = replay.eliminations;
   // Ab Kapitel 2 kennt das Replay den Ort jedes Opfers; nur dann taugt ein fehlender Ort.
   const located = elims.length > 0 && elims.filter((e) => e.victimAt).length / elims.length >= 0.9;
-  const teams = elims.some((e) => e.knocked);
+  // Knocks gibt es nur im Teammodus, mehrfaches Ausscheiden nur mit Respawn (etwa Team Rumble).
+  const deaths = new Map<string, number>();
+  for (const e of elims) {
+    const id = idOf(e.victim);
+    if (id && !e.knocked) deaths.set(id, (deaths.get(id) ?? 0) + 1);
+  }
+  const teams = elims.some((e) => e.knocked) || [...deaths.values()].some((n) => n > 1);
   const scores = new Map<string, { score: number; basis: string[] }>();
   const add = (id: string, points: number, why: string) => {
     const entry = scores.get(id) ?? { score: 0, basis: [] };

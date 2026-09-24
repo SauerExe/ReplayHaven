@@ -404,6 +404,8 @@ it.each([
   ['Zwei schnelle Kills', double],
   ['Zwei Gegner mit der Schrotflinte ausgeschaltet', double],
   ['Snipe-Knock über 180 m', [replayed('knock', { weapon: 'sniper', distance: 183.4 })]],
+  // Eine Entfernung vor "Kill" ist keine Anzahl.
+  ['200 Meter Kill mit dem Sniper', [replayed('kill', { weapon: 'sniper', distance: 205 })]],
 ])('accepts the replay title %s', (title, events) => {
   expect(titleProblems(title, events, headline(events, 0))).toEqual([]);
 });
@@ -411,6 +413,14 @@ it.each([
 it.each([
   ['Dreifach-Kill mit der Schrotflinte', double, /3 Kills in Folge, belegt sind 2/],
   ['Drei Kills mit der Schrotflinte', double, /3 Kills, belegt sind 2/],
+  ['Drei-Kill-Serie', double, /3 Kills, belegt sind 2/],
+  ['Drei Knocks am Turm', [replayed('knock')], /3 Knocks, belegt sind 1/],
+  // Ein Knock deckt "Snipe" nur, wo der Titel ihn auch nennt.
+  [
+    'Snipe zur Victory Royale',
+    [replayed('knock', { weapon: 'shotgun', distance: 4 }), replayed('matchWon')],
+    /Kill/,
+  ],
   ['Snipe über 250 m', [snipe], /übertreibt die Entfernung/],
   ['Kill mit der Schrotflinte', [snipe], /andere Waffe/],
   ['Kill am Turm', [snipe], /Besondere/],

@@ -186,6 +186,24 @@ it('never takes a regular teammate for the owner in team matches', () => {
     ],
   });
   expect(resolveOwner(far, alone).id).toBeUndefined();
+  // Team Rumble: keine Knocks, aber Respawns. Der Mitspieler scheidet zum Matchende aus und hat so
+  // viele Kills wie die Statistik; als Solo gewertet gewänne er. Als Teammodus entscheidet nichts.
+  const rumble = replayOf({
+    eliminations: [
+      elim(1000, id('b2'), OWNER),
+      elim(2000, id('d4'), OWNER),
+      elim(2500, id('e5'), MATE),
+      elim(3000, OWNER, id('f6')),
+      elim(4000, id('g7'), OWNER),
+      elim(5000, id('b2'), MATE),
+      elim(6000, MATE, id('d4')),
+      elim(7000, id('e5'), MATE),
+      elim(9000, MATE, id('f6')),
+    ],
+    stats: stats(9000, 3),
+    team: { time: 9000, placement: 2, totalPlayers: 16 },
+  });
+  expect(resolveOwner(rumble, regulars).id).toBeUndefined();
 });
 
 it('excludes shooters whose position the replay never knew, and honours entered accounts', () => {

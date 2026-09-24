@@ -79,7 +79,7 @@ function exactClaims(text: string, events: GameEvent[], killed: boolean) {
   const problems: string[] = [];
   const kill = has(events, KILLS);
   // "Snipe-Knock über 180 m" beschreibt einen Knock, keinen Kill.
-  if (SNIPE.test(text) && !killed && !kill && !has(events, ['knock']))
+  if (SNIPE.test(text) && !killed && !kill && !(KNOCK.test(text) && has(events, ['knock'])))
     problems.push('behauptet einen Kill, den keine Meldung belegt');
   if (KNOCK.test(text) && !kill && !has(events, ['knock']))
     problems.push('behauptet einen Knock, den kein Ereignis belegt');
@@ -97,9 +97,14 @@ function exactClaims(text: string, events: GameEvent[], killed: boolean) {
     ),
   );
   if (series > counted) problems.push(`behauptet ${series} Kills in Folge, belegt sind ${counted}`);
-  const claimed = killsIn(text);
-  const kills = events.filter((e) => e.kind === 'kill').length;
-  if (claimed > kills) problems.push(`behauptet ${claimed} Kills, belegt sind ${kills}`);
+  for (const [kind, nouns, plural] of [
+    ['kill', KILL_NOUNS, 'Kills'],
+    ['knock', 'knocks?', 'Knocks'],
+  ] as const) {
+    const claimed = countIn(text, nouns);
+    const proven = events.filter((e) => e.kind === kind).length;
+    if (claimed > proven) problems.push(`behauptet ${claimed} ${plural}, belegt sind ${proven}`);
+  }
   const meters = distanceIn(text);
   const farthest = Math.max(0, ...events.map((e) => e.distance ?? 0));
   if (meters !== undefined && meters > farthest + 5)
@@ -168,13 +173,27 @@ function seriesIn(text: string) {
   return series.find(([pattern]) => pattern.test(text))?.[1] ?? 0;
 }
 
-const NUMBERS: Record<string, number> = { zwei: 2, drei: 3, vier: 4, fünf: 5 };
-/** Genannte Zahl an Kills: "Drei Kills in Folge", "zwei schnelle Abschüsse", "4 Kills". 0 sonst. */
-function killsIn(text: string) {
-  const match =
-    /\b(zwei|drei|vier|fünf|\d+)\s+(?:[\wäöüß-]+\s+)?(?:kills?|abschüsse|eliminierungen)\b/i.exec(
-      text,
-    );
+const NUMBERS: Record<string, number> = {
+  zwei: 2,
+  drei: 3,
+  vier: 4,
+  fünf: 5,
+  sechs: 6,
+  sieben: 7,
+  acht: 8,
+  neun: 9,
+  zehn: 10,
+};
+const KILL_NOUNS = 'kills?|abschüsse|eliminierungen';
+/**
+ * Genannte Anzahl vor einem Wort wie "Kills": "Drei Kills in Folge", "zwei schnelle Abschüsse",
+ * "Drei-Kill-Serie", "4 Kills". Entfernungen wie "200 Meter Kill" sind keine Anzahl. 0 ohne Angabe.
+ */
+function countIn(text: string, nouns: string) {
+  const match = new RegExp(
+    `(?<![\\wäöüß])(${Object.keys(NUMBERS).join('|')}|\\d{1,2})[\\s-]+(?!(?:m|meter[n]?)(?![\\wäöüß]))(?:[\\wäöüß]+[\\s-]+)?(?:${nouns})(?![\\wäöüß])`,
+    'i',
+  ).exec(text);
   return match ? (NUMBERS[match[1].toLowerCase()] ?? Number(match[1])) : 0;
 }
 
@@ -211,7 +230,7 @@ function mentionsDetail(title: string, event: GameEvent) {
   if (event.kind === 'multikill' && event.count)
     return (
       seriesIn(title) === Math.min(event.count, 5) ||
-      killsIn(title) === event.count ||
+      countIn(title, KILL_NOUNS) === event.count ||
       new RegExp(`\\b${countWord(event.count)}\\b`, 'i').test(title) ||
       title.includes(String(event.count))
     );
