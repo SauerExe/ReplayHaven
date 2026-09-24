@@ -181,12 +181,27 @@ describe('archive and client-analysis pipeline', () => {
       tags: ['Test'],
       analysis: { status: 'ready', provider: 'client', result },
     });
-    await send({
-      result: { ...result, title: 'Anderer Vorschlag' },
+    // Eine wiederholte Übertragung desselben Ergebnisses ändert nichts.
+    const stamp = vault.db.get(id)?.analysis?.updatedAt;
+    await send({ result, duration: 2, model: 'test-only' });
+    expect(vault.db.get(id)?.analysis?.updatedAt).toBe(stamp);
+    // Eine neue Analyse ersetzt die alte samt ihrer Tags; eigener Titel und eigene Tags bleiben.
+    await vault.app.inject({
+      method: 'PATCH',
+      url: `/api/clips/${id}`,
+      headers,
+      payload: { tags: ['Test', 'Eigen'] },
+    });
+    const replaced = await send({
+      result: { ...result, title: 'Anderer Vorschlag', tags: ['Neu'] },
       duration: 2,
       model: 'test-only',
     });
-    expect(vault.db.get(id)?.analysis?.result?.title).toBe('KI-Titel');
+    expect(replaced.json()).toMatchObject({
+      title: 'Mein Titel',
+      tags: ['Eigen', 'Neu'],
+      analysis: { result: { title: 'Anderer Vorschlag' } },
+    });
   });
   it('keeps originals after removal and persists metadata across server restarts', async () => {
     const original = vault.db.get(id)!.originalFile;
@@ -205,6 +220,10 @@ describe('archive and client-analysis pipeline', () => {
       duplicate: true,
       clip: { id, title: 'Mein Titel' },
     });
-    expect(vault.db.get(id)?.analysis?.result).toEqual(result);
+    expect(vault.db.get(id)?.analysis?.result).toEqual({
+      ...result,
+      title: 'Anderer Vorschlag',
+      tags: ['Neu'],
+    });
   });
 });

@@ -5,7 +5,7 @@ Self-hosted archive for your game clips.
 **Record as usual (NVIDIA App, OBS, Xbox Game Bar) → the Windows client names and describes the clip with a local vision model → your own server keeps the original and shows it in a cinematic web library.**
 
 - Originals are never renamed, moved or deleted on the gaming PC. The server keeps a copy forever.
-- AI runs on your gaming PC, not in the cloud: Ollama with Qwen3-VL 4B looks at frame samples and suggests title, summary, game, tags and highlight timestamps. Everything stays editable.
+- AI runs on your gaming PC, not in the cloud: Ollama with Qwen3-VL 8B reads frame samples and suggests title, summary and highlight timestamps. Tags come from what the game announces on screen (eliminations, deaths, round and match results) and titles are checked against them, so a clip where you win is not tagged as a death. Everything stays editable.
 - The server is a single Docker container: Node.js, SQLite and FFmpeg. No GPU needed. Runs on any Linux box, NAS or mini PC (x86-64 or arm64).
 - The web library has search, filters per game, collections, favourites, resume playback and a keyboard-friendly player. The interface language is currently German.
 
@@ -127,6 +127,7 @@ Tag a commit as `vX.Y.Z` and push the tag. The release workflow builds the Windo
 
 - One shared access key, no user accounts, no public share links yet. Keep the server in your LAN or behind HTTPS/VPN.
 - The analysis samples 24 or 48 frames per clip and does not listen to audio, so short events can be missed. Results are suggestions.
+- Event tags need an on-screen message. Games without kill or round banners (co-op, survival, sandbox) get a title and description but no event tags.
 - Collections, playback progress and display settings are stored per browser for now.
 - The web UI is German only. Translations are welcome.
 

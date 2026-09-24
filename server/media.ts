@@ -221,7 +221,11 @@ export class MediaProcessor {
     const names = (await readdir(folder)).filter((n) => pattern.test(n)).sort();
     return Promise.all(
       names.map(async (name, i) => ({
-        seconds: Math.min(duration, start + i * interval),
+        // Der fps-Filter rundet auf das nächste Ausgabebild und liefert je Abschnitt das Bild aus
+        // dessen Mitte. Beschriftet war der Abschnittsanfang — Ereignisse, Zeitmarken und das
+        // Fokusbild lagen dadurch einen halben Schritt zu früh, am Clipanfang 5,6 s
+        // (.docs/05-experimente.md, E18, Nebenbefund).
+        seconds: Math.min(duration, start + (i + 0.5) * interval),
         base64: (await readFile(join(folder, name))).toString('base64'),
       })),
     );

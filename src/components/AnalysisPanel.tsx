@@ -130,7 +130,8 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
               className="text-button"
               onClick={() =>
                 patchClip(clip.id, {
-                  gameName: result.game || clip.gameName,
+                  // Der Ordnername ist die verlässlichere Quelle; die Schätzung füllt nur Lücken.
+                  gameName: clip.gameName || result.game,
                   tags: [...new Set([...clip.tags, ...result.tags])].slice(0, 20),
                 })
               }

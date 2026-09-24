@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { LocalAnalyzer, PausedError, validateLocalOllama } from './ollama';
+import type { AnalysisTrace } from './ollama';
 import { MediaProcessor } from '../server/media';
 import { mkdtemp, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -75,16 +76,13 @@ it('sends sequential small image batches followed by a text summary, validates r
     });
     const output = await analyzer.analyze('test-only.mp4', 'Spiel');
     // Zwei Sichtungspakete zu vier Bildern, dann die Zusammenfassung mit genau einem
-    // Belegbild in voller Auflösung statt wie früher ganz ohne Bild.
-    expect(requests.map((r) => imagesOf(r).length)).toEqual([4, 4, 1]);
-    expect(requests.map((r) => r.keep_alive)).toEqual([60, 60, 0]);
-    // Die Zusammenfassung bindet die Tags an das Vokabular, damit Filter in der Bibliothek
-    // greifen; freie Tags bleiben nur beim Bearbeiten von Hand erlaubt.
-    const summaryTags = (
-      requests.at(-1)?.format as { properties?: { tags?: { items?: { enum?: string[] } } } }
-    )?.properties?.tags?.items?.enum;
-    expect(summaryTags).toContain('Clutch');
-    expect(summaryTags).toContain('Kein Ereignis');
+    // Belegbild in voller Auflösung, zuletzt das Entladen des Modells.
+    expect(requests.map((r) => imagesOf(r).length)).toEqual([4, 4, 1, 0]);
+    expect(requests.map((r) => r.keep_alive)).toEqual([60, 60, 60, 0]);
+    // Tags wählt das Modell nicht mehr; ohne gelesene Meldung gibt es keine.
+    expect(requests[2].format.properties).not.toHaveProperty('tags');
+    expect(output.result.tags).toEqual([]);
+    expect(output.result.game).toBe('Spiel');
     expect(output.result.confidence).toBe('medium');
     expect(await readdir(root)).toHaveLength(0);
     const paused = new LocalAnalyzer({ ...analyzer.options, isPaused: () => true });
@@ -121,6 +119,7 @@ it('never focuses a loading screen and names the player only when known', async 
       'fetch',
       vi.fn(async (_url: string, init: RequestInit) => {
         const body = JSON.parse(init.body as string);
+        if (!body.messages.length) return Response.json({ done: true });
         prompts.push(body.messages[0]?.content ?? '');
         if (!body.format?.properties?.frames)
           return Response.json({ message: { content: JSON.stringify(validResult) } });
@@ -162,6 +161,168 @@ it('never focuses a loading screen and names the player only when known', async 
     );
     expect(prompts.at(-1)).toContain('SpielerEins');
     expect(prompts.at(-1)).toContain('Killfeed-Eintrag');
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});
+
+it.each([
+  ['Gegner in der Halle ausgeschaltet', 'Gegner in der Halle ausgeschaltet'],
+  // Besteht auch die zweite Fassung nicht, trägt das belegte Ereignis den Titel.
+  ['Tod am Ende', 'Gegner ausgeschaltet'],
+])(
+  'survives misnumbered batches, tags what the screen proves, and corrects a contradicting title (%s)',
+  async (secondTitle, expectedTitle) => {
+    const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
+    try {
+      const media = new MediaProcessor({});
+      vi.spyOn(media, 'probe').mockResolvedValue({
+        duration: 20,
+        width: 1920,
+        height: 1080,
+        codec: 'h264',
+        hasAudio: true,
+      });
+      vi.spyOn(media, 'frames').mockResolvedValue(
+        Array.from({ length: 8 }, (_, i) => ({ seconds: i * 2.5, base64: `bild-${i}` })),
+      );
+      vi.spyOn(media, 'frameAt').mockResolvedValue('focus-image');
+      const summaries: {
+        format: { properties: Record<string, unknown> };
+        messages: { role: string; content: string }[];
+      }[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (_url: string, init: RequestInit) => {
+          const body = JSON.parse(init.body as string);
+          if (!body.messages.length) return Response.json({ done: true });
+          const images = imagesOf(body);
+          if (body.format?.properties?.frames) {
+            const offset = Number(images[0].split('-')[1]);
+            // Wie im Vorher-Lauf beobachtet: das Modell zählt über Pakete hinweg weiter.
+            return Response.json({
+              message: {
+                content: JSON.stringify({
+                  frames: images.map((_: string, i: number) => ({
+                    frame: offset + i,
+                    kind: 'gameplay',
+                    observation: 'Spielansicht',
+                    visibleText: offset + i === 6 ? 'ELIMINIERT: Gegner' : '',
+                  })),
+                }),
+              },
+            });
+          }
+          summaries.push(body);
+          const title = summaries.length === 1 ? 'Tod durch Feuerwaffe' : secondTitle;
+          return Response.json({
+            message: {
+              thinking: JSON.stringify({
+                title,
+                description: 'Du triffst den Gegner. Bildstichprobe aus Sekunde 15.00.',
+                uncertainty: 'Die Beobachtungen sind unzuverlässig.',
+                highlights: [{ seconds: 16, title: 'Tod durch Feuerwaffe', description: '' }],
+              }),
+            },
+          });
+        }),
+      );
+      const output = await new LocalAnalyzer({
+        url: 'http://127.0.0.1:11434',
+        model: 'test-model',
+        frames: 24,
+        cacheDir: root,
+        media,
+        isPaused: () => false,
+      }).analyze('Fortnite 2025.02.14 - 16.55.58.18.Eliminierung.DVR.mp4', 'Fortnite');
+      expect(summaries[0].messages[0].content).toContain('Du hast einen Gegner ausgeschaltet');
+      expect(summaries[1].messages.at(-1)?.content).toContain('behauptet deinen Tod');
+      expect(output.result).toMatchObject({
+        title: expectedTitle,
+        tags: ['Kill'],
+        confidence: 'high',
+        description: 'Du triffst den Gegner.',
+        uncertainty: '',
+        highlights: [{ seconds: 15, title: 'Gegner ausgeschaltet' }],
+      });
+    } finally {
+      if (
+        resolve(root).startsWith(resolve(tmpdir()) + sep) &&
+        root.includes('replayhaven-analysis-')
+      )
+        await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it('retries a batch with the wrong number of frames and keeps what it can', async () => {
+  // Im Nachher-Lauf vom 2026-09-23 kam dieser Fehler als ZodError, der in zod 4 kein
+  // instanceof Error ist — die Wiederholung griff deshalb nie (.docs/05-experimente.md, E17).
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
+  try {
+    const media = new MediaProcessor({});
+    vi.spyOn(media, 'probe').mockResolvedValue({
+      duration: 20,
+      width: 1920,
+      height: 1080,
+      codec: 'h264',
+      hasAudio: true,
+    });
+    vi.spyOn(media, 'frames').mockResolvedValue(
+      Array.from({ length: 8 }, (_, i) => ({ seconds: i * 2.5, base64: `bild-${i}` })),
+    );
+    vi.spyOn(media, 'frameAt').mockResolvedValue('focus-image');
+    const batchCalls: number[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string);
+        if (!body.messages.length) return Response.json({ done: true });
+        if (!body.format?.properties?.frames)
+          return Response.json({ message: { content: JSON.stringify(validResult) } });
+        const images = imagesOf(body);
+        const offset = Number(images[0].split('-')[1]);
+        batchCalls.push(offset);
+        // Das erste Paket kommt zweimal mit einem Bild zu wenig zurück.
+        const listed = offset === 0 ? images.slice(0, 3) : images;
+        return Response.json({
+          message: {
+            content: JSON.stringify({
+              frames: listed.map((_: string, frame: number) => ({
+                frame,
+                kind: 'gameplay',
+                observation: `Bild ${offset + frame}`,
+                visibleText: '',
+              })),
+            }),
+          },
+        });
+      }),
+    );
+    let trace: AnalysisTrace | undefined;
+    const output = await new LocalAnalyzer({
+      url: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      frames: 24,
+      cacheDir: root,
+      media,
+      isPaused: () => false,
+      onTrace: (t) => (trace = t),
+    }).analyze('test-only.mp4', 'Valorant');
+    expect(batchCalls).toEqual([0, 0, 4]);
+    expect(trace?.lostFrames).toBe(1);
+    expect(trace?.frames.map((f) => f.observation)).toEqual([
+      'Bild 0',
+      'Bild 1',
+      'Bild 2',
+      '',
+      'Bild 4',
+      'Bild 5',
+      'Bild 6',
+      'Bild 7',
+    ]);
+    expect(output.result.uncertainty).toMatch(/nicht auswerten/);
   } finally {
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
       await rm(root, { recursive: true, force: true });
@@ -298,7 +459,11 @@ it.each(['pause', 'abort', 'invalid-json', 'http-error', 'summary-error', 'unloa
       else if (failure === 'invalid-json')
         await expect(analysis).rejects.toBeInstanceOf(SyntaxError);
       else await expect(analysis).rejects.toBe(originalError);
-      expect(inferenceCalls).toBe(failure === 'summary-error' ? 3 : 1);
+      // Unlesbare Antworten werden einmal wiederholt. Gehen danach mehr als ein Viertel der
+      // Bilder verloren, bricht die Analyse ab, statt ein Ergebnis aus Lücken zu liefern.
+      expect(inferenceCalls).toBe(
+        failure === 'summary-error' ? 3 : failure === 'invalid-json' ? 2 : 1,
+      );
       expect(unloadCalls).toBe(1);
       expect(await readdir(root)).toHaveLength(0);
     } finally {

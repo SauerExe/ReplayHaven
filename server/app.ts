@@ -273,14 +273,24 @@ export async function buildServer(
     const result = parseAnalysis(JSON.stringify(payload.result), actual.duration);
     const latest = db.get(id)!;
     if (latest.deleted) return reply.code(404).send({ error: 'Clip wurde entfernt.' });
-    if (latest.analysis?.provider === 'client' && latest.analysis.status === 'ready')
-      return publicClip(latest);
+    const previous =
+      latest.analysis?.provider === 'client' && latest.analysis.status === 'ready'
+        ? latest.analysis.result
+        : undefined;
+    // Wiederholte Übertragung desselben Ergebnisses ändert nichts. Eine neue Analyse ersetzt
+    // dagegen die alte: sonst behielte das Archiv die Titel und Tags früherer Fassungen für immer.
+    if (previous && JSON.stringify(previous) === JSON.stringify(result)) return publicClip(latest);
+    // Die Tags der vorigen Analyse gehen, eigene Tags bleiben.
+    const stale = new Set(previous?.tags ?? []);
     return publicClip(
       db.patch(id, {
         expectsClientAnalysis: true,
         ...(db.settings().autoTitle && !latest.userEditedTitle ? { title: result.title } : {}),
         gameName: latest.gameName || result.game,
-        tags: [...new Set([...latest.tags, ...result.tags])].slice(0, 20),
+        tags: [...new Set([...latest.tags.filter((t) => !stale.has(t)), ...result.tags])].slice(
+          0,
+          20,
+        ),
         analysis: {
           status: 'ready',
           provider: 'client',
