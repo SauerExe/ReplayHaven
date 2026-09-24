@@ -2,13 +2,19 @@ name: Release
 
 # Tag a commit as vX.Y.Z and push the tag. This builds the Windows installer,
 # publishes the multi-arch server image to GHCR and creates the GitHub release.
+# „Run workflow“ startet einen Probelauf: baut dasselbe, veröffentlicht aber nichts.
 on:
   push:
     tags: ['v*.*.*']
+  workflow_dispatch:
 
 permissions:
   contents: write
   packages: write
+
+env:
+  # Nur ein Versions-Tag veröffentlicht Image und Release.
+  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
   client:
@@ -22,6 +28,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Version from tag
+        if: env.PUBLISH == 'true'
         shell: bash
         run: echo "REPLAYHAVEN_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
       # Hochladen erledigt der Release-Job; electron-builder soll nie selbst veröffentlichen.
@@ -40,6 +47,7 @@ jobs:
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
+        if: env.PUBLISH == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -58,7 +66,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ env.PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -81,7 +89,9 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
-          VERSION="${GITHUB_REF_NAME#v}"
+          # Der Probelauf nimmt die Version aus package.json und tut so, als gäbe es ihren Tag.
+          if [ "$PUBLISH" = true ]; then TAG="${GITHUB_REF_NAME}"; else TAG="v$(node -p "require('./package.json').version")"; fi
+          VERSION="${TAG#v}"
           # Ready-to-run compose file, pinned to this release's image, plus the env template.
           sed -E "s#^( *image: ).*#\1${IMAGE}:${VERSION}#" compose.yaml > assets/compose.yaml
           grep -q "^ *image: ${IMAGE}:${VERSION}$" assets/compose.yaml
@@ -104,8 +114,8 @@ jobs:
             echo
             echo '```bash'
             echo "mkdir -p replayhaven && cd replayhaven"
-            echo "curl -fsSLO https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/compose.yaml"
-            echo "curl -fsSL  https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/env.example -o .env"
+            echo "curl -fsSLO https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/compose.yaml"
+            echo "curl -fsSL  https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/env.example -o .env"
             echo "# edit .env: REPLAYHAVEN_ACCESS_TOKEN (openssl rand -hex 24) and REPLAYHAVEN_PUBLIC_ORIGIN"
             echo "docker compose up -d"
             echo '```'
@@ -118,6 +128,7 @@ jobs:
             echo "The installer is not code-signed yet, so Windows SmartScreen asks for confirmation."
           } > assets/NOTES.md
       - uses: softprops/action-gh-release@v2
+        if: env.PUBLISH == 'true'
         with:
           body_path: assets/NOTES.md
           generate_release_notes: true
@@ -127,3 +138,10 @@ jobs:
             assets/env.example
             assets/setup-server.sh
             assets/SHA256SUMS.txt
+      - name: Keep the probe's release assets
+        if: env.PUBLISH != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-probe
+          path: assets
+          retention-days: 7

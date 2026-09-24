@@ -5,8 +5,10 @@ updates:
     schedule:
       interval: weekly
     groups:
+      # Kleine Updates gebündelt; große Versionssprünge kommen einzeln, weil sie oft Codeänderungen brauchen.
       dev-dependencies:
         dependency-type: development
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule:
