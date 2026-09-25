@@ -226,4 +226,15 @@ describe('archive and client-analysis pipeline', () => {
       tags: ['Neu'],
     });
   });
+
+  it('finds an uploaded clip by the SHA-256 of its content', async () => {
+    const { createHash } = await import('node:crypto');
+    const hash = createHash('sha256').update(video).digest('hex');
+    const found = await vault.app.inject({ url: `/api/clips/lookup/${hash}`, headers });
+    expect(found.json()).toEqual({ clip: { id, removed: false } });
+    const unknown = await vault.app.inject({ url: `/api/clips/lookup/${'0'.repeat(64)}`, headers });
+    expect(unknown.json()).toEqual({ clip: null });
+    const invalid = await vault.app.inject({ url: '/api/clips/lookup/xyz', headers });
+    expect(invalid.statusCode).toBe(400);
+  });
 });

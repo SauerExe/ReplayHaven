@@ -222,6 +222,17 @@ export async function buildServer(
     db.saveSettings(settings);
     return settings;
   });
+  // Whether the archive already holds a recording with this content (SHA-256 of the file), so a
+  // client can skip analysing and uploading it again, e.g. after switching the server address.
+  // Clips removed from the library count as present: they stay removed.
+  app.get<{ Params: { hash: string } }>('/api/clips/lookup/:hash', async (req) => {
+    const hash = z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .parse(req.params.hash);
+    const clip = db.findHash(hash);
+    return { clip: clip ? { id: clip.id, removed: !!clip.deleted } : null };
+  });
   app.get('/api/clips', async () =>
     db
       .list()

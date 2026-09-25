@@ -18,6 +18,8 @@ beforeEach(async () => {
     game: '',
     includeExisting: true,
     stableMs: 10,
+    // The content lookup has its own test; the others stand for older servers without it.
+    lookup: false,
   };
 });
 afterEach(async () => {
@@ -270,4 +272,37 @@ it('notices new recordings during a game and uploads them right after it without
   await uploader.scan(31_000);
   expect(upload).toHaveBeenCalledTimes(1);
   expect(uploader.state.uploaded).toBe(1);
+});
+
+it('skips analysis and upload for a recording the archive already holds', async () => {
+  const file = join(options.folder, 'schon-da.mp4');
+  await writeFile(file, 'same bytes as on the server');
+  const { createHash } = await import('node:crypto');
+  const hash = createHash('sha256').update('same bytes as on the server').digest('hex');
+  const calls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      calls.push(url.replace(options.server, ''));
+      return Response.json({ clip: url.endsWith(`/lookup/${hash}`) ? { id: 'known' } : null });
+    }),
+  );
+  const analyze = vi.fn();
+  const statuses: string[] = [];
+  const uploader = new FolderUploader({
+    ...options,
+    lookup: true,
+    analyze,
+    onStatus: (m) => statuses.push(m),
+  });
+  await uploader.initialize();
+  await uploader.scan(100);
+  await uploader.scan(111);
+  expect(calls).toEqual([`/api/clips/lookup/${hash}`]);
+  expect(analyze).not.toHaveBeenCalled();
+  expect(uploader.state.receipts[file]).toMatchObject({ clipId: 'known' });
+  expect(statuses.at(-1)).toMatch(/Already in the archive/);
+  // Afterwards the recording counts as done and is not checked again.
+  await uploader.scan(200);
+  expect(calls).toHaveLength(1);
 });

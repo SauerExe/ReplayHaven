@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Changing the server address (for example from the LAN address to a domain) made the client
+  analyse and upload every recording again, because its done list is kept per folder and
+  address. Before analysing, the client now asks the server whether it already holds a
+  recording with the same content (`GET /api/clips/lookup/:sha256`) and just ticks it off;
+  clips removed from the library stay removed. Finished analyses are kept, so a recording that
+  really is new to a server is not analysed twice.
 - Signing in at a LAN address such as `http://192.168.1.10:8787` failed with "This origin is
   not allowed" unless that address was listed in `REPLAYHAVEN_PUBLIC_ORIGIN`. Requests from the
   page the server itself delivered are now accepted at any address; other sites are still

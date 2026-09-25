@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { openAsBlob } from 'node:fs';
+import { createReadStream, openAsBlob } from 'node:fs';
 import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { basename, dirname, extname, join, resolve } from 'node:path';
@@ -59,6 +59,8 @@ export interface WatchOptions {
   gameFor?: (path: string, savedAt: number) => string | undefined;
   /** After every confirmed upload, for example to keep the R6 match for the clip. */
   onUploaded?: (path: string, game: string, savedAt: number) => void;
+  /** Ask the server by content before analysing (default true); see archived(). */
+  lookup?: boolean;
   signal?: AbortSignal;
 }
 /** Folders where the NVIDIA App files recordings without a detected game. */
@@ -172,6 +174,26 @@ export class FolderUploader {
     await writeFile(temp, JSON.stringify(this.state, null, 2));
     await rename(temp, this.options.statePath);
   }
+  /**
+   * The id of the archive's clip with the same content as this recording (SHA-256 of the whole
+   * file, as the server computes it on upload), or undefined. Older servers without the lookup
+   * answer 404; then the recording is analysed and uploaded as before.
+   */
+  private async archived(path: string) {
+    const hash = createHash('sha256');
+    for await (const chunk of createReadStream(path, { signal: this.options.signal }))
+      hash.update(chunk as Buffer);
+    const response = await fetch(`${this.options.server}/api/clips/lookup/${hash.digest('hex')}`, {
+      headers: this.headers(),
+      signal: AbortSignal.any([
+        AbortSignal.timeout(15000),
+        ...(this.options.signal ? [this.options.signal] : []),
+      ]),
+    });
+    if (!response.ok) return undefined;
+    const body = (await response.json()) as { clip?: { id: string } | null };
+    return body.clip?.id;
+  }
   headers() {
     return this.options.token
       ? { Authorization: `Bearer ${this.options.token}` }
@@ -238,6 +260,25 @@ export class FolderUploader {
           since: started,
         };
         this.emitQueue();
+        // Already in the archive with the same content, e.g. uploaded before under another
+        // server address (the queue is kept per folder and address)? Then neither the AI nor the
+        // upload runs again.
+        const archived =
+          this.options.lookup === false
+            ? undefined
+            : await this.archived(path).catch(() => undefined);
+        if (archived) {
+          this.state.receipts[path] = { fingerprint, clipId: archived };
+          await this.persist();
+          this.observed.delete(path);
+          this.retryAt.delete(path);
+          this.notes.delete(path);
+          this.queue = this.queue.filter((e) => e.path !== path);
+          queued--;
+          this.options.onQueued?.(queued);
+          this.options.onStatus?.(`Already in the archive: ${basename(path)}`);
+          continue;
+        }
         let analysis: ClientAnalysis | undefined;
         const cachePath = join(
           dirname(this.options.statePath),
@@ -295,7 +336,6 @@ export class FolderUploader {
           );
           if (!saved.ok)
             throw new Error('Video saved, AI result not confirmed yet. Retrying the transfer.');
-          await rmCache(cachePath);
         }
         const after = await stat(path);
         if (`${after.size}:${after.mtimeMs}` !== fingerprint)
@@ -374,8 +414,4 @@ export function defaultStatePath(folder: string, server: string) {
       .digest('hex')
       .slice(0, 16)}.json`,
   );
-}
-async function rmCache(path: string) {
-  const { unlink } = await import('node:fs/promises');
-  await unlink(path).catch(() => {});
 }
