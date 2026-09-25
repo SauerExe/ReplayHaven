@@ -245,3 +245,29 @@ it('reports the queue, the clip in work and the archived clips with their titles
     ['a.mp4', 'Valorant', 'Doppel-Kill per Kopfschuss', ['Kill', 'Multikill']],
   ]);
 });
+
+it('notices new recordings during a game and uploads them right after it without waiting again', async () => {
+  const file = join(options.folder, 'im-spiel.mp4');
+  await writeFile(file, 'test-only bytes');
+  const upload = vi.fn(async () => Response.json({ clip: { id: 'test-id' } }));
+  vi.stubGlobal('fetch', upload);
+  let gaming = true;
+  const seen: string[][] = [];
+  const uploader = new FolderUploader({
+    ...options,
+    stableMs: 10_000,
+    isPaused: () => gaming,
+    onQueue: (queue) => seen.push(queue.map((e) => `${e.name}:${e.state}`)),
+  });
+  await uploader.initialize();
+  // Während des Spiels: in der Warteschlange, beobachtet, aber nicht hochgeladen.
+  await uploader.scan(0);
+  await uploader.scan(30_000);
+  expect(seen.at(-1)).toEqual(['im-spiel.mp4:waiting']);
+  expect(upload).not.toHaveBeenCalled();
+  // Nach dem Spiel ist die Datei längst fertig: Der erste Blick lädt sie hoch.
+  gaming = false;
+  await uploader.scan(31_000);
+  expect(upload).toHaveBeenCalledTimes(1);
+  expect(uploader.state.uploaded).toBe(1);
+});

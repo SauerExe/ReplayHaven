@@ -197,12 +197,14 @@ export class FolderUploader {
     this.options.onQueued?.(queued);
     for (const { path, before } of pending) {
       const fingerprint = `${before.size}:${before.mtimeMs}`;
-      if (this.options.isPaused?.() || this.options.signal?.aborted) continue;
+      // Auch in der Pause (etwa beim Spielen) wird beobachtet, ob die Datei fertig geschrieben ist:
+      // Danach geht es ohne weitere Wartezeit los.
       const observed = this.observed.get(path);
       if (!observed || observed.fingerprint !== fingerprint) {
         this.observed.set(path, { fingerprint, since: now });
         continue;
       }
+      if (this.options.isPaused?.() || this.options.signal?.aborted) continue;
       if (now - observed.since < this.options.stableMs || (this.retryAt.get(path) || 0) > now)
         continue;
       const started = Date.now();

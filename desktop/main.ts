@@ -514,12 +514,17 @@ async function keepR6Match(savedAt: number) {
     console.error('R6-Match nicht gesichert:', error instanceof Error ? error.message : error);
   }
 }
+let lastScan = 0;
 async function tick() {
   if (!waiting() && runningMatches.size && Date.now() - lastMatchSync > 60_000) {
     lastMatchSync = Date.now();
     for (const savedAt of runningMatches) await keepR6Match(savedAt);
   }
   if (working || !agent) return;
+  // Beim Spielen oder in der Pause genügt ein Blick alle 30 Sekunden: Neue Clips kommen in die
+  // Warteschlange, ohne im Spiel Platte und Leitung alle 3 Sekunden zu beschäftigen.
+  if (waiting() && Date.now() - lastScan < 30_000) return;
+  lastScan = Date.now();
   working = true;
   try {
     await agent.scan();

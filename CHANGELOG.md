@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format follows
   recording folder, local AI, player names and recognition options. Progress shows in the
   taskbar, the tray menu pauses or resumes, and a notification announces each archived clip
   (never during a game). The client can resume on start and start with Windows.
+- While you play, the client keeps noticing new clips (every 30 seconds instead of every 3, so
+  disk and network stay free), marks them "Nach dem Spielen" and checks meanwhile that the
+  NVIDIA App has finished writing them. One minute after the game they are processed without
+  any further wait.
 
 ## [1.0.0] - 2026-09-25
 

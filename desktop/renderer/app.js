@@ -154,7 +154,7 @@ function renderOverview(s) {
     m === 'setup'
       ? 'Der Assistent führt dich in wenigen Schritten durch Server, Aufnahmeordner und lokale KI.'
       : m === 'gaming'
-        ? `${gameName(s.gaming)} läuft. Analyse und Upload gehen eine Minute nach dem Spielen weiter, damit Grafikkarte und Leitung dem Spiel gehören.`
+        ? `${gameName(s.gaming)} läuft. ${s.queue.length ? `${s.queue.length === 1 ? 'Ein neuer Clip wartet' : `${s.queue.length} Clips warten`} und ${s.queue.length === 1 ? 'wird' : 'werden'} eine Minute nach dem Spielen verarbeitet` : 'Neue Clips merkt sich der Client und verarbeitet sie eine Minute nach dem Spielen'}, damit Grafikkarte und Leitung dem Spiel gehören.`
         : s.message;
   const action = $('primary-action');
   action.textContent = text.action;
@@ -166,11 +166,14 @@ function renderOverview(s) {
   const open = s.queue.length + (s.active ? 1 : 0);
   const average = averageSeconds(s.recent);
   $('stat-queue').textContent = String(open);
-  $('stat-queue-eta').textContent = open
-    ? average
-      ? `noch etwa ${duration(open * average)}`
-      : `${open === 1 ? 'Ein Clip' : `${open} Clips`} offen`
-    : 'Nichts offen';
+  $('stat-queue-eta').textContent =
+    s.gaming && open
+      ? 'starten nach dem Spielen'
+      : open
+        ? average
+          ? `noch etwa ${duration(open * average)}`
+          : `${open === 1 ? 'Ein Clip' : `${open} Clips`} offen`
+        : 'Nichts offen';
   const midnight = new Date().setHours(0, 0, 0, 0);
   const today = s.recent.filter((r) => r.at >= midnight);
   $('stat-today').textContent = String(today.length);
@@ -179,7 +182,9 @@ function renderOverview(s) {
   $('stat-average').textContent = average ? `Ø ${duration(average)} je Clip` : ' ';
 
   renderActive(s.active);
-  renderQueue(s.queue, average, !!s.active);
+  // Was wartet, weil gerade gespielt wird oder pausiert ist, sagt die Markierung.
+  const hold = s.gaming ? 'Nach dem Spielen' : s.running && s.paused ? 'Pausiert' : '';
+  renderQueue(s.queue, average, !!s.active, hold);
   renderRecent(s.recent);
 }
 
@@ -237,14 +242,15 @@ const STATES = {
   retry: ['Neuer Versuch', 'bad'],
   deferred: ['Wartet aufs Match', 'warn'],
 };
-function renderQueue(queue, average, busy) {
+function renderQueue(queue, average, busy, hold) {
   $('queue-count').textContent = String(queue.length);
   $('queue-empty').hidden = queue.length > 0;
   $('queue-list').replaceChildren(
     ...queue.slice(0, 100).map((entry, i) => {
-      const [label, tone] = STATES[entry.state] || STATES.waiting;
+      const [label, tone] =
+        hold && entry.state === 'waiting' ? [hold, 'warn'] : STATES[entry.state] || STATES.waiting;
       const eta =
-        average && entry.state === 'waiting'
+        average && !hold && entry.state === 'waiting'
           ? ` · in etwa ${duration((i + (busy ? 1 : 0)) * average)}`
           : '';
       const chip = el('span', { className: 'chip', textContent: label });
