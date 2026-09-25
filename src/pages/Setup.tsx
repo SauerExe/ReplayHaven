@@ -323,8 +323,8 @@ export default function Setup() {
                   <h3>Den Zugangsschlüssel aufbewahren</h3>
                   <p>
                     Das Skript fragt deine Serveradresse ab, erzeugt deinen Zugangsschlüssel und
-                    startet den Server. Den Schlüssel brauchst du gleich im Browser und im
-                    Windows-Client. Der erste Build benötigt Internet und einige Minuten.
+                    startet den Server. Den Schlüssel brauchst du genau einmal: beim Anlegen deines
+                    Kontos. Der erste Build benötigt Internet und einige Minuten.
                   </p>
                 </div>
               </div>
@@ -332,8 +332,8 @@ export default function Setup() {
             <div className="guide-next">
               <p>
                 <Check size={16} />
-                Öffne deine Serveradresse im Browser und gib dort unter Einstellungen deinen
-                Schlüssel ein.
+                Öffne deine Serveradresse im Browser und leg dein Konto an. Weitere Geräte meldest
+                du danach unter Geräte per QR-Code an.
               </p>
               <Link className="text-link" to="/settings#analysis">
                 Zu den Einstellungen
@@ -399,9 +399,10 @@ export default function Setup() {
                   <KeyRound size={17} />
                 </span>
                 <div>
-                  <h3>Mit deinem Server verbinden</h3>
+                  <h3>Mit deinem Server koppeln</h3>
                   <p>
-                    Trage dieselbe Serveradresse und denselben Zugangsschlüssel wie im Browser ein.
+                    Trag im Client nur die Serveradresse ein. Er zeigt einen Code; unter Geräte
+                    erscheint derselbe, und du klickst auf Freigeben.
                   </p>
                 </div>
               </li>

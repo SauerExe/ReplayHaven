@@ -11,6 +11,14 @@ const actions = new Set([
   'cancel-download',
   'ollama-install',
   'archive',
+  'open-clip',
+  'reveal',
+  'test-server',
+  'folder-info',
+  'open-at-login',
+  'pair-start',
+  'pair-cancel',
+  'open-devices',
 ]);
 contextBridge.exposeInMainWorld('vault', {
   call: (action: string, value?: unknown) => {

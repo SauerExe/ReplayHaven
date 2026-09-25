@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Accounts like in Immich: the first visit creates an account (the access key from the server
+  setup is needed once, so nobody else can claim an exposed server). Every device then signs
+  in with name and password and stays signed in for 30 days, renewed on use.
+- "Handy verbinden" under Geräte shows a QR code that signs in one more device without a
+  password; it is valid for five minutes and works once.
+- Pairing for recording PCs: the client only needs the server address, shows a six-digit
+  code, and the owner approves the matching request under Geräte. The PC receives its own
+  access, stored encrypted with the Windows account. All browsers and PCs are listed under
+  Geräte and can be removed one by one. The access key keeps working for older clients.
+- A redesigned Windows client: a status overview with the clip in work (preview image, steps,
+  progress, elapsed time), the queue with states and an estimated finish, and the recently
+  archived clips with their AI titles. A seven-step setup wizard guides through server,
+  recording folder, local AI, player names and recognition options. Progress shows in the
+  taskbar, the tray menu pauses or resumes, and a notification announces each archived clip
+  (never during a game). The client can resume on start and start with Windows.
+
 ## [1.0.0] - 2026-09-25
 
 ### Added

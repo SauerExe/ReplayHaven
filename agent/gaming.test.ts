@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { GameState, gameBetween, gameIn, parseSample } from './gaming';
+import { GameState, gameBetween, gameIn, gameTitle, parseSample } from './gaming';
 import type { ForegroundSample } from './gaming';
 
 const sample = (process: string, fullscreen = true, extra: Partial<ForegroundSample> = {}) => ({
@@ -74,4 +74,9 @@ it('reads the window title and names the game of a clip saved without one', () =
     gameBetween([at(1, 'chrome'), at(4, 'chrome'), at(7, 'Discord'), at(9, 'Discord')], 0, 10_000),
   ).toBe('');
   expect(gameBetween(history, 20_000, 30_000)).toBe('');
+});
+
+it('shows a known game by name while it runs', () => {
+  expect(gameTitle('RainbowSix_Vulkan')).toBe("Tom Clancy's Rainbow Six Siege");
+  expect(gameTitle('Raft')).toBe('Raft');
 });

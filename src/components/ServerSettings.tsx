@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, KeyRound, RefreshCw } from 'lucide-react';
+import { ArrowRight, Check, KeyRound, LogOut, RefreshCw, UserRound } from 'lucide-react';
+import { api } from '../data/api';
+import { useAuth } from './AuthGate';
 import { useVault } from '../data/store';
 import { SettingsSection } from './SettingsSection';
 export function ServerSettings() {
   const { server, refreshServer, connectServer, updateAnalysisSettings, toast } = useVault();
+  const { auth } = useAuth();
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   async function change(key: keyof typeof server.settings, value: boolean) {
@@ -47,7 +50,8 @@ export function ServerSettings() {
           <RefreshCw size={17} />
         </button>
       </div>
-      {!server.connected && (
+      {auth?.user && <AccountCard name={auth.user.name} />}
+      {!server.connected && !auth && (
         <form
           className="server-login"
           onSubmit={async (e) => {
@@ -186,5 +190,84 @@ export function ServerSettings() {
         </>
       )}
     </SettingsSection>
+  );
+}
+
+/** Das angemeldete Konto: Passwort ändern und abmelden. */
+function AccountCard({ name }: { name: string }) {
+  const { logout } = useAuth();
+  const { toast } = useVault();
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="settings-card account-card">
+      <div className="setting-row">
+        <div className="account-name">
+          <UserRound size={20} />
+          <div>
+            <h3>Angemeldet als {name}</h3>
+            <p>Andere Geräte meldest du unter Geräte per QR-Code an.</p>
+          </div>
+        </div>
+        <div className="account-actions">
+          <button className="button secondary" onClick={() => setOpen(!open)}>
+            Passwort ändern
+          </button>
+          <button className="button secondary" onClick={() => void logout()}>
+            <LogOut size={16} /> Abmelden
+          </button>
+        </div>
+      </div>
+      {open && (
+        <form
+          className="password-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setBusy(true);
+            try {
+              await api('/auth/password', {
+                method: 'POST',
+                body: JSON.stringify({ current, next }),
+              });
+              toast('Passwort geändert');
+              setOpen(false);
+              setCurrent('');
+              setNext('');
+            } catch (error) {
+              toast(error instanceof Error ? error.message : 'Das hat nicht geklappt.');
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <label className="field">
+            Bisheriges Passwort
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+              required
+            />
+          </label>
+          <label className="field">
+            Neues Passwort
+            <input
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+              required
+            />
+          </label>
+          <button className="button primary" disabled={busy}>
+            <Check size={16} /> Speichern
+          </button>
+        </form>
+      )}
+    </div>
   );
 }

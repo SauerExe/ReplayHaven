@@ -16,6 +16,7 @@ import { useActions } from '../components/Actions';
 import { useVault } from '../data/store';
 import { PageHeading } from '../components/PageHeading';
 import { VaultConnection } from '../components/VaultConnection';
+import { DeviceAccess } from '../components/DeviceAccess';
 export default function Devices() {
   const action = useActions();
   const { server, refreshServer } = useVault();
@@ -31,6 +32,7 @@ export default function Devices() {
           Aktualisieren
         </button>
       </PageHeading>
+      <DeviceAccess />
       <div className="device-intro">
         <div className="device-intro-copy">
           <span className="surface-kicker">
@@ -98,8 +100,8 @@ export default function Devices() {
             <Server size={23} />
             <h3>Archiv-Server einrichten</h3>
             <p>
-              ReplayHaven auf deinem Linux-Rechner oder NAS einrichten. Serveradresse und
-              persönlichen Zugangsschlüssel festlegen.
+              ReplayHaven auf deinem Linux-Rechner oder NAS einrichten und im Browser dein Konto
+              anlegen.
             </p>
             <span className="step-link">
               Server einrichten
@@ -110,7 +112,7 @@ export default function Devices() {
             <span>02</span>
             <Monitor size={23} />
             <h3>Windows-Client installieren</h3>
-            <p>Serveradresse und Zugangsschlüssel eintragen. NVIDIA-Aufnahmeordner auswählen.</p>
+            <p>Serveradresse eintragen, den PC hier freigeben, NVIDIA-Aufnahmeordner auswählen.</p>
             <span className="step-link">
               Client verbinden
               <ChevronRight size={15} />

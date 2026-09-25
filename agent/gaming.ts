@@ -257,3 +257,10 @@ export class GameWatch {
     child?.kill();
   }
 }
+
+/** Der Name eines Spiels zu seinem Prozess, für die Anzeige ("RainbowSix" → "Tom Clancy's …"). */
+export function gameTitle(process: string) {
+  return (
+    KNOWN_GAMES.find(([pattern]) => pattern.test(process))?.[1].replace(/\s+/g, ' ') ?? process
+  );
+}

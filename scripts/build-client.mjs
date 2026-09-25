@@ -51,7 +51,18 @@ await build({
   format: 'cjs',
   external: ['electron'],
 });
+await rm('desktop-bundle/renderer', { recursive: true, force: true });
 await cp('desktop/renderer', 'desktop-bundle/renderer', { recursive: true });
+// Dieselben Schriften wie die Web-Bibliothek, lokal im Fenster (CSP ohne fremde Quellen).
+await mkdir('desktop-bundle/renderer/fonts', { recursive: true });
+await copyFile(
+  'node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2',
+  'desktop-bundle/renderer/fonts/inter-latin-wght-normal.woff2',
+);
+await copyFile(
+  'src/streaming/fonts/archivo-latin-wdth-normal.woff2',
+  'desktop-bundle/renderer/fonts/archivo-latin-wdth-normal.woff2',
+);
 await copyFile(require('ffmpeg-static'), 'desktop-bundle/binaries/ffmpeg.exe');
 await copyFile(require('@ffprobe-installer/ffprobe').path, 'desktop-bundle/binaries/ffprobe.exe');
 await mkdir('desktop-bundle/licenses', { recursive: true });
@@ -146,6 +157,12 @@ await writeFile(
 // Verknüpfungen und Installer das ICO mit allen Größen, die Windows anzeigt.
 const icon = 'desktop/icon-source.png';
 await sharp(icon).resize(256, 256).png().toFile('desktop-bundle/icon.png');
+await copyFile('desktop-bundle/icon.png', 'desktop-bundle/renderer/icon.png');
+await copyFile('src/streaming/fonts/OFL.txt', 'desktop-bundle/licenses/Archivo-OFL-1.1.txt');
+await copyFile(
+  'node_modules/@fontsource-variable/inter/LICENSE',
+  'desktop-bundle/licenses/Inter-OFL-1.1.txt',
+);
 const sizes = [16, 24, 32, 48, 64, 128, 256];
 const images = await Promise.all(sizes.map((s) => sharp(icon).resize(s, s).png().toBuffer()));
 const header = Buffer.alloc(6 + 16 * sizes.length);
@@ -178,6 +195,6 @@ await writeFile(
 );
 await writeFile(
   'desktop-bundle/THIRD-PARTY.txt',
-  'ReplayHaven Client includes Electron (MIT), Zod (MIT), FFmpeg 6.1.1 (GPL-3.0), FFprobe (GPL-3.0, Gyan build 20230213-2296078), ONNX Runtime 1.30 (MIT, CPU files for Windows x64) the PaddleOCR PP-OCRv4/PP-OCRv5 text models (Apache-2.0) and sherpa-onnx (Apache-2.0) for speech recognition; its models (Parakeet TDT 0.6B v3, CC-BY-4.0; Silero VAD, MIT) are downloaded on first use. License texts and FFmpeg build configuration are in licenses/. Electron notices accompany the executable. FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/e38092ef93 ; FFprobe source: https://github.com/FFmpeg/FFmpeg/tree/2296078 ; build distribution: https://www.gyan.dev/ffmpeg/builds/ ; package sources: https://github.com/eugeneware/ffmpeg-static and https://github.com/SavageCore/node-ffprobe-installer . Ollama and Qwen are installed separately. No model weights are bundled.',
+  'ReplayHaven Client includes Electron (MIT), Zod (MIT), FFmpeg 6.1.1 (GPL-3.0), FFprobe (GPL-3.0, Gyan build 20230213-2296078), ONNX Runtime 1.30 (MIT, CPU files for Windows x64) the PaddleOCR PP-OCRv4/PP-OCRv5 text models (Apache-2.0), sherpa-onnx (Apache-2.0) for speech recognition and the Inter and Archivo fonts (SIL OFL 1.1); its models (Parakeet TDT 0.6B v3, CC-BY-4.0; Silero VAD, MIT) are downloaded on first use. License texts and FFmpeg build configuration are in licenses/. Electron notices accompany the executable. FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/e38092ef93 ; FFprobe source: https://github.com/FFmpeg/FFmpeg/tree/2296078 ; build distribution: https://www.gyan.dev/ffmpeg/builds/ ; package sources: https://github.com/eugeneware/ffmpeg-static and https://github.com/SavageCore/node-ffprobe-installer . Ollama and Qwen are installed separately. No model weights are bundled.',
 );
 console.log('Windows-Client vorbereitet.');

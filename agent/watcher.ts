@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { openAsBlob } from 'node:fs';
 import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
+import type { Stats } from 'node:fs';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { hostname } from 'node:os';
 import type { AnalysisResult } from '../server/schema';
@@ -8,6 +9,33 @@ export interface ClientAnalysis {
   result: AnalysisResult;
   duration: number;
   model: string;
+}
+/** Eine Aufnahme, die noch nicht im Archiv ist, so wie das Client-Fenster sie zeigt. */
+export interface QueueEntry {
+  path: string;
+  name: string;
+  game: string;
+  size: number;
+  savedAt: number;
+  /** settling: wird noch geschrieben; retry: neuer Versuch nach einem Fehler; deferred: wartet bewusst. */
+  state: 'waiting' | 'settling' | 'retry' | 'deferred';
+  note?: string;
+}
+/** Die Aufnahme, an der gerade gearbeitet wird. */
+export interface ActiveClip extends Omit<QueueEntry, 'state' | 'note'> {
+  stage: 'analyzing' | 'uploading';
+  since: number;
+}
+/** Eine zuletzt archivierte Aufnahme mit dem Titel, den die KI ihr gab. */
+export interface ArchivedClip {
+  name: string;
+  game: string;
+  title?: string;
+  tags?: string[];
+  clipId: string;
+  at: number;
+  /** Bearbeitungsdauer von Analyse und Upload. */
+  seconds: number;
 }
 export interface WatchOptions {
   folder: string;
@@ -22,6 +50,8 @@ export interface WatchOptions {
   isPaused?: () => boolean;
   onStatus?: (message: string) => void;
   onQueued?: (count: number) => void;
+  /** Bei jeder Änderung an Warteschlange oder aktueller Aufnahme. */
+  onQueue?: (queue: QueueEntry[], active: ActiveClip | undefined) => void;
   /**
    * Das Spiel eines Clips, den die NVIDIA App ohne Spiel ablegte ("Desktop", "Base Profile"),
    * etwa aus dem Fenster, das beim Speichern vorne war (agent/gaming.ts). Leer: Ordnername.
@@ -39,7 +69,13 @@ const NO_GAME_FOLDERS = /^(?:desktop|base profile)$/i;
  */
 export class DeferredError extends Error {}
 type Receipt = { fingerprint: string; clipId?: string };
-type AgentState = { id: string; receipts: Record<string, Receipt>; uploaded: number };
+type AgentState = {
+  id: string;
+  receipts: Record<string, Receipt>;
+  uploaded: number;
+  /** Die jüngsten Uploads, neueste zuerst, höchstens 30. */
+  recent?: ArchivedClip[];
+};
 export async function listVideos(folder: string): Promise<string[]> {
   const output: string[] = [];
   for (const entry of await readdir(folder, { withFileTypes: true })) {
@@ -81,7 +117,37 @@ export class FolderUploader {
   /** Dauerhaft abgelehnte Aufnahmen samt Grund — je Fingerabdruck, damit ein Ersatz erneut zählt. */
   readonly rejected = new Map<string, { fingerprint: string; reason: string }>();
   error = '';
+  queue: QueueEntry[] = [];
+  active: ActiveClip | undefined;
+  private notes = new Map<string, { state: 'retry' | 'deferred'; note: string }>();
   constructor(readonly options: WatchOptions) {}
+  get recent() {
+    return this.state.recent ?? [];
+  }
+  private emitQueue() {
+    this.options.onQueue?.(
+      this.queue.filter((e) => e.path !== this.active?.path),
+      this.active,
+    );
+  }
+  private entry(path: string, before: Stats, now: number): QueueEntry {
+    const fingerprint = `${before.size}:${before.mtimeMs}`;
+    const observed = this.observed.get(path);
+    const note = (this.retryAt.get(path) || 0) > now ? this.notes.get(path) : undefined;
+    const settling =
+      !observed ||
+      observed.fingerprint !== fingerprint ||
+      now - observed.since < this.options.stableMs;
+    return {
+      path,
+      name: basename(path),
+      game: gameLabel(this.options.game, path),
+      size: before.size,
+      savedAt: before.mtimeMs,
+      state: note?.state ?? (settling ? 'settling' : 'waiting'),
+      ...(note ? { note: note.note } : {}),
+    };
+  }
   async initialize() {
     const folderStat = await stat(this.options.folder);
     if (!folderStat.isDirectory()) throw new Error('Aufnahmeordner nicht gefunden.');
@@ -116,14 +182,21 @@ export class FolderUploader {
   }
   async scan(now = Date.now()) {
     const files = await listVideos(this.options.folder);
-    let queued = 0;
+    // Erst alle offenen Aufnahmen, dann die Arbeit: So zeigt das Fenster die ganze Schlange.
+    const pending: { path: string; before: Stats }[] = [];
     for (const path of files) {
       const before = await stat(path);
       const fingerprint = `${before.size}:${before.mtimeMs}`;
       if (this.state.receipts[path]?.fingerprint === fingerprint || before.size === 0) continue;
       if (this.rejected.get(path)?.fingerprint === fingerprint) continue;
-      queued++;
-      this.options.onQueued?.(queued);
+      pending.push({ path, before });
+    }
+    this.queue = pending.map(({ path, before }) => this.entry(path, before, now));
+    this.emitQueue();
+    let queued = pending.length;
+    this.options.onQueued?.(queued);
+    for (const { path, before } of pending) {
+      const fingerprint = `${before.size}:${before.mtimeMs}`;
       if (this.options.isPaused?.() || this.options.signal?.aborted) continue;
       const observed = this.observed.get(path);
       if (!observed || observed.fingerprint !== fingerprint) {
@@ -132,6 +205,7 @@ export class FolderUploader {
       }
       if (now - observed.since < this.options.stableMs || (this.retryAt.get(path) || 0) > now)
         continue;
+      const started = Date.now();
       try {
         // Größe, Länge und Lesbarkeit sind Eigenschaften der Datei, keine vorübergehende
         // Störung. Sie hier gesondert zu behandeln verhindert eine Dauerschleife im
@@ -143,6 +217,7 @@ export class FolderUploader {
           const reason = error instanceof Error ? error.message : 'Aufnahme nicht verwertbar.';
           this.rejected.set(path, { fingerprint, reason });
           this.observed.delete(path);
+          this.queue = this.queue.filter((e) => e.path !== path);
           queued--;
           this.options.onStatus?.(`Übersprungen: ${basename(path)} — ${reason}`);
           continue;
@@ -153,6 +228,17 @@ export class FolderUploader {
             NO_GAME_FOLDERS.test(folder.trim()) &&
             this.options.gameFor?.(path, before.mtimeMs)) ||
           folder;
+        const shown = game === folder ? gameLabel(this.options.game, path) : game;
+        this.active = {
+          path,
+          name: basename(path),
+          game: shown,
+          size: before.size,
+          savedAt: before.mtimeMs,
+          stage: 'analyzing',
+          since: started,
+        };
+        this.emitQueue();
         let analysis: ClientAnalysis | undefined;
         const cachePath = join(
           dirname(this.options.statePath),
@@ -173,6 +259,8 @@ export class FolderUploader {
         if (`${checked.size}:${checked.mtimeMs}` !== fingerprint)
           throw new Error('Die Datei wurde verändert und wird erneut geprüft.');
         this.options.onStatus?.(`Upload: ${basename(path)}`);
+        this.active = { ...this.active, stage: 'uploading' };
+        this.emitQueue();
         const form = new FormData();
         form.append(
           'file',
@@ -184,9 +272,7 @@ export class FolderUploader {
           headers: {
             ...this.headers(),
             'x-device-name': encodeURIComponent(hostname()),
-            'x-game-name': encodeURIComponent(
-              game === folder ? gameLabel(this.options.game, path) : game,
-            ),
+            'x-game-name': encodeURIComponent(shown),
             'x-client-analysis': analysis ? '1' : '0',
             'x-recorded-at': new Date(before.mtimeMs).toISOString(),
           },
@@ -221,6 +307,20 @@ export class FolderUploader {
           );
         this.state.receipts[path] = { fingerprint, clipId: result.clip.id };
         this.state.uploaded++;
+        this.state.recent = [
+          {
+            name: basename(path),
+            game: shown,
+            ...(analysis?.result.title ? { title: analysis.result.title } : {}),
+            ...(analysis?.result.tags.length ? { tags: analysis.result.tags } : {}),
+            clipId: result.clip.id,
+            at: Date.now(),
+            seconds: Math.round((Date.now() - started) / 1000),
+          },
+          ...(this.state.recent ?? []),
+        ].slice(0, 30);
+        this.queue = this.queue.filter((e) => e.path !== path);
+        this.notes.delete(path);
         await this.persist();
         this.observed.delete(path);
         this.retryAt.delete(path);
@@ -231,14 +331,21 @@ export class FolderUploader {
         this.options.onStatus?.(`Archiviert: ${basename(path)}`);
         this.options.onUploaded?.(path, game, before.mtimeMs);
       } catch (error) {
-        if (error instanceof DeferredError) {
-          this.retryAt.set(path, now + 60000);
-          this.options.onStatus?.(`${basename(path)}: ${error.message}`);
+        const deferred = error instanceof DeferredError;
+        const message = error instanceof Error ? error.message : 'Upload nicht möglich.';
+        const state = deferred ? ('deferred' as const) : ('retry' as const);
+        this.retryAt.set(path, now + 60000);
+        this.notes.set(path, { state, note: message });
+        this.queue = this.queue.map((e) => (e.path === path ? { ...e, state, note: message } : e));
+        if (deferred) {
+          this.options.onStatus?.(`${basename(path)}: ${message}`);
           continue;
         }
-        this.error = error instanceof Error ? error.message : 'Upload nicht möglich.';
-        this.retryAt.set(path, now + 60000);
+        this.error = message;
         this.options.onStatus?.(this.error);
+      } finally {
+        if (this.active?.path === path) this.active = undefined;
+        this.emitQueue();
       }
     }
     const current = new Set(files);

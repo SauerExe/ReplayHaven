@@ -196,3 +196,52 @@ it('names the game of a Desktop recording from the foreground and reports the up
   // Ein Spielordner bleibt, wie er ist.
   expect(gameFor).toHaveBeenCalledTimes(1);
 });
+
+it('reports the queue, the clip in work and the archived clips with their titles', async () => {
+  const game = join(options.folder, 'Valorant');
+  await mkdir(game);
+  for (const name of ['a.mp4', 'b.mp4']) await writeFile(join(game, name), `bytes ${name}`);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) =>
+      url.endsWith('/client-analysis')
+        ? new Response('{}')
+        : Response.json({ clip: { id: `id-${url.length}` } }),
+    ),
+  );
+  const seen: { queue: string[]; active?: string; stage?: string }[] = [];
+  const analyze = vi.fn(async () => ({
+    result: {
+      title: 'Doppel-Kill per Kopfschuss',
+      description: '',
+      game: '',
+      tags: ['Kill', 'Multikill'],
+      confidence: 'high' as const,
+      uncertainty: '',
+      highlights: [],
+    },
+    duration: 2,
+    model: 'test-model',
+  }));
+  const uploader = new FolderUploader({
+    ...options,
+    analyze,
+    onQueue: (queue, active) =>
+      seen.push({
+        queue: queue.map((e) => `${e.name}:${e.state}`),
+        ...(active ? { active: active.name, stage: active.stage } : {}),
+      }),
+  });
+  await uploader.initialize();
+  await uploader.scan(100);
+  // Beim ersten Blick werden beide Dateien noch geschrieben.
+  expect(seen[0]).toEqual({ queue: ['a.mp4:settling', 'b.mp4:settling'] });
+  await uploader.scan(111);
+  expect(seen).toContainEqual({ queue: ['b.mp4:waiting'], active: 'a.mp4', stage: 'analyzing' });
+  expect(seen).toContainEqual({ queue: ['b.mp4:waiting'], active: 'a.mp4', stage: 'uploading' });
+  expect(seen.at(-1)).toEqual({ queue: [] });
+  expect(uploader.recent.map((r) => [r.name, r.game, r.title, r.tags])).toEqual([
+    ['b.mp4', 'Valorant', 'Doppel-Kill per Kopfschuss', ['Kill', 'Multikill']],
+    ['a.mp4', 'Valorant', 'Doppel-Kill per Kopfschuss', ['Kill', 'Multikill']],
+  ]);
+});

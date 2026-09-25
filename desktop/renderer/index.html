@@ -5,202 +5,376 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'"
     />
     <title>ReplayHaven Client</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <header>
-      <div class="brand">
-        <span class="mark">▶</span> Replay<span>Haven</span><small>CLIENT</small>
-      </div>
-      <button id="archive" class="secondary">Archiv öffnen ↗</button>
-    </header>
-    <main>
-      <div class="intro">
-        <span class="eyebrow">DEIN PC ANALYSIERT. DEIN SERVER BEWAHRT.</span>
-        <h1>Vom letzten Moment<br />zum nächsten Highlight.</h1>
-        <p>
-          NVIDIA nimmt auf. Die KI gibt deinen Clips einen Namen.<br />Dein Server hält alles
-          zusammen.
-        </p>
-      </div>
-      <div class="columns">
-        <section class="panel">
-          <div class="section-title">
-            <span>01</span>
-            <h2>Deine Aufnahmen</h2>
+    <!-- Übersicht und Einstellungen; der Assistent liegt darüber, solange er offen ist. -->
+    <div id="app" class="app">
+      <header class="topbar">
+        <div class="brand">
+          <img src="icon.png" alt="" width="30" height="30" />
+          <span class="brand-name">Replay<b>Haven</b></span>
+          <span class="brand-tag">Client</span>
+        </div>
+        <nav class="tabs" role="tablist" aria-label="Bereiche">
+          <button
+            id="tab-overview"
+            class="tab"
+            role="tab"
+            aria-selected="true"
+            data-view="overview"
+          >
+            Übersicht
+          </button>
+          <button
+            id="tab-settings"
+            class="tab"
+            role="tab"
+            aria-selected="false"
+            data-view="settings"
+          >
+            Einstellungen
+          </button>
+        </nav>
+        <div class="topbar-end">
+          <span id="pill" class="pill" data-state="off"><i></i><span>Nicht gestartet</span></span>
+          <button id="archive" class="ghost">
+            Archiv öffnen <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+      </header>
+
+      <main id="overview" class="view" role="tabpanel" aria-labelledby="tab-overview">
+        <section class="hero" aria-live="polite">
+          <div class="hero-state">
+            <div id="hero-orb" class="orb" data-state="off"></div>
+            <div>
+              <p id="hero-eyebrow" class="eyebrow">Status</p>
+              <h1 id="hero-title">Nicht gestartet</h1>
+              <p id="hero-message" class="hero-message">Richte den Client ein, um loszulegen.</p>
+            </div>
           </div>
-          <label
-            >Aufnahmeordner
-            <div class="input-row">
-              <input id="folder" readonly placeholder="NVIDIA-Aufnahmeordner auswählen" /><button
-                id="pick-folder"
-                class="secondary"
+          <div class="hero-actions">
+            <button id="primary-action" class="primary large">Starten</button>
+          </div>
+        </section>
+
+        <section class="stats" aria-label="Kennzahlen">
+          <div class="stat">
+            <span class="stat-label">Warteschlange</span>
+            <strong id="stat-queue">0</strong>
+            <span id="stat-queue-eta" class="stat-note">Nichts offen</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Heute archiviert</span>
+            <strong id="stat-today">0</strong>
+            <span id="stat-today-note" class="stat-note">&nbsp;</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Insgesamt archiviert</span>
+            <strong id="stat-total">0</strong>
+            <span id="stat-average" class="stat-note">&nbsp;</span>
+          </div>
+        </section>
+
+        <section class="card now" aria-labelledby="now-title">
+          <div class="card-head">
+            <h2 id="now-title">Jetzt in Arbeit</h2>
+            <span id="now-elapsed" class="muted mono"></span>
+          </div>
+          <div id="now-empty" class="empty">
+            <div class="empty-art" aria-hidden="true"></div>
+            <div>
+              <strong>Gerade ist nichts zu tun.</strong>
+              <p>
+                Speicherst du im Spiel einen Clip, erscheint er hier, sobald die NVIDIA App ihn
+                fertig geschrieben hat.
+              </p>
+            </div>
+          </div>
+          <div id="now-clip" class="now-clip" hidden>
+            <div class="thumb">
+              <img id="now-thumb" alt="" hidden />
+              <span id="now-thumb-fallback" class="thumb-fallback"></span>
+            </div>
+            <div class="now-body">
+              <p id="now-game" class="eyebrow"></p>
+              <h3 id="now-name"></h3>
+              <ol id="stepper" class="stepper" aria-label="Arbeitsschritte">
+                <li data-step="prepare"><i></i>Vorbereiten</li>
+                <li data-step="view"><i></i>Bilder sichten</li>
+                <li data-step="summary"><i></i>Titel schreiben</li>
+                <li data-step="upload"><i></i>Hochladen</li>
+              </ol>
+              <div
+                class="progress"
+                role="progressbar"
+                aria-labelledby="now-detail"
+                aria-valuemin="0"
+                aria-valuemax="100"
               >
-                Auswählen
+                <span id="now-bar"></span>
+              </div>
+              <div class="now-foot">
+                <span id="now-detail" class="muted"></span>
+                <button id="now-reveal" class="link">Im Explorer zeigen</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="columns">
+          <section class="card" aria-labelledby="queue-title">
+            <div class="card-head">
+              <h2 id="queue-title">Warteschlange</h2>
+              <span id="queue-count" class="count">0</span>
+            </div>
+            <ol id="queue-list" class="list"></ol>
+            <p id="queue-empty" class="list-empty">
+              Alles erledigt. Neue Clips landen automatisch hier.
+            </p>
+          </section>
+          <section class="card" aria-labelledby="recent-title">
+            <div class="card-head">
+              <h2 id="recent-title">Zuletzt archiviert</h2>
+              <button id="recent-all" class="link">
+                Alle im Archiv <span aria-hidden="true">↗</span>
               </button>
-            </div></label
-          ><label
-            >Spiel <small>(optional)</small
-            ><input
-              id="game"
-              maxlength="100"
-              placeholder="Sonst wird der Unterordner als Hinweis verwendet"
-          /></label>
-          <fieldset class="names">
-            <legend>Deine Spielernamen <small>(optional)</small></legend>
-            <div id="player-names" class="name-rows"></div>
-            <datalist id="game-suggestions"></datalist>
-            <button id="add-name" type="button" class="secondary add-name">+ Weiteren Namen</button>
+            </div>
+            <ol id="recent-list" class="list"></ol>
+            <p id="recent-empty" class="list-empty">
+              Noch nichts archiviert. Der erste Clip erscheint hier mit dem Titel, den die KI ihm
+              gibt.
+            </p>
+          </section>
+        </div>
+      </main>
+
+      <main id="settings" class="view" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <div id="settings-lock" class="banner" hidden>
+          <span>Einstellungen lassen sich ändern, solange der Client pausiert ist.</span>
+          <button id="settings-pause" class="secondary">Jetzt pausieren</button>
+        </div>
+        <form id="settings-form" class="settings" novalidate>
+          <section class="card">
+            <h2>Archiv-Server</h2>
+            <label class="field"
+              >Serveradresse<input id="server" type="url" placeholder="http://server-adresse:8787"
+            /></label>
+            <label class="field"
+              >Zugangsschlüssel<input
+                id="token"
+                type="password"
+                autocomplete="off"
+                placeholder="Leer lassen, um den gespeicherten zu behalten"
+            /></label>
+            <div class="row">
+              <button id="pair-server" type="button" class="primary">Mit Server koppeln</button>
+              <button id="test-server" type="button" class="secondary">Verbindung testen</button>
+              <span id="server-result" class="result" role="status"></span>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>Aufnahmen</h2>
+            <label class="field"
+              >Aufnahmeordner
+              <span class="input-row">
+                <input id="folder" readonly placeholder="NVIDIA-Aufnahmeordner" />
+                <button id="pick-folder" type="button" class="secondary">Auswählen</button>
+              </span>
+            </label>
+            <p id="folder-info" class="hint"></p>
+            <label class="field"
+              ><span>Spiel für alle Clips <small>optional</small></span
+              ><input
+                id="game"
+                maxlength="100"
+                placeholder="Sonst gilt der Unterordner der NVIDIA App"
+            /></label>
+          </section>
+
+          <section class="card">
+            <h2>Deine Spielernamen</h2>
             <p class="hint">
               Heißt du je Spiel anders, trag jeden Namen mit seinem Spiel ein. Ohne Spiel gilt ein
-              Name überall. So erkennt die KI, welche Seite deine ist.
+              Name überall. So erkennt die KI, welche Kills deine sind.
             </p>
-          </fieldset>
-          <label class="check"
-            ><input id="include-existing" type="checkbox" />Vorhandene Aufnahmen beim ersten Start
-            mitnehmen</label
-          >
-          <p class="hint">
-            Unterordner werden einbezogen. Originaldateien werden weder verschoben noch gelöscht.
-          </p>
-          <div class="section-title second">
-            <span>02</span>
-            <h2>Dein Archiv-Server</h2>
-          </div>
-          <label
-            >Serveradresse<input
-              id="server"
-              type="url"
-              value="http://localhost:8787"
-              placeholder="http://server-adresse:8787" /></label
-          ><label
-            >Zugangsschlüssel<input
-              id="token"
-              type="password"
-              autocomplete="off"
-              placeholder="Schlüssel vom Archiv-Server"
-          /></label>
-          <p id="token-info" class="hint">
-            Der Schlüssel wird mit deinem Windows-Konto verschlüsselt gespeichert.
-          </p>
-        </section>
-        <section class="panel">
-          <div class="section-title">
-            <span>03</span>
-            <h2>Lokale KI auf deinem PC</h2>
-          </div>
-          <div class="model">
-            <span class="model-icon">✦</span>
-            <div>
-              <strong>Qwen3.5 · 9B</strong>
-              <p>Ollama · läuft lokal auf deiner GPU</p>
+            <div id="player-names" class="name-rows"></div>
+            <datalist id="game-suggestions"></datalist>
+            <button id="add-name" type="button" class="link">+ Weiteren Namen</button>
+          </section>
+
+          <section class="card">
+            <h2>Lokale KI</h2>
+            <div class="model">
+              <span class="model-mark" aria-hidden="true">✦</span>
+              <div>
+                <strong>Qwen3.5 · 9B über Ollama</strong>
+                <p class="muted">Läuft auf deiner Grafikkarte, nichts verlässt deinen PC.</p>
+              </div>
+              <span id="model-state" class="chip">Ungeprüft</span>
             </div>
-            <span id="model-state" class="badge">Ungeprüft</span>
+            <div class="row">
+              <button id="check-model" type="button" class="secondary">Prüfen</button>
+              <button id="install-ollama" type="button" class="secondary">
+                Ollama installieren ↗
+              </button>
+              <button id="download-model" type="button" class="secondary">
+                Modell laden · 6,6 GB
+              </button>
+              <button id="cancel-download" type="button" class="secondary" hidden>Abbrechen</button>
+            </div>
+            <div id="model-progress" class="progress thin" hidden><span></span></div>
+            <label class="toggle"
+              ><input id="analyze" type="checkbox" /><span
+                ><b>Clips vor dem Upload analysieren</b
+                ><small>Titel, Tags und Zeitmarken von der lokalen KI.</small></span
+              ></label
+            >
+            <label class="field"
+              >Analyseumfang
+              <select id="frames">
+                <option value="0">Ganzer Clip · ein Bild alle 3 Sekunden (empfohlen)</option>
+                <option value="24">24 Bilder · schneller</option>
+                <option value="48">48 Bilder</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="card">
+            <h2>Erkennung</h2>
+            <label class="toggle"
+              ><input id="r6-texts" type="checkbox" /><span
+                ><b>Texterkennung</b
+                ><small
+                  >R6: Karte und Rundenausgang. Valorant: Kills, Kopfschüsse und Tode aus dem
+                  Killfeed. Etwa eine Minute CPU je Clip.</small
+                ></span
+              ></label
+            >
+            <label class="toggle"
+              ><input id="speech" type="checkbox" /><span
+                ><b>Voice-Chat mitschreiben</b
+                ><small
+                  >Titel nach dem Gespräch für Clips ohne Kills. Einmalig rund 670 MB Sprachmodelle,
+                  alles bleibt auf deinem PC.</small
+                ></span
+              ></label
+            >
+            <label class="toggle"
+              ><input id="fortnite-replays" type="checkbox" /><span
+                ><b>Fortnite-Replays</b
+                ><small
+                  >Kills, Waffe und Entfernung exakt aus den Replays. Clips warten bis zum
+                  Matchende.</small
+                ></span
+              ></label
+            >
+            <label class="field"
+              ><span>Epic-Konto-ID <small>optional</small></span
+              ><input
+                id="epic-accounts"
+                maxlength="340"
+                autocomplete="off"
+                placeholder="Nur nötig bei festen Mitspielern"
+            /></label>
+            <label class="toggle"
+              ><input id="keep-r6-replays" type="checkbox" /><span
+                ><b>R6-Replays zu Clips aufbewahren</b
+                ><small
+                  >Sichert das Match zu jedem R6-Clip, etwa 30 MB, für spätere genaue
+                  Auswertung.</small
+                ></span
+              ></label
+            >
+          </section>
+
+          <section class="card">
+            <h2>Verhalten</h2>
+            <label class="toggle"
+              ><input id="pause-while-gaming" type="checkbox" /><span
+                ><b>Beim Spielen pausieren</b
+                ><small
+                  >Analyse und Upload warten, solange ein Spiel den Bildschirm füllt, und laufen
+                  eine Minute danach weiter.</small
+                ></span
+              ></label
+            >
+            <label class="toggle"
+              ><input id="auto-start" type="checkbox" /><span
+                ><b>Beim Öffnen gleich weiterarbeiten</b
+                ><small>Ohne Klick auf „Starten“.</small></span
+              ></label
+            >
+            <label class="toggle"
+              ><input id="open-at-login" type="checkbox" /><span
+                ><b>Mit Windows starten</b><small>Unauffällig im Infobereich.</small></span
+              ></label
+            >
+            <label class="toggle"
+              ><input id="notify" type="checkbox" /><span
+                ><b>Mitteilung bei jedem archivierten Clip</b
+                ><small>Nie während eines Spiels.</small></span
+              ></label
+            >
+            <label class="toggle"
+              ><input id="include-existing" type="checkbox" /><span
+                ><b>Vorhandene Aufnahmen mitnehmen</b
+                ><small>Gilt beim ersten Start mit einem neuen Ordner oder Server.</small></span
+              ></label
+            >
+          </section>
+
+          <div class="settings-actions">
+            <button id="rerun-setup" type="button" class="link">
+              Einrichtung erneut durchlaufen
+            </button>
+            <span class="spacer"></span>
+            <span id="save-result" class="result" role="status"></span>
+            <button id="save" type="submit" class="primary">Speichern</button>
           </div>
-          <p class="hint model-hint">
-            Für Grafikkarten ab etwa 10 GB VRAM: kleine Bildpakete, eine Analyse gleichzeitig. Ton
-            wird nicht ausgewertet.
-          </p>
-          <div class="setup-actions">
-            <button id="install-ollama" class="secondary">1. Ollama installieren ↗</button
-            ><button id="check-model" class="secondary">Verbindung prüfen</button
-            ><button id="download-model" class="secondary">2. Modell laden · ca. 6,6 GB</button
-            ><button id="cancel-download" class="secondary" hidden>Download abbrechen</button>
-          </div>
-          <label class="check"
-            ><input id="analyze" type="checkbox" checked />Neue Clips vor dem Upload lokal
-            analysieren</label
-          ><label
-            >Analyseumfang<select id="frames">
-              <option value="24">24 Bilder · weniger GPU-Arbeit</option>
-              <option value="48">48 Bilder · feinere Bildstichprobe</option>
-              <option value="0">Ganzer Clip · ein Bild alle 3 Sekunden, dauert länger</option>
-            </select></label
-          >
-          <label class="check"
-            ><input id="fortnite-replays" type="checkbox" />Fortnite-Replays einbeziehen</label
-          >
-          <p class="hint">
-            Kills, Knocks, Waffe und Entfernung kommen dann exakt aus den Replays deiner Matches.
-            Clips aus einem laufenden Match warten bis zu dessen Ende. In Fortnite muss die
-            Aufzeichnung von Replays eingeschaltet sein.
-          </p>
-          <label
-            >Epic-Konto-ID <small>(optional)</small
-            ><input
-              id="epic-accounts"
-              maxlength="340"
-              autocomplete="off"
-              placeholder="Nötig bei festen Mitspielern, sonst aus den Replays erkannt"
-          /></label>
-          <label class="check"
-            ><input id="r6-texts" type="checkbox" />Texterkennung: R6-Karte und Rundenausgang,
-            Valorant-Killfeed</label
-          >
-          <p class="hint">
-            Liest zwei Bilder je Sekunde auf der CPU, etwa eine Minute je Clip, während die KI auf
-            der Grafikkarte arbeitet. In R6 liest sie Kills bewusst nicht, die ordnet sie dort nicht
-            verlässlich zu. In Valorant liest sie Kills, Kopfschüsse und Tode aus dem Killfeed;
-            dafür muss oben dein Valorant-Name eingetragen sein.
-          </p>
-          <label class="check"
-            ><input id="speech" type="checkbox" />Voice-Chat mitschreiben (Spaßclips)</label
-          >
-          <p class="hint">
-            Schreibt mit, was im Clip gesagt wird, damit Clips ohne Kills Titel nach dem Gespräch
-            bekommen. Läuft mit Parakeet auf der CPU, wenige Sekunden je Clip. Beim ersten Start
-            lädt der Client die Sprachmodelle einmalig, rund 670 MB. Nichts verlässt deinen PC; zum
-            Server gehen nur Titel, Beschreibung und Zeitmarken.
-          </p>
-          <label class="check"
-            ><input id="pause-while-gaming" type="checkbox" />Beim Spielen pausieren
-            (empfohlen)</label
-          >
-          <p class="hint">
-            Solange ein Spiel im Vollbild oder randlosen Fenster läuft, warten Analyse und Upload,
-            damit Grafikkarte und Leitung dem Spiel gehören. Eine Minute nach dem Spielen geht es
-            weiter. Browser und Videoplayer im Vollbild zählen nicht als Spiel.
-          </p>
-          <label class="check"
-            ><input id="keep-r6-replays" type="checkbox" />R6-Replays zu Clips aufbewahren</label
-          >
-          <p class="hint">
-            Rainbow Six behält nur die letzten rund 30 Match-Replays. Der Client kopiert das Match
-            zu jedem R6-Clip nach %LOCALAPPDATA%\ReplayHaven\r6-replays, etwa 30 MB je Match, damit
-            spätere Auswertungen genaue Kills und Runden daraus lesen können. Dafür muss „Match
-            Replay“ in den Spieleinstellungen an sein.
-          </p>
-          <div class="notice">
-            Die KI schlägt Titel, Beschreibung, Spiel, Tags und Zeitmarken vor. Schnelle Ereignisse
-            können zwischen den Bildern liegen. Im Archiv bleibt alles bearbeitbar.
-          </div>
-          <p class="hint">
-            Für ungestörtes Spielen kannst du pausieren und die Warteschlange danach starten.
-          </p>
-        </section>
+        </form>
+      </main>
+      <p id="toast" class="toast" role="alert" hidden></p>
+    </div>
+
+    <!-- Einrichtungsassistent -->
+    <div
+      id="wizard"
+      class="wizard"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="wizard-title"
+      hidden
+    >
+      <aside class="wizard-rail">
+        <div class="brand">
+          <img src="icon.png" alt="" width="30" height="30" />
+          <span class="brand-name">Replay<b>Haven</b></span>
+        </div>
+        <ol id="wizard-steps" class="wizard-steps"></ol>
+        <p class="rail-foot">Deine Aufnahmen bleiben deine. Die KI läuft auf deinem PC.</p>
+      </aside>
+      <div class="wizard-main">
+        <div class="wizard-body">
+          <p id="wizard-eyebrow" class="eyebrow"></p>
+          <h1 id="wizard-title" tabindex="-1"></h1>
+          <p id="wizard-lead" class="lead"></p>
+          <div id="wizard-content" class="wizard-content"></div>
+          <p id="wizard-error" class="wizard-error" role="alert"></p>
+        </div>
+        <div class="wizard-nav">
+          <button id="wizard-back" class="ghost">Zurück</button>
+          <span class="spacer"></span>
+          <button id="wizard-skip" class="link" hidden></button>
+          <button id="wizard-next" class="primary large">Weiter</button>
+        </div>
       </div>
-      <section class="status-panel" aria-live="polite">
-        <div class="status-top">
-          <span class="status-dot" id="status-dot"></span>
-          <h2 id="status-title">Bereit zum Einrichten</h2>
-          <span id="queue">0 ausstehend · 0 archiviert</span>
-        </div>
-        <p id="status-message">Wähle deinen Aufnahmeordner und verbinde deinen Archiv-Server.</p>
-        <div class="controls">
-          <button id="save" class="secondary">Einstellungen speichern</button
-          ><button id="start" class="primary">Analyse & Upload starten</button
-          ><button id="pause" class="secondary" disabled>Pausieren</button>
-        </div>
-      </section>
-      <p id="error" class="error" role="alert"></p>
-    </main>
-    <footer>
-      <span>Deine Aufnahmen bleiben deine.</span
-      ><span>Fenster schließen = im Infobereich weiterlaufen · Beenden über das Tray-Menü</span>
-    </footer>
+    </div>
     <script src="app.js"></script>
   </body>
 </html>

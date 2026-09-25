@@ -7,14 +7,18 @@ import './analysis.css';
 import './streaming/streaming.css';
 import './subpages.css';
 import './interactions.css';
+import './auth.css';
 import { VaultProvider } from './data/store';
+import { AuthGate } from './components/AuthGate';
 import { App } from './App';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <VaultProvider>
-        <App />
-      </VaultProvider>
+      <AuthGate>
+        <VaultProvider>
+          <App />
+        </VaultProvider>
+      </AuthGate>
     </BrowserRouter>
   </React.StrictMode>,
 );

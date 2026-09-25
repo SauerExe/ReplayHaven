@@ -28,13 +28,15 @@ bash setup-server.sh
 
 Das Skript fragt die Serveradresse ab, erzeugt den Zugangsschlüssel, baut das Image und startet den Server. Der erste Build braucht Internet und einige Minuten.
 
-Danach die Serveradresse im Browser öffnen → **Einstellungen → KI & Server** → Schlüssel eingeben. Unter **Geräte** steht anschließend der Windows-Download bereit.
+Danach die Serveradresse im Browser öffnen und **dein Konto anlegen**: Name, Passwort und einmalig der Zugangsschlüssel aus der Einrichtung. Er verhindert, dass jemand anderes das erste Konto anlegt, falls der Server schon aus dem Internet erreichbar ist. Unter **Geräte** steht anschließend der Windows-Download bereit.
+
+**Weitere Geräte** wie Handy oder Laptop öffnen einfach die Serveradresse und melden sich mit Name und Passwort an. Schneller geht es per QR-Code: Unter **Geräte → Handy verbinden** auf einem angemeldeten Gerät, dann mit der Handy-Kamera scannen. Der Code gilt fünf Minuten und meldet genau ein Gerät an. Anmeldungen halten 30 Tage und verlängern sich bei jeder Nutzung; unter **Geräte** siehst du alle und kannst jedes einzeln entfernen.
 
 ## 2. Windows-Client einrichten
 
 1. `ReplayHaven-Client-Setup.exe` installieren und ReplayHaven Client öffnen. Node.js, Python oder FFmpeg musst du nicht gesondert installieren.
 2. Den Aufnahmeordner auswählen. Unterordner werden mitgenommen.
-3. Serveradresse und Zugangsschlüssel eintragen.
+3. Die Serveradresse eintragen, etwa `replay.deine-domain.de` oder `192.168.1.20:8787`, und **Verbinden** klicken. Der Client zeigt einen sechsstelligen Code. In der Web-Oberfläche erscheint unter **Geräte** derselbe Code mit dem Namen deines PCs; dort **Freigeben** klicken. Der PC bekommt einen eigenen Zugang, den der Client mit deinem Windows-Konto verschlüsselt speichert und den du unter **Geräte** jederzeit entziehen kannst. Ältere Server ohne Konten verbindest du über **Stattdessen mit Zugangsschlüssel**.
 4. **Ollama installieren** öffnet den offiziellen Download. Ollama installieren und starten, dann im Client **Verbindung prüfen** klicken.
 5. **Modell laden** lädt einmalig Qwen3.5 9B, ungefähr 6,6 GB. Das geschieht ausschließlich auf deinen Klick.
 6. Mit **24 Bildern** beginnen und **Analyse & Upload starten** klicken.

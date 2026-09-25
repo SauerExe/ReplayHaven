@@ -191,7 +191,7 @@ Operations, backups, reverse proxies and server-side AI are covered in [docs/SER
 
 ## What's next
 
-Ideas for later: user accounts and share links, translations of the interface, and audio cues such as laughs in the microphone track. Audio and Rainbow Six replay events only go into the analysis once measurements on real clips show that they help.
+Ideas for later: share links, translations of the interface, and audio cues such as laughs in the microphone track. Audio and Rainbow Six replay events only go into the analysis once measurements on real clips show that they help.
 
 ## FAQ
 
@@ -222,7 +222,7 @@ They are suggestions from a model that sees 24 or 48 frames and does not listen 
 <details>
 <summary><b>Can I reach my library from outside my home?</b></summary>
 
-Yes, behind HTTPS (reverse proxy) or a VPN. There is one shared access key and no user accounts yet, so do not expose the server without one of the two. See [docs/SERVER.md](docs/SERVER.md) and [SECURITY.md](SECURITY.md).
+Yes, behind HTTPS (reverse proxy) or a VPN. Every device signs in with your account (or a QR code), and recording PCs are paired by approving them in the web UI. See [docs/SERVER.md](docs/SERVER.md) and [SECURITY.md](SECURITY.md).
 </details>
 
 <details>

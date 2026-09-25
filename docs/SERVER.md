@@ -41,7 +41,7 @@ docker compose stop
 
 Port 8787 ist für das Heimnetz vorgesehen. Für Zugriff von außen einen VPN-Zugang oder einen HTTPS-Reverse-Proxy (Caddy, nginx, Traefik) verwenden und `REPLAYHAVEN_PUBLIC_ORIGIN` auf die HTTPS-Adresse setzen. Der Proxy muss Uploads bis 2 GB und Anfragen bis 30 Minuten zulassen; bei nginx etwa `client_max_body_size 2g` und `proxy_read_timeout 1800s`.
 
-Der gemeinsame Schlüssel schützt dieses persönliche Archiv. Benutzerkonten, Rollen und öffentliche Freigabelinks sind noch nicht implementiert. Der Browser erhält ein signiertes HttpOnly-Cookie; der Client speichert den Schlüssel mit Windows-Verschlüsselung und sendet ihn als Bearer-Token.
+Zugang hat nur, wer angemeldet ist. Beim ersten Aufruf legst du ein Konto an; dafür verlangt der Server einmalig den Zugangsschlüssel aus der `.env`, damit auf einem schon erreichbaren Server niemand vor dir ein Konto anlegt. Danach meldet sich jedes Gerät mit Name und Passwort oder per QR-Code an und erhält eine eigene Sitzung (HttpOnly-Cookie, 30 Tage, verlängert sich bei Nutzung). Aufnahme-PCs koppeln sich über eine Anfrage, die du unter **Geräte** freigibst; sie senden danach ihren eigenen Zugang als Bearer-Token. Jede Sitzung lässt sich unter **Geräte** entziehen. Der Zugangsschlüssel funktioniert weiterhin als Bearer-Token für ältere Clients und Skripte. Rollen und öffentliche Freigabelinks gibt es noch nicht; das Konto sieht und verwaltet alles. Fehlgeschlagene Anmeldungen werden nach 20 Versuchen in 15 Minuten gebremst. In der Datenbank stehen nur scrypt-Hashes der Passwörter und SHA-256-Hashes der Zugänge.
 
 ## Daten und Backup
 

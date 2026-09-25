@@ -12,6 +12,8 @@ import { z } from 'zod';
 import { aiConfigured } from './config';
 import type { ServerConfig } from './config';
 import { VaultDatabase, publicClip } from './database';
+import { Accounts } from './auth';
+import { registerAuth } from './auth-routes';
 import type { StoredClip } from './database';
 import { MediaProcessor } from './media';
 import { GameLibrary } from './games';
@@ -69,12 +71,10 @@ export async function buildServer(
     reply.header('X-Content-Type-Options', 'nosniff');
     if (req.headers.origin && !origins.has(req.headers.origin))
       return reply.code(403).send({ error: 'Diese Herkunft ist nicht freigegeben.' });
-    if (!config.token || req.url === '/api/session') return;
-    const bearer = req.headers.authorization?.replace(/^Bearer /, '') || '';
-    const signed = req.cookies.vault_session ? req.unsignCookie(req.cookies.vault_session) : null;
-    if (!tokenEqual(bearer, config.token) && !(signed?.valid && signed.value === 'vault'))
-      return reply.code(401).send({ error: 'Bitte mit deinem Server-Zugangsschlüssel verbinden.' });
+    if (auth.guard(req, reply)) return reply;
   });
+  // Konten, Geräte und Kopplung (server/auth-routes.ts).
+  const auth = registerAuth(app, new Accounts(db.db), config);
   app.setErrorHandler((error, req, reply) => {
     void req;
     const status =

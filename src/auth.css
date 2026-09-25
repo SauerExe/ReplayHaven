@@ -1,0 +1,235 @@
+/* Anmeldung, Kopplung von Aufnahme-PCs und angemeldete Geräte (AuthGate, DeviceAccess). */
+
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(900px 480px at 20% -10%, rgb(139 92 246 / 20%), transparent 60%),
+    radial-gradient(700px 420px at 110% 110%, rgb(139 92 246 / 10%), transparent 60%), var(--bg);
+}
+.auth-card {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: rgb(21 24 33 / 88%);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 45%);
+}
+.auth-card h1 {
+  margin: 0;
+  font-size: clamp(26px, 5vw, 32px);
+  letter-spacing: -0.02em;
+}
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 19px;
+  font-weight: 650;
+}
+.auth-brand b {
+  color: var(--accent);
+}
+.auth-lead {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.auth-card .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+.auth-card input {
+  padding: 11px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+}
+.auth-card input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(167 139 250 / 22%);
+}
+.auth-card .button {
+  justify-content: center;
+  padding-block: 12px;
+}
+.auth-hint {
+  color: var(--muted);
+  font-weight: 400;
+  line-height: 1.45;
+}
+.auth-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgb(244 124 135 / 12%);
+  color: var(--error);
+  font-weight: 600;
+}
+
+.access-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.access-section .section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pair-request {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  border: 1px solid rgb(167 139 250 / 45%);
+  background: linear-gradient(180deg, rgb(139 92 246 / 12%), transparent), var(--surface);
+  animation: pair-in 0.3s ease-out;
+}
+.pair-request h3 {
+  margin: 0 0 4px;
+}
+.pair-request p {
+  margin: 0;
+  color: var(--muted);
+}
+.pair-code {
+  color: var(--text);
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+.pair-actions {
+  display: flex;
+  gap: 8px;
+}
+.qr-box {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.qr-box img {
+  flex: none;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+}
+.qr-box h3 {
+  margin: 0 0 6px;
+}
+.qr-box p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.session-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.session-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  color: var(--muted);
+}
+.session-row + .session-row {
+  border-top: 1px solid var(--border);
+}
+.session-row strong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.session-row p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.account-card .account-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.password-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 12px;
+  padding: 0 20px 20px;
+}
+
+@keyframes pair-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pair-request {
+    animation: none;
+  }
+}
+@media (max-width: 720px) {
+  .auth-card {
+    padding: 24px 20px;
+  }
+  .pair-request,
+  .password-form {
+    grid-template-columns: 1fr;
+  }
+  .pair-request .device-icon {
+    display: none;
+  }
+  .qr-box {
+    flex-direction: column;
+    text-align: center;
+  }
+  .session-row {
+    grid-template-columns: auto 1fr;
+  }
+  .session-row .button {
+    grid-column: 1 / -1;
+  }
+}
+/* Die allgemeine Bildregel der Seiten würde Logo und QR-Code auf volle Breite ziehen. */
+.auth-brand img {
+  width: 36px;
+  height: 36px;
+}
+.qr-box img {
+  width: 220px;
+  height: 220px;
+  max-width: 100%;
+}
