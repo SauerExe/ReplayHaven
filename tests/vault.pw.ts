@@ -1,9 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
-/** Clip-Kacheln im Raster von Bibliothek und Sammlung. */
+/** Clip tiles in the library and collection grid. */
 const tiles = (page: Page) => page.locator('.stream-grid .stream-tile--clip');
-test('Fehlende Medien, Verarbeitungszustand und leere Bibliothek sind bedienbar', async ({
-  page,
-}) => {
+test('missing media, processing state and an empty library stay usable', async ({ page }) => {
   await page.goto('/library');
   await page.evaluate(() => {
     const state = JSON.parse(localStorage.getItem('replayhaven.v1')!);
@@ -13,9 +11,9 @@ test('Fehlende Medien, Verarbeitungszustand und leere Bibliothek sind bedienbar'
     localStorage.setItem('replayhaven.v1', JSON.stringify(state));
   });
   await page.goto('/clips/elden-1');
-  await expect(page.getByRole('heading', { name: 'Keine Videodatei vorhanden' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No video file available' })).toBeVisible();
   await page.goto('/clips/elden-2');
-  await expect(page.getByRole('heading', { name: 'Clip wird verarbeitet' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Clip is being processed' })).toBeVisible();
   await page.goto('/library?status=processing');
   await expect(tiles(page)).toHaveCount(1);
   await page.evaluate(() => {
@@ -25,67 +23,67 @@ test('Fehlende Medien, Verarbeitungszustand und leere Bibliothek sind bedienbar'
     localStorage.setItem('replayhaven.v1', JSON.stringify(state));
   });
   await page.goto('/library');
-  await expect(page.getByRole('heading', { name: 'Noch keine Clips' })).toBeVisible();
-  await page.getByRole('button', { name: 'Clip hinzufügen', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'No clips yet' })).toBeVisible();
+  await page.getByRole('button', { name: 'Add clip', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 });
-test('Suche, Filter und Favoriten bleiben konsistent und gespeichert', async ({ page }) => {
+test('search, filters and favorites stay consistent and saved', async ({ page }) => {
   await page.goto('/library');
-  await page.getByRole('textbox', { name: 'Bibliothek durchsuchen' }).fill('Clutch');
+  await page.getByRole('textbox', { name: 'Search library' }).fill('Clutch');
   await page
-    .getByRole('group', { name: 'Nach Spiel filtern' })
+    .getByRole('group', { name: 'Filter by game' })
     .getByRole('button', { name: /^Counter-Strike 2/ })
     .click();
   await expect(tiles(page)).toHaveCount(4);
-  await page.getByRole('button', { name: 'Favoriten', exact: true }).click();
+  await page.getByRole('button', { name: 'Favorites', exact: true }).click();
   await expect(tiles(page)).toHaveCount(1);
   await tiles(page)
     .first()
-    .getByRole('button', { name: /aus Favoriten entfernen/ })
+    .getByRole('button', { name: /from favorites/ })
     .click();
-  await expect(page.getByRole('heading', { name: 'Keine Treffer' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No matches' })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Keine Treffer' })).toBeVisible();
-  await page.getByRole('button', { name: 'Filter zurücksetzen', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'No matches' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reset filters', exact: true }).click();
   await expect(tiles(page)).toHaveCount(20);
 });
-test('Sammlung erstellen, befüllen, umbenennen und nach Neuladen öffnen', async ({ page }) => {
+test('create, fill and rename a collection, then open it after a reload', async ({ page }) => {
   await page.goto('/collections');
-  await page.getByRole('button', { name: 'Neue Sammlung', exact: true }).click();
-  await page.getByLabel('Titel', { exact: true }).fill('Unsere beste Runde');
-  await page.getByRole('button', { name: 'Sammlung erstellen', exact: true }).click();
+  await page.getByRole('button', { name: 'New collection', exact: true }).click();
+  await page.getByLabel('Title', { exact: true }).fill('Unsere beste Runde');
+  await page.getByRole('button', { name: 'Create collection', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Unsere beste Runde' })).toBeVisible();
-  await page.getByRole('button', { name: 'Clips hinzufügen', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Add clips', exact: true }).first().click();
   await page.getByRole('checkbox', { name: 'Dieser Boss hatte andere Pläne', exact: true }).check();
-  await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(tiles(page)).toHaveCount(1);
   await page.reload();
   await expect(tiles(page)).toHaveCount(1);
-  await page.getByRole('button', { name: 'Aktionen für Dieser Boss hatte andere Pläne' }).click();
-  await page.getByRole('menuitem', { name: 'Umbenennen' }).click();
-  await page.getByLabel('Titel', { exact: true }).fill('Unser Highlight');
-  await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await page.getByRole('button', { name: 'Actions for Dieser Boss hatte andere Pläne' }).click();
+  await page.getByRole('menuitem', { name: 'Rename' }).click();
+  await page.getByLabel('Title', { exact: true }).fill('Unser Highlight');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.reload();
   await expect(tiles(page).locator('.stream-tile-title')).toHaveText('Unser Highlight');
-  await page.getByRole('button', { name: 'Aus Sammlung entfernen' }).click();
+  await page.getByRole('button', { name: 'Remove Unser Highlight from collection' }).click();
   await expect(tiles(page)).toHaveCount(0);
   await page.goto('/library?q=Unser%20Highlight');
   await expect(tiles(page)).toHaveCount(1);
 });
-test('Mehrfachauswahl löscht erst nach Bestätigung', async ({ page }) => {
+test('multi-select deletes only after confirmation', async ({ page }) => {
   await page.goto('/library?game=cs2');
-  await page.getByRole('button', { name: 'Auswählen', exact: true }).click();
-  await page.getByRole('button', { name: 'Alle auswählen', exact: true }).click();
-  await page.getByRole('button', { name: 'Auswahl löschen' }).click();
-  await page.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  await page.getByRole('button', { name: 'Select all', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete selection' }).click();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(tiles(page)).toHaveCount(4);
-  await page.getByRole('button', { name: 'Auswahl löschen' }).click();
-  await page.getByRole('button', { name: 'Endgültig löschen' }).click();
+  await page.getByRole('button', { name: 'Delete selection' }).click();
+  await page.getByRole('button', { name: 'Delete permanently' }).click();
   await expect(tiles(page)).toHaveCount(0);
   await page.reload();
   await expect(tiles(page)).toHaveCount(0);
 });
-test('Echtes externes Video spielt und setzt tatsächlichen Fortschritt fort', async ({ page }) => {
+test('a real external video plays and resumes from the actual progress', async ({ page }) => {
   await page.goto('/clips/elden-1');
   await expect(page.getByRole('heading', { name: 'Dieser Boss hatte andere Pläne' })).toBeVisible();
   await page.waitForFunction(
@@ -103,21 +101,21 @@ test('Echtes externes Video spielt und setzt tatsächlichen Fortschritt fort', a
   await page.waitForFunction(() => document.querySelector('video')!.currentTime > 9);
   await page.locator('video').evaluate((v) => v.pause());
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Fortsetzen', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Fortsetzen', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect.poll(() => page.locator('video').evaluate((v) => v.currentTime)).toBeGreaterThan(8);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Weiterschauen', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Continue watching', exact: true })).toBeVisible();
 });
-test('Lokale Datei, Formatfehler und ehrliche Freigabevorschau', async ({ page }) => {
+test('local file, format error and an honest share preview', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Clip hochladen', exact: true }).click();
-  await page.getByLabel('Videodateien auswählen').setInputFiles({
+  await page.getByRole('button', { name: 'Upload clip', exact: true }).click();
+  await page.getByLabel('Choose video files').setInputFiles({
     name: 'invalid.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('not a video'),
   });
-  await expect(page.getByText(/Dieses Format wird nicht unterstützt/)).toBeVisible();
+  await expect(page.getByText(/This format is not supported/)).toBeVisible();
   // Ephemeral video fixture produced only in this test; never added to the product's assets.
   const bytes = await page.evaluate(async () => {
     const canvas = document.createElement('canvas');
@@ -149,10 +147,10 @@ test('Lokale Datei, Formatfehler und ehrliche Freigabevorschau', async ({ page }
     return result;
   });
   await page
-    .getByLabel('Videodateien auswählen')
+    .getByLabel('Choose video files')
     .setInputFiles({ name: 'local-test.webm', mimeType: 'video/webm', buffer: Buffer.from(bytes) });
-  await expect(page.getByText('Lokale Vorschau bereit')).toBeVisible({ timeout: 20000 });
-  await page.getByRole('link', { name: 'local-test.webm abspielen' }).click();
+  await expect(page.getByText('Local preview ready')).toBeVisible({ timeout: 20000 });
+  await page.getByRole('link', { name: 'Play local-test.webm' }).click();
   await expect(page.getByRole('heading', { name: 'local-test', exact: true })).toBeVisible();
   await page.waitForFunction(() => {
     const video = document.querySelector('video');
@@ -160,44 +158,78 @@ test('Lokale Datei, Formatfehler und ehrliche Freigabevorschau', async ({ page }
   });
   await page.locator('video').evaluate((v) => v.play());
   await expect.poll(() => page.locator('video').evaluate((v) => v.currentTime)).toBeGreaterThan(0);
-  await page.getByRole('button', { name: 'Clip teilen', exact: true }).click();
-  await expect(page.getByText(/Öffentliches Teilen ist noch nicht verfügbar/)).toBeVisible();
-  await page.getByRole('link', { name: 'Vorschau', exact: true }).click();
+  await page.getByRole('button', { name: 'Share clip', exact: true }).click();
+  await expect(page.getByText(/Public sharing is not available yet/)).toBeVisible();
+  await page.getByRole('link', { name: 'Preview', exact: true }).click();
   await expect(page.locator('.share-page')).toBeVisible();
   await expect(page.getByRole('navigation')).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Freigabe nicht verfügbar' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Share not available' })).toBeVisible();
 });
-test('Mobile Menüs, Filter, Fokus und Fehlerseiten', async ({ page }) => {
+test('mobile menus, filters, focus and error pages', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page
-    .getByRole('navigation', { name: 'Mobile Navigation' })
-    .getByRole('link', { name: 'Bibliothek' })
+    .getByRole('navigation', { name: 'Mobile navigation' })
+    .getByRole('link', { name: 'Library' })
     .click();
-  await page.getByRole('button', { name: 'Filter', exact: true }).click();
-  await expect(page.getByLabel('Status filtern')).toBeVisible();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await expect(page.getByLabel('Filter by status')).toBeVisible();
   await page
-    .getByRole('group', { name: 'Nach Spiel filtern' })
+    .getByRole('group', { name: 'Filter by game' })
     .getByRole('button', { name: /^ELDEN RING/ })
     .click();
   await expect(tiles(page)).toHaveCount(4);
   await page
-    .getByRole('navigation', { name: 'Mobile Navigation' })
-    .getByRole('button', { name: 'Profilmenü' })
+    .getByRole('navigation', { name: 'Mobile navigation' })
+    .getByRole('button', { name: 'Profile menu' })
     .click();
-  await page.getByRole('menuitem', { name: 'Einstellungen' }).click();
-  await expect(page.getByRole('heading', { name: 'Einstellungen', exact: true })).toBeVisible();
-  await page.getByRole('switch', { name: 'Bewegung reduzieren' }).click();
+  await page.getByRole('menuitem', { name: 'Settings' }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await page.getByRole('switch', { name: 'Reduce motion' }).click();
   await page.reload();
-  await expect(page.getByRole('switch', { name: 'Bewegung reduzieren' })).toBeChecked();
-  await page.getByRole('button', { name: 'Clip hochladen', exact: true }).click();
+  await expect(page.getByRole('switch', { name: 'Reduce motion' })).toBeChecked();
+  await page.getByRole('button', { name: 'Upload clip', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.goto('/clips/unknown');
-  await expect(page.getByRole('heading', { name: 'Clip nicht gefunden' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Clip not found' })).toBeVisible();
   await page.goto('/unknown');
-  await expect(page.getByRole('heading', { name: 'Hier ist kein Clip gelandet.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No clip landed here.' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+test('the clip page player shows the loaded part and a spinner while playback stalls', async ({
+  page,
+}) => {
+  // Deterministic media: 54 seconds long, the first 27 seconds loaded, and the request never answers.
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLMediaElement.prototype, 'duration', {
+      configurable: true,
+      get: () => 54,
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'buffered', {
+      configurable: true,
+      get: () => ({ length: 1, start: () => 0, end: () => 27 }),
+    });
+  });
+  await page.route(
+    (url) => url.hostname !== 'localhost',
+    () => new Promise(() => {}),
+  );
+  await page.goto('/clips/elden-1');
+  const video = page.locator('.video-stage video');
+  // The real loadstart may still reset the strip, so repeat the progress event until it sticks.
+  await expect
+    .poll(async () => {
+      await video.dispatchEvent('progress');
+      return page.getByTestId('seek-buffer').getAttribute('style');
+    })
+    .toMatch(/--buffered: 50%/);
+  await video.dispatchEvent('waiting');
+  const spinner = page.getByTestId('player-buffering');
+  await expect(spinner).toHaveText('Loading video …');
+  await expect(spinner).toHaveRole('status');
+  await video.dispatchEvent('playing');
+  await expect(spinner).toHaveCount(0);
 });

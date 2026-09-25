@@ -6,7 +6,7 @@ import { parseReplay, readElimination, readReplayFile, ReplayError } from './rep
 import { buildReplay, id } from './replay-fixture';
 
 const at = (x: number, y: number, z: number): [number, number, number] => [x, y, z];
-// Aufbau wie in einem Replay aus Kapitel 5: Timecode in UTC, Vektoren als double, verschlüsselt.
+// Laid out like a Chapter 5 replay: timecode in UTC, vectors as double, encrypted.
 const recorded = {
   localStart: Date.UTC(2026, 8, 24, 20, 0, 0),
   utcStart: Date.UTC(2026, 8, 24, 18, 0, 0),
@@ -22,7 +22,7 @@ const recorded = {
       killerAt: at(10000, 2000, 3000),
     },
     { time: 70000, victim: 'bot', killer: id('a1'), cause: 3, victimAt: at(0, 0, 100) },
-    { time: 90000, victim: id('a1'), killer: { name: 'Wache' }, cause: 4 },
+    { time: 90000, victim: id('a1'), killer: { name: 'Guard' }, cause: 4 },
   ],
   stats: { time: 90000, eliminations: 1 },
   team: { time: 90000, placement: 7, totalPlayers: 25 },
@@ -51,7 +51,7 @@ it('reads eliminations, match stats and the UTC start of an encrypted replay', a
       victimAt: { x: 10000, y: 20000, z: 3000 },
       killerAt: { x: 10000, y: 2000, z: 3000 },
     },
-    // Ein Ort (0, 0, 0) ist unbekannt, nicht die Kartenmitte.
+    // A position of (0, 0, 0) is unknown, not the center of the map.
     {
       time: 70000,
       victim: { kind: 'bot', id: '' },
@@ -63,7 +63,7 @@ it('reads eliminations, match stats and the UTC start of an encrypted replay', a
     {
       time: 90000,
       victim: { kind: 'player', id: id('a1') },
-      killer: { kind: 'name', id: 'Wache' },
+      killer: { kind: 'name', id: 'Guard' },
       cause: 4,
       knocked: false,
     },
@@ -84,7 +84,7 @@ it('reads the float layout of older engine versions and unencrypted files', asyn
 });
 
 it('reads eliminations laid out like real replays from 11.31 and 29.01', () => {
-  // Bytes aus den Tests von FortniteReplayDecompressor (MIT), Konto-IDs durch Platzhalter ersetzt.
+  // Bytes from the FortniteReplayDecompressor tests (MIT), account IDs replaced by placeholders.
   const floats = Buffer.from(
     [
       '09000000040000000000000080b20ac93c43ec7f3f42b89047c15082c7fd618847000080',
@@ -117,7 +117,7 @@ it('reads eliminations laid out like real replays from 11.31 and 29.01', () => {
   const knock = readElimination(doubles, 0, 34);
   expect(knock).toMatchObject({ cause: 3, knocked: true, killer: { id: id('a1') } });
   expect(knock.victimAt?.x).toBeCloseTo(42407.05, 2);
-  // Der Ort des Schützen steht hier auf (0, 0, 0), also unbekannt.
+  // The shooter's position is (0, 0, 0) here, so unknown.
   expect(knock.killerAt).toBeUndefined();
 });
 
@@ -130,11 +130,11 @@ it('leaves a replay that is still recording unread', async () => {
 
 it('keeps what it can read from a truncated or damaged file', async () => {
   const full = buildReplay(recorded);
-  // Abgeschnitten mitten im letzten Chunk: alles davor bleibt lesbar.
+  // Cut off in the middle of the last chunk: everything before it stays readable.
   const cut = await parseReplay(full.subarray(0, full.length - 20));
   expect(cut.eliminations).toHaveLength(3);
   expect(cut.team).toBeUndefined();
-  // Ein Ereignis mit unbekannter Spielerart zählt als unlesbar, statt alles zu verwerfen.
+  // An event with an unknown player type counts as unreadable instead of discarding everything.
   const damaged = buildReplay({
     ...recorded,
     encrypted: false,
@@ -145,7 +145,7 @@ it('keeps what it can read from a truncated or damaged file', async () => {
   const partly = await parseReplay(damaged);
   expect(partly.eliminations).toEqual([]);
   expect(partly.unreadable).toBe(1);
-  await expect(parseReplay(Buffer.from('keine replay-datei'))).rejects.toBeInstanceOf(ReplayError);
+  await expect(parseReplay(Buffer.from('not a replay file'))).rejects.toBeInstanceOf(ReplayError);
 });
 
 it('reads a replay file from disk the same way', async () => {

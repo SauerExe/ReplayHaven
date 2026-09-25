@@ -4,6 +4,7 @@ import { ActionProvider } from './components/Actions';
 import { Layout } from './components/Layout';
 import { EmptyState } from './components/Cards';
 import { StreamingHomeContainer } from './streaming';
+import { t } from './i18n';
 const Library = lazy(() => import('./streaming/LibraryPage'));
 const Collections = lazy(() =>
   import('./streaming/CollectionsPage').then((m) => ({ default: m.StreamingCollectionsPage })),
@@ -19,12 +20,13 @@ const SharePage = lazy(() => import('./pages/ClipDetail').then((m) => ({ default
 const Devices = lazy(() => import('./pages/Devices'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Setup = lazy(() => import('./pages/Setup'));
+const Users = lazy(() => import('./pages/Users'));
 export function App() {
   return (
     <ActionProvider>
       <Suspense
         fallback={
-          <div className="page loading-page" aria-label="Inhalt wird geladen">
+          <div className="page loading-page" aria-label={t('common.loading')}>
             <div className="skeleton-heading" />
             <div className="skeleton-grid">
               {[1, 2, 3, 4].map((i) => (
@@ -45,16 +47,14 @@ export function App() {
             <Route path="devices" element={<Devices />} />
             <Route path="settings" element={<Settings />} />
             <Route path="setup" element={<Setup />} />
+            <Route path="users" element={<Users />} />
             <Route
               path="*"
               element={
                 <div className="page">
-                  <EmptyState
-                    title="Hier ist kein Clip gelandet."
-                    description="Diese Seite gibt es nicht. Dein Archiv findest du gleich nebenan."
-                  >
+                  <EmptyState title={t('notFound.title')} description={t('notFound.text')}>
                     <Link className="button primary" to="/">
-                      Zur Startseite
+                      {t('notFound.home')}
                     </Link>
                   </EmptyState>
                 </div>

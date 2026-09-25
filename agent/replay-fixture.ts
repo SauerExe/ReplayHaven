@@ -1,19 +1,19 @@
 import { createCipheriv, randomBytes } from 'node:crypto';
 
 /**
- * Synthetische Fortnite-Replays für Tests, gebaut wie echte Dateien (agent/replay.ts): Vorspann,
- * Kopf-Chunk, Daten- und Checkpoint-Chunks als Füllung, verschlüsselte Ereignis-Chunks. Echte
- * Replays gehören nicht ins Repository — sie enthalten Konto-IDs fremder Spieler.
+ * Synthetic Fortnite replays for tests, built like real files (agent/replay.ts): preamble,
+ * header chunk, data and checkpoint chunks as filler, encrypted event chunks. Real replays do
+ * not belong in the repository — they contain other players' account IDs.
  */
 
 export interface FixtureElim {
   time: number;
-  /** Epic-Konto-ID (32 Hex-Zeichen), "bot" oder { name } für benannte Bots. */
+  /** Epic account ID (32 hex characters), "bot" or { name } for named bots. */
   victim: string | { name: string };
   killer: string | { name: string };
   cause: number;
   knocked?: boolean;
-  /** Orte in Zentimetern; fehlt einer, schreibt die Datei (0, 0, 0) wie das Spiel. */
+  /** Positions in centimeters; if one is missing, the file holds (0, 0, 0) like the game. */
   victimAt?: [number, number, number];
   killerAt?: [number, number, number];
 }
@@ -22,11 +22,11 @@ export interface FixtureOptions {
   lengthMs?: number;
   live?: boolean;
   encrypted?: boolean;
-  /** Ortszeit des Aufnahmebeginns ohne Zeitzone, als wäre sie UTC: Date.UTC(…). */
+  /** Local time of the recording start without time zone, as if it were UTC: Date.UTC(…). */
   localStart?: number;
-  /** Aufnahmebeginn in UTC; schreibt ein Timecode-Ereignis wie ab Kapitel 5. */
+  /** Recording start in UTC; writes a Timecode event like Chapter 5 and later. */
   utcStart?: number;
-  /** Ab 23 schreibt das Spiel Vektoren als double. */
+  /** From 23 on, the game writes vectors as double. */
   engineNetworkVersion?: number;
   gameVersion?: string;
   elims?: FixtureElim[];
@@ -109,7 +109,7 @@ function elimination(e: FixtureElim, wide: boolean) {
     .build();
 }
 
-/** Baut eine Replay-Datei. Ohne Angaben: verschlüsselt, Engine-Version 36, 20 Minuten. */
+/** Builds a replay file. Defaults: encrypted, engine version 36, 20 minutes. */
 export function buildReplay(options: FixtureOptions = {}) {
   const encrypted = options.encrypted ?? true;
   const key = randomBytes(32);
@@ -212,7 +212,7 @@ export function buildReplay(options: FixtureOptions = {}) {
   return out.build();
 }
 
-/** Eine Epic-Konto-ID aus einer kurzen Kennung, etwa id('a1') = "a1a1a1…". */
+/** An Epic account ID from a short tag, for example id('a1') = "a1a1a1…". */
 export function id(tag: string) {
   return tag.repeat(Math.ceil(32 / tag.length)).slice(0, 32);
 }

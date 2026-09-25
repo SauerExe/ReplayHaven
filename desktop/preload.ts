@@ -22,7 +22,7 @@ const actions = new Set([
 ]);
 contextBridge.exposeInMainWorld('vault', {
   call: (action: string, value?: unknown) => {
-    if (!actions.has(action)) return Promise.reject(new Error('Unbekannte Aktion'));
+    if (!actions.has(action)) return Promise.reject(new Error('Unknown action'));
     return ipcRenderer.invoke(`vault:${action}`, value);
   },
   onStatus: (callback: (status: unknown) => void) => {

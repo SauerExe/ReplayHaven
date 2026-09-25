@@ -5,6 +5,7 @@ import type { ServerConfig } from './config';
 import type { VaultDatabase } from './database';
 import type { MediaProcessor } from './media';
 import type { AnalysisProvider } from './providers';
+import { videoSource } from './playback';
 export class AnalysisWorker {
   private running: Promise<void> | null = null;
   private stopped = false;
@@ -14,6 +15,8 @@ export class AnalysisWorker {
     readonly media: MediaProcessor,
     readonly provider: AnalysisProvider,
     private readonly onGame?: (name: string) => void,
+    /** Called after a clip became ready, e.g. to start the playback backfill. */
+    private readonly onPrepared?: () => void,
   ) {}
   recover() {
     for (const clip of this.db.list())
@@ -52,6 +55,7 @@ export class AnalysisWorker {
             clip.originalFile,
             directory,
             extname(clip.originalFile),
+            this.config.playback ?? 'web',
           );
           if (this.db.get(clip.id)?.deleted) continue;
           const latest = this.db.get(clip.id)!;
@@ -60,8 +64,10 @@ export class AnalysisWorker {
             resolution: `${meta.height}p`,
             codec: meta.codec,
             playbackFile: meta.playbackFile,
+            playbackProfile: meta.playbackProfile,
+            playbackFailed: undefined,
             thumbnail: `/api/clips/${clip.id}/thumbnail`,
-            videoSource: `/api/clips/${clip.id}/video`,
+            videoSource: videoSource(clip.id, meta.playbackFile),
             status: 'ready',
             analysis: latest.expectsClientAnalysis
               ? latest.analysis?.status === 'ready'
@@ -75,13 +81,21 @@ export class AnalysisWorker {
                     : 'not_configured',
                 },
           });
+          // A rendition from an earlier run (retry, backfill) is replaced by the new one.
+          if (
+            latest.playbackFile &&
+            latest.playbackFile !== meta.playbackFile &&
+            latest.playbackFile !== clip.originalFile
+          )
+            await rm(latest.playbackFile, { force: true }).catch(() => {});
+          this.onPrepared?.();
         } catch {
           this.db.patch(clip.id, {
             status: 'error',
             analysis: {
               status: 'error',
               error:
-                'Das Video konnte nicht gelesen werden. Original bleibt gespeichert. Prüfe FFmpeg oder lade eine andere Aufnahme hoch.',
+                'The video could not be read. The original stays stored. Check FFmpeg or upload another recording.',
             },
           });
         }
@@ -136,7 +150,7 @@ export class AnalysisWorker {
               ...clip.analysis,
               status: 'error',
               error:
-                'Die KI-Analyse ist fehlgeschlagen. Prüfe Anbieter, Modell, Zugangsdaten und verfügbaren Speicher. Du kannst die Analyse erneut starten.',
+                'The AI analysis failed. Check provider, model, credentials and available memory. You can start the analysis again.',
             },
           });
       } finally {

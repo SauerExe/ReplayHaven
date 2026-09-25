@@ -3,7 +3,7 @@ import { MediaProcessor } from '../server/media';
 import { ClipTexts, serveTexts } from './r6';
 import type { TextsWorkerData } from './r6';
 
-// Einstieg des Worker-Threads für die Texterkennung; der Hauptprozess spricht über WorkerTexts.
+// Entry point of the text recognition worker thread; the main process talks to it via WorkerTexts.
 const data = workerData as TextsWorkerData;
 if (parentPort)
   serveTexts(

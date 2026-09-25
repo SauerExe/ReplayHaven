@@ -6,22 +6,22 @@ import type { GameEvent, Weapon } from './events';
 import { sameGame } from './players';
 
 /**
- * Fortnite-Ereignisse für Clips, exakt aus den Replays, die Fortnite von jedem Match unter
- * %LOCALAPPDATA%\FortniteGame\Saved\Demos ablegt. Drei Schritte:
+ * Fortnite events for clips, exact from the replays Fortnite stores for every match under
+ * %LOCALAPPDATA%\FortniteGame\Saved\Demos. Three steps:
  *
- * 1. Clipzeit: NVIDIA schreibt die Ortszeit in den Dateinamen. Ob sie das Speichern (= Clipende)
- *    oder den Aufnahmebeginn meint, zeigt der Änderungszeitpunkt der Datei (clipWindow).
- * 2. Eigenes Konto: Ein Replay nennt nicht, wer aufgenommen hat. Es folgt aus eingetragenen
- *    IDs, aus der Wiederkehr über die Replays dieses PCs und aus der Match-Statistik
- *    (resolveOwner). Bleibt es offen, gibt es keine Replay-Ereignisse — lieber keine als fremde.
- * 3. Ereignisse: Kills, Knocks, eigenes Ausscheiden und Sieg im Clipfenster, mit Waffe und
- *    Entfernung (clipEvents).
+ * 1. Clip time: NVIDIA writes the local time into the file name. Whether it means the save
+ *    (= clip end) or the recording start is shown by the file's modification time (clipWindow).
+ * 2. Own account: a replay does not say who recorded it. It follows from configured IDs, from
+ *    recurrence across this PC's replays and from the match stats (resolveOwner). If it stays
+ *    open, there are no replay events: better none than someone else's.
+ * 3. Events: kills, knocks, own elimination and victory in the clip window, with weapon and
+ *    distance (clipEvents).
  */
 
 /**
- * Todesursachen (EDeathCause), wie Fortnite sie in Eliminierungen schreibt. Geprüft an
- * Replays bis Version 32.00 (2024); neuere Saisons könnten die Reihenfolge ändern, deshalb
- * gehört die Waffenart zu den Messkriterien.
+ * Death causes (EDeathCause) as Fortnite writes them in eliminations. Verified on replays up to
+ * version 32.00 (2024); newer seasons could change the order, so the weapon type is one of the
+ * measurement criteria.
  */
 const CAUSES: Record<number, Weapon> = {
   0: 'storm',
@@ -45,28 +45,28 @@ const CAUSES: Record<number, Weapon> = {
   30: 'explosive',
   38: 'storm',
 };
-/** Niedergeschlagen und ausgeblutet (DBNOTimeout): Die Waffe steht beim Knock davor. */
+/** Knocked down and bled out (DBNOTimeout): the weapon is on the knock before it. */
 const BLEED_OUT = 17;
-/** Bann, Entfernen, Zuschauen, Abmelden, Teamwechsel, Sieg, unbekannt: kein Tod im Spiel. */
+/** Ban, removal, spectating, logout, team switch, victory, unknown: not a death in the game. */
 const NOT_A_DEATH = new Set([18, 19, 46, 47, 48, 49, 50]);
-/** Zwei Kills mit höchstens so viel Abstand bilden eine Serie, wie bei gelesenen Meldungen. */
+/** Two kills at most this far apart form a streak, as with read messages. */
 const SERIES_GAP_MS = 12000;
-/** Wie lange ein Clip höchstens auf das Ende seines Matches wartet. */
+/** The longest a clip waits for its match to end. */
 export const MAX_WAIT_MS = 45 * 60000;
 
 export function isFortnite(game: string) {
   return sameGame('Fortnite', game);
 }
 
-/** Standardordner der Replays unter Windows. */
+/** Default replay folder on Windows. */
 export function defaultDemosFolder(env: NodeJS.ProcessEnv = process.env) {
   return env.LOCALAPPDATA ? join(env.LOCALAPPDATA, 'FortniteGame', 'Saved', 'Demos') : '';
 }
 
 /**
- * Ortszeit aus einem NVIDIA-Dateinamen, ohne Zeitzone (als wäre sie UTC notiert):
- * "Fortnite 2025.02.14 - 16.55.58.18.Eliminierung.DVR.mp4". Die letzte Zahl ist eine laufende
- * Nummer, keine Hundertstelsekunde.
+ * Local time from an NVIDIA file name, without time zone (as if written in UTC):
+ * "Fortnite 2025.02.14 - 16.55.58.18.Eliminierung.DVR.mp4". The last number is a running
+ * counter, not hundredths of a second.
  */
 export function nvidiaLocalTime(path: string): number | undefined {
   const match = /(\d{4})\.(\d{2})\.(\d{2}) - (\d{2})\.(\d{2})\.(\d{2})\.\d+(?:\.|$)/.exec(
@@ -81,7 +81,7 @@ export function nvidiaLocalTime(path: string): number | undefined {
   return ms;
 }
 
-/** Ortszeit dieses PCs (als UTC notiert) in echte UTC-Millisekunden. */
+/** Converts this PC's local time (written as UTC) to real UTC milliseconds. */
 export function localToUtc(naive: number) {
   const d = new Date(naive);
   return new Date(
@@ -96,18 +96,18 @@ export function localToUtc(naive: number) {
 }
 
 export interface ClipWindow {
-  /** Beginn und Ende des Clips in UTC-Millisekunden. */
+  /** Start and end of the clip in UTC milliseconds. */
   start: number;
   end: number;
-  /** name-end: Dateiname = Speichern (Clipende); name-start: Dateiname = Aufnahmebeginn. */
+  /** name-end: file name = save (clip end); name-start: file name = recording start. */
   anchor: 'name-end' | 'name-start';
 }
 
 /**
- * Zeitfenster eines Clips in UTC. NVIDIA schreibt die Datei beim Speichern; ihr
- * Änderungszeitpunkt liegt deshalb wenige Sekunden nach dem Clipende. Passt der Dateiname dazu
- * als Ende, meint er das Speichern; passt er als Beginn, die Aufnahme. Passt beides (sehr kurze
- * Clips) oder nichts (kopierte oder bearbeitete Datei), bleibt die Zeit offen.
+ * Time window of a clip in UTC. NVIDIA writes the file when saving, so its modification time is
+ * a few seconds after the clip end. If the file name fits that as the end, it means the save; if
+ * it fits as the start, the recording. If both fit (very short clips) or neither (copied or
+ * edited file), the time stays open.
  */
 export function clipWindow(
   path: string,
@@ -119,7 +119,7 @@ export function clipWindow(
   if (local === undefined || !(duration > 0) || !Number.isFinite(mtime)) return undefined;
   const named = toUtc(local);
   const length = duration * 1000;
-  // Sekundengenauer Name, Schreiben der Datei: -2 bis +15 Sekunden bis zum Änderungszeitpunkt.
+  // Name accurate to the second, file write: -2 to +15 seconds until the modification time.
   const fits = (clipEnd: number) => mtime - clipEnd >= -2000 && mtime - clipEnd <= 15000;
   const asEnd = fits(named);
   const asStart = fits(named + length);
@@ -129,18 +129,18 @@ export function clipWindow(
     : { start: named, end: named + length, anchor: 'name-start' };
 }
 
-/** Beginn der Aufzeichnung in UTC: aus dem Timecode-Ereignis, sonst aus der Ortszeit im Kopf. */
+/** Start of the recording in UTC: from the timecode event, otherwise from the local time in the header. */
 export function replayStart(replay: Replay, toUtc: (naive: number) => number = localToUtc) {
   if (replay.utcStart !== undefined) return replay.utcStart;
   return replay.localStart !== undefined ? toUtc(replay.localStart) : undefined;
 }
 
 const idOf = (p: ReplayPlayer) => (p.kind === 'player' ? p.id : undefined);
-/** Derselbe Beteiligte; namenlose Bots lassen sich nicht auseinanderhalten. */
+/** The same participant; nameless bots cannot be told apart. */
 const same = (a: ReplayPlayer, b: ReplayPlayer) =>
   a.kind !== 'bot' && a.kind === b.kind && a.id === b.id;
 
-/** Alle Spieler-IDs eines Replays. */
+/** All player IDs of a replay. */
 export function playersIn(replay: Replay) {
   const ids = new Set<string>();
   for (const e of replay.eliminations)
@@ -150,26 +150,27 @@ export function playersIn(replay: Replay) {
 
 export interface OwnerResult {
   id?: string;
-  /** Warum diese ID, oder warum keine — für Messläufe. */
+  /** Why this ID, or why none, for measurement runs. */
   basis: string[];
 }
 
 /**
- * Die Epic-Konto-ID des aufnehmenden Spielers. Hinweise, gewichtet:
- * - eingetragene eigene IDs entscheiden allein, wenn genau eine im Replay vorkommt;
- * - Wiederkehr (+2): Wer auf diesem PC spielt, steht in fast jedem seiner Replays, fremde
- *   Spieler fast nie in zwei; Mitspieler aus festen Gruppen allerdings auch;
- * - eigenes Ausscheiden (+2, im Teammodus +1): Die Match-Statistik entsteht, wenn das eigene
- *   Match endet; scheidet genau dann jemand aus, ist das meist der Besitzer. Im Teammodus endet
- *   es womöglich erst mit dem letzten Teammitglied;
- * - Kill-Zahl (+1): Eigene Eliminierungen laut Statistik, höchstens eine Abweichung (an echten
- *   Replays: 7 statt 8, 7 statt 6). Erst ab einem Kill, null passt auf fast jeden;
- * - Sichtbarkeit (Ausschluss): Der eigene Standort ist dem Replay bekannt, solange man lebt.
- *   Wer zu Lebzeiten als Schütze ohne Standort vorkommt, war weit weg und ist nicht der Besitzer.
- * Entschieden wird nur mit mindestens drei Punkten und zwei Punkten Vorsprung, also nie allein
- * aus Wiederkehr: Die trennt den Besitzer nicht von festen Mitspielern. Im Teammodus (es gibt
- * Knocks oder Respawns) gibt es keine Entscheidung, sobald ein weiterer Spieler wiederkehrt:
- * Lieber kein Konto als die Kills eines Mitspielers. Dann hilft nur die eingetragene Konto-ID.
+ * The Epic account ID of the recording player. Weighted clues:
+ * - configured own IDs decide alone if exactly one appears in the replay;
+ * - recurrence (+2): whoever plays on this PC appears in almost every one of its replays, other
+ *   players almost never in two; teammates from regular groups do too, though;
+ * - own elimination (+2, +1 in team modes): the match stats are written when the player's own
+ *   match ends; whoever is eliminated at exactly that moment is usually the owner. In team modes
+ *   it may only end with the last team member;
+ * - kill count (+1): own eliminations per stats, at most one off (on real replays: 7 vs 8,
+ *   7 vs 6). Only from one kill up, since zero fits almost everyone;
+ * - visibility (exclusion): the replay knows the player's own position while they are alive.
+ *   Anyone who appears as a shooter without a position while alive was far away and is not the
+ *   owner.
+ * A decision needs at least three points and a two-point lead, so never recurrence alone: it
+ * does not separate the owner from regular teammates. In team modes (there are knocks or
+ * respawns) there is no decision as soon as another player recurs: better no account than a
+ * teammate's kills. Then only the configured account ID helps.
  */
 export function resolveOwner(
   replay: Replay,
@@ -179,19 +180,19 @@ export function resolveOwner(
   const players = playersIn(replay);
   const own = accounts.map((a) => a.toLowerCase()).filter((a) => players.has(a));
   if (accounts.length) {
-    if (own.length === 1) return { id: own[0], basis: ['eingetragene Konto-ID'] };
+    if (own.length === 1) return { id: own[0], basis: ['configured account ID'] };
     return {
       basis: [
         own.length
-          ? 'mehrere eingetragene Konto-IDs im selben Match'
-          : 'keine eingetragene Konto-ID in diesem Replay',
+          ? 'several configured account IDs in the same match'
+          : 'no configured account ID in this replay',
       ],
     };
   }
   const elims = replay.eliminations;
-  // Ab Kapitel 2 kennt das Replay den Ort jedes Opfers; nur dann taugt ein fehlender Ort.
+  // From Chapter 2 on, the replay knows every victim's position; only then does a missing one mean something.
   const located = elims.length > 0 && elims.filter((e) => e.victimAt).length / elims.length >= 0.9;
-  // Knocks gibt es nur im Teammodus, mehrfaches Ausscheiden nur mit Respawn (etwa Team Rumble).
+  // Knocks exist only in team modes, repeated eliminations only with respawn (e.g. Team Rumble).
   const deaths = new Map<string, number>();
   for (const e of elims) {
     const id = idOf(e.victim);
@@ -208,22 +209,22 @@ export function resolveOwner(
   const stated = replay.stats?.eliminations ?? 0;
   for (const id of players) {
     const seen = recurrence.get(id) ?? 0;
-    if (seen >= 2) add(id, 2, `in ${seen} weiteren Replays`);
-    else if (seen === 1) add(id, 1, 'in einem weiteren Replay');
+    if (seen >= 2) add(id, 2, `in ${seen} other replays`);
+    else if (seen === 1) add(id, 1, 'in one other replay');
     const finals = elims.filter(
       (e) => idOf(e.killer) === id && idOf(e.victim) !== id && !e.knocked,
     ).length;
     if (stated > 0 && finals > 0 && Math.abs(finals - stated) <= 1)
-      add(id, 1, `${finals} Eliminierungen, Statistik ${stated}`);
+      add(id, 1, `${finals} eliminations, stats ${stated}`);
   }
   if (replay.stats && (replay.team?.placement ?? 2) > 1)
     for (const e of elims) {
       const id = idOf(e.victim);
       if (id && !e.knocked && Math.abs(e.time - replay.stats.time) <= 500)
-        add(id, teams ? 1 : 2, 'scheidet aus, als das eigene Match endet');
+        add(id, teams ? 1 : 2, 'eliminated when the own match ends');
     }
-  // Gutschriften nach dem eigenen Aus, etwa für einen Gegner, der danach ausblutet, können ohne
-  // Standort kommen; sie zählen deshalb nicht.
+  // Credits after the player's own elimination, e.g. for an enemy who bleeds out afterwards, can
+  // come without a position, so they do not count.
   const hidden = (id: string) => {
     const out = elims.filter((e) => idOf(e.victim) === id && !e.knocked).at(-1)?.time ?? Infinity;
     return elims.some(
@@ -238,20 +239,20 @@ export function resolveOwner(
   if (located) for (const id of [...scores.keys()]) if (hidden(id)) scores.delete(id);
   const ranked = [...scores.entries()].sort((a, b) => b[1].score - a[1].score);
   const [best, second] = ranked;
-  if (!best || best[1].score < 3) return { basis: ['kein Spieler mit genug Hinweisen'] };
+  if (!best || best[1].score < 3) return { basis: ['no player with enough clues'] };
   if (second && best[1].score - second[1].score < 2)
-    return { basis: [`nicht eindeutig: ${best[0]} oder ${second[0]}`] };
+    return { basis: [`ambiguous: ${best[0]} or ${second[0]}`] };
   const regulars = [...players].filter((id) => id !== best[0] && (recurrence.get(id) ?? 0) > 0);
   if (teams && regulars.length)
     return {
       basis: [
-        `Teammodus mit ${regulars.length} weiteren Spielern aus anderen Replays: eigene Konto-ID eintragen`,
+        `team mode with ${regulars.length} other players from other replays: enter your own account ID`,
       ],
     };
   return { id: best[0], basis: best[1].basis };
 }
 
-/** Entfernung in Metern zwischen Opfer und Schütze, wenn beide Orte bekannt sind. */
+/** Distance in metres between victim and shooter, if both positions are known. */
 function distanceOf(e: Elimination) {
   if (!e.victimAt || !e.killerAt) return undefined;
   const d = Math.hypot(
@@ -262,15 +263,15 @@ function distanceOf(e: Elimination) {
   return Math.round(d) / 100;
 }
 
-/** Waffe einer Eliminierung; beim Ausbluten die des vorangegangenen Knocks. */
+/** Weapon of an elimination; for a bleed-out, that of the preceding knock. */
 function weaponOf(e: Elimination, knock?: Elimination) {
   return CAUSES[e.cause === BLEED_OUT && knock ? knock.cause : e.cause];
 }
 
 /**
- * Die Ereignisse des Besitzers im Clipfenster, mit Sekunden im Clip. `start` ist der Beginn der
- * Aufzeichnung in UTC. Ereignisse bis eine Sekunde vor und zwei nach dem Clip zählen mit — so
- * genau ist die Zeit im Dateinamen — und werden an den Rand gelegt.
+ * The owner's events in the clip window, with seconds in the clip. `start` is the recording
+ * start in UTC. Events up to one second before and two after the clip count too (that is how
+ * precise the time in the file name is) and are moved to the edge.
  */
 export function clipEvents(
   replay: Replay,
@@ -302,7 +303,7 @@ export function clipEvents(
       events.push({
         kind,
         seconds: at(e.time),
-        text: `Replay: ${kind === 'knock' ? 'Knock' : bled ? 'Kill (ausgeblutet)' : 'Kill'}${weapon ? `, ${weapon}` : ''}${distance !== undefined ? `, ${Math.round(distance)} m` : ''}`,
+        text: `Replay: ${kind === 'knock' ? 'Knock' : bled ? 'Kill (bled out)' : 'Kill'}${weapon ? `, ${weapon}` : ''}${distance !== undefined ? `, ${Math.round(distance)} m` : ''}`,
         source: 'replay',
         ...(weapon ? { weapon } : {}),
         ...(distance !== undefined ? { distance } : {}),
@@ -314,14 +315,14 @@ export function clipEvents(
       events.push({
         kind: 'death',
         seconds: at(e.time),
-        text: `Replay: ausgeschieden${weapon ? `, ${weapon}` : ''}`,
+        text: `Replay: eliminated${weapon ? `, ${weapon}` : ''}`,
         source: 'replay',
         ...(weapon ? { weapon } : {}),
         ...(distance !== undefined ? { distance } : {}),
       });
     }
   }
-  // Serien: Kills mit höchstens zwölf Sekunden Abstand, gemeldet beim letzten Kill.
+  // Streaks: kills at most twelve seconds apart, reported at the last kill.
   let chain: typeof kills = [];
   const flush = () => {
     if (chain.length >= 2) {
@@ -330,7 +331,7 @@ export function clipEvents(
       events.push({
         kind: 'multikill',
         seconds: at(chain.at(-1)!.time),
-        text: `Replay: ${chain.length} Kills in Folge`,
+        text: `Replay: ${chain.length} kills in a row`,
         source: 'replay',
         count: chain.length,
         ...(weapon ? { weapon } : {}),
@@ -343,41 +344,41 @@ export function clipEvents(
     chain.push(kill);
   }
   flush();
-  // Sieg: Das eigene Match endet mit Platz 1 innerhalb des Clips.
+  // Victory: the player's own match ends in first place within the clip.
   if (replay.team?.placement === 1 && replay.stats && inClip(replay.stats.time))
     events.push({
       kind: 'matchWon',
       seconds: at(replay.stats.time),
-      text: 'Replay: Platz 1',
+      text: 'Replay: first place',
       source: 'replay',
     });
   return events.sort((a, b) => a.seconds! - b.seconds!);
 }
 
-/** Was ein Replay zu einem Clip beiträgt. */
+/** What a replay contributes to a clip. */
 export interface ReplayTrace {
   status: 'ok' | 'wait' | 'none';
-  /** Warum kein Replay genutzt wurde. */
+  /** Why no replay was used. */
   reason?: string;
   file?: string;
   gameVersion?: string;
   owner?: string;
   basis?: string[];
   anchor?: ClipWindow['anchor'];
-  /** Sekunde der Aufzeichnung, bei der der Clip beginnt. */
+  /** Second of the recording at which the clip starts. */
   clipStartInReplay?: number;
 }
 
 export interface ReplayLookup {
   status: 'ok' | 'wait' | 'none';
-  /** Nur bei "ok": die Ereignisse des Besitzers im Clip; leer heißt, es geschah nichts davon. */
+  /** Only with "ok": the owner's events in the clip; empty means none of them happened. */
   events: GameEvent[];
   trace: ReplayTrace;
 }
 
 type Loaded = { path: string; key: string; mtime: number; replay?: Replay; error?: string };
 
-/** In wie vielen anderen fertigen Replays jede Spieler-ID vorkommt. */
+/** In how many other finished replays each player ID appears. */
 function recurrenceBesides(finished: { path: string; replay: Replay }[], path: string) {
   const recurrence = new Map<string, number>();
   for (const l of finished)
@@ -386,13 +387,13 @@ function recurrenceBesides(finished: { path: string; replay: Replay }[], path: s
   return recurrence;
 }
 
-/** Ein Replay im Überblick für Messläufe (agent/fortnite-cli.ts). */
+/** A replay overview for measurement runs (agent/fortnite-cli.ts). */
 export interface ReplaySurvey {
   file: string;
   error?: string;
   live?: boolean;
   gameVersion?: string;
-  /** Beginn in UTC, ISO-Schreibweise. */
+  /** Start in UTC, ISO format. */
   start?: string;
   minutes?: number;
   placement?: number;
@@ -403,21 +404,21 @@ export interface ReplaySurvey {
 }
 
 /**
- * Die Replays eines Ordners. Gelesen werden nur Vorspann, Kopf und Ereignisse; das Ergebnis
- * bleibt je Datei zwischengespeichert, solange sich Größe und Änderungszeit nicht ändern.
+ * The replays of a folder. Only the preamble, header and events are read; the result stays
+ * cached per file as long as size and modification time do not change.
  */
 export class FortniteReplays {
   private cache = new Map<string, Loaded>();
   constructor(
     readonly options: {
       folder: string;
-      /** Eingetragene eigene Epic-Konto-IDs; leer: automatisch erkennen. */
+      /** Configured own Epic account IDs; empty: detect automatically. */
       accounts?: string[];
       toUtc?: (naive: number) => number;
     },
   ) {}
 
-  /** Alle lesbaren Replays des Ordners. Fehlt der Ordner, ist die Liste leer. */
+  /** All readable replays of the folder. If the folder is missing, the list is empty. */
   async load(): Promise<Loaded[]> {
     let names: string[];
     try {
@@ -428,13 +429,13 @@ export class FortniteReplays {
       return [];
     }
     const paths = names.map((name) => join(this.options.folder, name));
-    // Replays, die Fortnite inzwischen gelöscht hat, fallen aus dem Zwischenspeicher.
+    // Replays that Fortnite has deleted in the meantime drop out of the cache.
     for (const cached of this.cache.keys()) if (!paths.includes(cached)) this.cache.delete(cached);
     const infos = await Promise.all(paths.map((path) => stat(path).catch(() => undefined)));
     const loaded: Loaded[] = [];
     for (const [i, path] of paths.entries()) {
       const info = infos[i];
-      if (!info) continue; // zwischen Auflisten und Lesen verschwunden
+      if (!info) continue; // vanished between listing and reading
       const key = `${info.size}:${info.mtimeMs}`;
       let entry = this.cache.get(path);
       if (entry?.key !== key) {
@@ -445,7 +446,7 @@ export class FortniteReplays {
             path,
             key,
             mtime: info.mtimeMs,
-            error: error instanceof Error ? error.message : 'unlesbar',
+            error: error instanceof Error ? error.message : 'unreadable',
           };
         }
         this.cache.set(path, entry);
@@ -455,7 +456,7 @@ export class FortniteReplays {
     return loaded;
   }
 
-  /** Überblick über alle Replays des Ordners samt erkanntem Konto, für Messläufe. */
+  /** Overview of all replays in the folder with the detected account, for measurement runs. */
   async survey(): Promise<ReplaySurvey[]> {
     const toUtc = this.options.toUtc ?? localToUtc;
     const loaded = await this.load();
@@ -490,8 +491,8 @@ export class FortniteReplays {
   }
 
   /**
-   * Für die Analyse: nur Fortnite-Clips, und gewartet wird höchstens 45 Minuten nach dem
-   * Speichern. Bleibt ein Replay länger offen (Absturz, Match im Hintergrund), zählen die Bilder.
+   * For the analysis: only Fortnite clips, and it waits at most 45 minutes after saving. If a
+   * replay stays open longer (crash, match in the background), the frames count.
    */
   async forClip(path: string, game: string, duration: number, now = Date.now()) {
     if (!isFortnite(game)) return undefined;
@@ -501,14 +502,13 @@ export class FortniteReplays {
     return {
       status: 'none',
       events: [],
-      trace: { ...result.trace, status: 'none', reason: 'Match nach 45 Minuten nicht beendet' },
+      trace: { ...result.trace, status: 'none', reason: 'match not finished after 45 minutes' },
     } satisfies ReplayLookup;
   }
 
   /**
-   * Replay-Ereignisse für einen Clip. "wait" heißt: Ein Match nimmt gerade auf und hat vor dem
-   * Clipende begonnen — der Clip gehört vermutlich dazu, die Ereignisse stehen erst nach dem
-   * Match fest.
+   * Replay events for a clip. "wait" means a match is recording right now and began before the
+   * clip end: the clip probably belongs to it, and the events are only settled after the match.
    */
   async lookup(clip: string, duration: number, mtime: number): Promise<ReplayLookup> {
     const toUtc = this.options.toUtc ?? localToUtc;
@@ -518,10 +518,10 @@ export class FortniteReplays {
       trace: { status: 'none', reason, ...trace },
     });
     const window = clipWindow(clip, duration, mtime, toUtc);
-    if (!window) return none('Aufnahmezeit aus Dateiname und Änderungszeit nicht eindeutig');
+    if (!window) return none('recording time from file name and modification time is ambiguous');
     const loaded = await this.load();
-    // Läuft: als live markiert, vor dem Clipende begonnen und seit Clipbeginn noch geschrieben.
-    // Ein Replay, das ein Absturz offen ließ, wird nicht mehr geschrieben und hält nichts auf.
+    // Running: marked live, begun before the clip end and still written since the clip start.
+    // A replay left open by a crash is no longer written and holds nothing up.
     const running = loaded.find((l) => {
       if (!l.replay?.live) return false;
       const begun = replayStart(l.replay, toUtc);
@@ -545,7 +545,7 @@ export class FortniteReplays {
           l.begun + l.replay.lengthMs >= window.end - 1000,
       )
       .sort((a, b) => b.begun! - a.begun!)[0];
-    if (!covering) return none('kein Replay deckt die Aufnahmezeit ab', { anchor: window.anchor });
+    if (!covering) return none('no replay covers the recording time', { anchor: window.anchor });
     const owner = resolveOwner(
       covering.replay,
       recurrenceBesides(finished, covering.path),
@@ -559,7 +559,7 @@ export class FortniteReplays {
       anchor: window.anchor,
       clipStartInReplay: Math.round((window.start - covering.begun!) / 100) / 10,
     };
-    if (!owner.id) return none('eigenes Konto nicht eindeutig', trace);
+    if (!owner.id) return none('own account is ambiguous', trace);
     return {
       status: 'ok',
       events: clipEvents(covering.replay, owner.id, covering.begun!, window),

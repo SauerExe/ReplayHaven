@@ -1,156 +1,156 @@
-# Produkt- und Designbrief
+# Product and Design Brief
 
-Dieser Brief beschreibt, wie die Weboberfläche von ReplayHaven aussehen, sich anfühlen und funktionieren soll: Produktidee, Designsystem, Ansichten, Zustände und Qualitätsmaßstab. Änderungen an der Oberfläche richten sich danach.
+This brief describes how the ReplayHaven web interface should look, feel and work: product idea, design system, views, states and quality bar. Changes to the interface follow it.
 
 Name: **ReplayHaven**.
 
-Das Qualitätsziel ist eine Streaming-Oberfläche auf Netflix-Niveau: starke Bildkomposition, überzeugende Typografie, flüssige Bedienung und durchgängige Detailqualität. Entwickle eine eigenständige Identität.
+The quality target is a streaming interface on par with Netflix: strong image composition, convincing typography, smooth interaction and consistent attention to detail. Develop a distinct identity of its own.
 
-## 1. Auftrag
+## 1. Assignment
 
-Baue die Anwendung tatsächlich. Liefere nicht nur einen Plan oder eine statische Konzeptseite.
+Actually build the application. Do not deliver just a plan or a static concept page.
 
-Der erste Schwerpunkt ist eine vollständige, interaktive und visuell ausgereifte Weboberfläche. Implementiere alle zentralen Ansichten und ihre Zustände. Nutze eine sauber getrennte Demo-Datenschicht, solange kein Backend existiert.
+The first focus is a complete, interactive and visually polished web interface. Implement all core views and their states. Use a cleanly separated demo data layer as long as no backend exists.
 
-Prüfe zunächst das vorhandene Repository. Übernimm vorhandene Frameworks, Komponenten und Konventionen, sofern sie zum Ziel passen. Beginne bei einem bestehenden Projekt nicht unnötig von vorn.
+Review the existing repository first. Adopt existing frameworks, components and conventions where they fit the goal. Do not start from scratch unnecessarily on an existing project.
 
-Arbeite selbstständig, triff konsistente Produktentscheidungen und überprüfe das Ergebnis im Browser, sofern die Umgebung dies ermöglicht.
+Work independently, make consistent product decisions and check the result in the browser whenever the environment allows it.
 
-## 2. Produktidee
+## 2. Product Idea
 
-ReplayHaven sammelt Gaming-Clips automatisch vom PC und macht sie in einer privaten Mediathek zugänglich.
+ReplayHaven automatically collects gaming clips from the PC and makes them accessible in a private library.
 
-Der spätere Ablauf:
+The intended flow:
 
-1. OBS, NVIDIA oder Xbox Game Bar speichern Aufnahmen in einem lokalen Ordner.
-2. Eine kleine Desktop-Anwendung überwacht ausgewählte Ordner.
-3. Fertig geschriebene Dateien werden auf den eigenen Server hochgeladen.
-4. Der Server verarbeitet Metadaten und Vorschaubilder.
-5. Clips erscheinen in der Weboberfläche und lassen sich ansehen, organisieren und teilen.
+1. OBS, NVIDIA or Xbox Game Bar save recordings to a local folder.
+2. A small desktop application watches selected folders.
+3. Fully written files are uploaded to the user's own server.
+4. The server processes metadata and thumbnails.
+5. Clips appear in the web interface, where they can be watched, organized and shared.
 
-Wichtige Produktregel:
+Key product rule:
 
-Es handelt sich standardmäßig um ein Upload-Archiv. Wird eine Datei auf dem PC gelöscht, bleibt die Serverkopie erhalten. Eine automatische Löschung lokaler Dateien ist eine spätere, ausdrücklich aktivierte Funktion.
+By default this is an upload archive. If a file is deleted on the PC, the server copy is kept. Automatic deletion of local files is a later, explicitly enabled feature.
 
-Die Weboberfläche kann nicht eigenständig beliebige Windows-Ordner dauerhaft überwachen. Stelle eine Desktop-Verbindung ehrlich dar und täusche diese Fähigkeit nicht vor.
+The web interface cannot permanently watch arbitrary Windows folders on its own. Present a desktop connection honestly and do not fake this capability.
 
-## 3. Zielgruppe und Atmosphäre
+## 3. Audience and Atmosphere
 
-Die Anwendung richtet sich an Gamer, die ihre Highlights behalten und einfach wiederfinden wollen:
+The application is aimed at gamers who want to keep their highlights and find them again easily:
 
-* kompetitive Clutches;
-* lustige Situationen mit Freunden;
-* besondere Siege;
-* atmosphärische Spielmomente;
-* kurze Aufnahmen aus längeren Sessions.
+* competitive clutches;
+* funny moments with friends;
+* special wins;
+* atmospheric game moments;
+* short recordings from longer sessions.
 
-Die Atmosphäre ist dunkel, filmisch, hochwertig und persönlich.
+The atmosphere is dark, cinematic, high-quality and personal.
 
-Die Clips sind das visuelle Zentrum. Navigation, Filter und Metadaten unterstützen sie.
+The clips are the visual center. Navigation, filters and metadata support them.
 
-Vermeide eine Verwaltungssoftware-Ästhetik mit Statistik-Kacheln und Tabellen als Startseite. Ebenso vermeiden: RGB-Gaming-Klischees, Neonränder, übermäßige Glows, Cyberpunk-Schriften und dekorative Glassmorphism-Flächen.
+Avoid an admin-software aesthetic with stat tiles and tables as the home page. Also avoid: RGB gaming clichés, neon borders, excessive glows, cyberpunk fonts and decorative glassmorphism surfaces.
 
-## 4. Technischer Ausgangspunkt
+## 4. Technical Starting Point
 
-Falls kein Stack vorgegeben ist:
+If no stack is given:
 
-* React und TypeScript;
+* React and TypeScript;
 * Vite;
 * Tailwind CSS;
 * React Router;
 * Lucide Icons;
-* zugängliche Headless-Komponenten für Dialoge und Menüs;
-* CSS-Animationen oder eine bereits vorhandene Motion-Bibliothek;
-* eine austauschbare Datenzugriffsschicht;
-* lokale Persistenz für Demo-Einstellungen und Nutzeraktionen.
+* accessible headless components for dialogs and menus;
+* CSS animations or an already present motion library;
+* a swappable data access layer;
+* local persistence for demo settings and user actions.
 
-Verwende bestehende Abhängigkeiten sinnvoll. Installiere keine umfangreichen Bibliotheken für kleine Effekte.
+Make sensible use of existing dependencies. Do not install large libraries for small effects.
 
-Das Frontend soll später an einen selbst hostbaren Server anschließbar sein. Baue in dieser Phase keine eigene Transcoding-Infrastruktur, keinen Desktop-Agenten und kein vollständiges Authentifizierungssystem.
+The frontend should later be connectable to a self-hostable server. In this phase, do not build your own transcoding infrastructure, a desktop agent or a full authentication system.
 
-## 5. Designsystem
+## 5. Design System
 
-Verwende folgende Palette als Grundlage:
+Use the following palette as the foundation:
 
-| Token              | Farbe   |
-| ------------------ | ------- |
-| Hintergrund        | #0E1015 |
-| Navigation         | #151821 |
-| Karten und Dialoge | #1C202B |
-| Rahmen             | #2C3241 |
-| Primärer Text      | #F2F3F7 |
-| Sekundärer Text    | #9CA5B8 |
-| Akzent             | #A78BFA |
-| Akzent Hover       | #C4B5FD |
-| Erfolg             | #5DD6A4 |
-| Fehler             | #F47C87 |
+| Token               | Color   |
+| ------------------- | ------- |
+| Background          | #0E1015 |
+| Navigation          | #151821 |
+| Cards and dialogs   | #1C202B |
+| Border              | #2C3241 |
+| Primary text        | #F2F3F7 |
+| Secondary text      | #9CA5B8 |
+| Accent              | #A78BFA |
+| Accent hover        | #C4B5FD |
+| Success             | #5DD6A4 |
+| Error               | #F47C87 |
 
-Primäre Buttons erhalten violetten Hintergrund und dunklen Text.
+Primary buttons get a violet background and dark text.
 
-Setze Violett gezielt ein:
+Use violet deliberately:
 
-* wichtigste Aktionen;
-* aktive Navigation;
-* Wiedergabe- und Uploadfortschritt;
-* ausgewählte Filter;
-* Fokuszustände.
+* most important actions;
+* active navigation;
+* playback and upload progress;
+* selected filters;
+* focus states.
 
-Nutze große dunkle Flächen mit subtiler Abstufung. Rahmen sollen nur dort sichtbar sein, wo sie die Struktur verbessern.
+Use large dark surfaces with subtle gradation. Borders should only be visible where they improve structure.
 
-Typografie:
+Typography:
 
-* prägnante, gut lesbare Sans-Serif;
-* beispielsweise lokal verfügbare Geist oder Inter;
-* große, eng gesetzte Hero-Überschriften;
-* klare Größenhierarchie;
-* tabellarische Ziffern für Zeiten und Dateigrößen;
-* keine durchgängigen Großbuchstaben außer kleinen Labels.
+* a crisp, highly legible sans-serif;
+* for example a locally available Geist or Inter;
+* large, tightly set hero headings;
+* a clear size hierarchy;
+* tabular figures for times and file sizes;
+* no all-caps text except for small labels.
 
-Gestaltung:
+Styling:
 
-* konsistente Abstände auf einer 4-/8-Pixel-Basis;
-* Karten mit etwa 10–14 Pixeln Radius;
-* Dialoge mit etwas größeren Radien;
-* überwiegend kompakte Controls;
-* großzügige Abstände zwischen Inhaltsbereichen;
-* zurückhaltende Schatten.
+* consistent spacing on a 4/8-pixel grid;
+* cards with roughly 10–14 pixel radius;
+* dialogs with slightly larger radii;
+* mostly compact controls;
+* generous spacing between content areas;
+* restrained shadows.
 
-Prüfe Textkontrast und Fokusdarstellung. Sekundäre Informationen müssen weiterhin gut lesbar sein.
+Check text contrast and focus styling. Secondary information must remain easy to read.
 
-## 6. Navigation und Seitenstruktur
+## 6. Navigation and Page Structure
 
 Desktop:
 
-Eine oben fixierte Navigation über die gesamte Breite. Im Hero ist sie zunächst transparent mit dunklem Verlauf; beim Scrollen erhält sie einen nahezu deckenden Hintergrund.
+A full-width navigation bar fixed to the top. Over the hero it is initially transparent with a dark gradient; on scroll it gets a nearly opaque background.
 
-Links:
+Left:
 
-* eigenständige, einfache ReplayHaven-Wortmarke;
-* dezente Bildmarke, die sich auch als App-Icon eignet.
+* a distinct, simple ReplayHaven wordmark;
+* a subtle logo mark that also works as an app icon.
 
-Mittig oder daneben:
+Center or next to it:
 
-* Start;
-* Bibliothek;
-* Sammlungen.
+* Home;
+* Library;
+* Collections.
 
-Rechts:
+Right:
 
-* Suche;
-* Upload-Aktion;
-* kompakter Verbindungsstatus;
-* Profilmenü mit Zugriff auf Geräte und Einstellungen.
+* search;
+* upload action;
+* compact connection status;
+* profile menu with access to devices and settings.
 
-Kein permanenter breiter Verwaltungsbereich links.
+No permanent wide admin panel on the left.
 
 Mobile:
 
-* kompakter Header;
-* untere Navigation für Start, Bibliothek, Sammlungen und Mehr;
-* sichtbare aktive Zustände;
-* ausreichend Abstand zum unteren Bildschirmrand und Safe Area.
+* compact header;
+* bottom navigation for Home, Library, Collections and More;
+* visible active states;
+* enough distance from the bottom screen edge and safe area.
 
-Routen:
+Routes:
 
 * `/`
 * `/library`
@@ -161,383 +161,383 @@ Routen:
 * `/settings`
 * `/share/:token`
 
-## 7. Startseite
+## 7. Home Page
 
-Die Startseite ist die wichtigste Designfläche. Sie muss schon beim ersten Aufruf wie ein fertiges Produkt wirken.
+The home page is the most important design surface. It must feel like a finished product from the very first visit.
 
 ### Hero
 
-Ein großflächiger Featured Clip bildet den Einstieg.
+A large featured clip forms the entry point.
 
 Desktop:
 
-* ungefähr 60–72 Prozent der Viewport-Höhe, mit sinnvoller Obergrenze;
-* großflächiges Gameplay-Motiv;
-* dunkler Verlauf nach links für Textlesbarkeit;
-* weicher Übergang nach unten in den Seitenhintergrund;
-* Motivschwerpunkt möglichst rechts;
-* Text links unten;
-* keine zusätzliche eingerahmte Karte um den Hero.
+* roughly 60–72 percent of the viewport height, with a sensible maximum;
+* a large gameplay image;
+* a dark gradient toward the left for text legibility;
+* a soft transition at the bottom into the page background;
+* the image's focal point preferably on the right;
+* text at the bottom left;
+* no extra framed card around the hero.
 
-Hero-Inhalt:
+Hero content:
 
-* kleines Label wie „DEIN LETZTES HIGHLIGHT“;
-* prägnanter Clip-Titel;
-* Spielname, Aufnahmedatum, Dauer und Auflösung;
-* maximal ein kurzer beschreibender Satz;
-* primär „Abspielen“;
-* sekundär „Zur Sammlung“;
-* optional eine zurückhaltende Detailaktion.
+* a small label such as "YOUR LATEST HIGHLIGHT";
+* a punchy clip title;
+* game name, recording date, duration and resolution;
+* at most one short descriptive sentence;
+* primary "Play";
+* secondary "Add to collection";
+* optionally a restrained details action.
 
-Beispiel:
+Example (German clip content, glossed):
 
-„Eine Runde. Fünf Treffer.“
+"Eine Runde. Fünf Treffer." ("One round. Five hits.")
 
-VALORANT · Gestern · 00:42 · 1440p
+VALORANT · Yesterday · 00:42 · 1440p
 
-Darunter: „Der letzte Push hat doch noch funktioniert.“
+Below it: "Der letzte Push hat doch noch funktioniert." ("The last push worked after all.")
 
-Wenn ein passendes Preview-Video existiert, darf es stumm und nur unter geeigneten Bedingungen laufen. Berücksichtige reduzierte Bewegung und Datensparmodus. Ansonsten verwende ein hochwertiges Standbild.
+If a suitable preview video exists, it may play muted and only under suitable conditions. Respect reduced motion and data saver mode. Otherwise use a high-quality still image.
 
-Kein automatischer Wechsel zwischen mehreren Hero-Slides.
+No automatic rotation between multiple hero slides.
 
 Mobile:
 
-* kompakterer Hero;
-* angepasster Bildausschnitt;
-* lesbarer Titel ohne Überlagerung wichtiger Bedienelemente;
-* klare Hauptaktion.
+* a more compact hero;
+* an adjusted image crop;
+* a legible title that does not overlap important controls;
+* a clear primary action.
 
-### Inhaltsreihen
+### Content Rows
 
-Unter dem Hero:
+Below the hero:
 
-1. Zuletzt hinzugefügt.
-2. Weiterschauen – nur bei tatsächlichem Fortschritt.
-3. Deine Spiele.
-4. Favoriten.
-5. Sammlungen.
+1. Recently added.
+2. Continue watching – only when there is actual progress.
+3. Your games.
+4. Favorites.
+5. Collections.
 
-Zeige je Reihe wenige sorgfältig gestaltete Elemente. Nicht jede Reihe muss die gleiche Kartenform verwenden.
+Show a few carefully designed items per row. Not every row has to use the same card shape.
 
-„Zuletzt hinzugefügt“ und „Favoriten“ verwenden horizontale Videokarten.
+"Recently added" and "Favorites" use horizontal video cards.
 
-„Deine Spiele“ verwendet größere hochformatige Cover oder passende illustrative Spielmotive.
+"Your games" uses larger portrait covers or fitting illustrative game artwork.
 
-Sammlungen verwenden aus mehreren Thumbnails zusammengesetzte Cover.
+Collections use covers composed of several thumbnails.
 
-Die nächste Inhaltsreihe soll auf üblichen Desktop-Auflösungen bereits unter dem Hero erkennbar sein.
+The next content row should already be visible below the hero at common desktop resolutions.
 
-## 8. Clip-Karten
+## 8. Clip Cards
 
-Format 16:9.
+16:9 format.
 
-Auf dem Vorschaubild:
+On the thumbnail:
 
-* Dauer rechts unten;
-* optional dezentes Favoriten-Icon;
-* Fortschrittslinie am unteren Rand bei begonnenen Clips;
-* Status-Badge nur bei Verarbeitung oder Fehler.
+* duration at the bottom right;
+* optionally a subtle favorite icon;
+* a progress line along the bottom edge for started clips;
+* a status badge only while processing or on error.
 
-Unter dem Bild:
+Below the image:
 
-* Clip-Titel;
-* Spielname;
-* relative Zeitangabe.
+* clip title;
+* game name;
+* relative time.
 
-Titel maximal zweizeilig. Verhindere Layoutsprünge durch wechselnde Textlängen.
+Titles at most two lines. Prevent layout shifts caused by varying text lengths.
 
 Hover:
 
-* sanfte Hervorhebung;
-* kleine Play-Aktion;
-* Zugriff auf das Kontextmenü;
-* höchstens minimale Skalierung, ohne Nachbarkarten zu überdecken.
+* gentle highlight;
+* a small play action;
+* access to the context menu;
+* at most minimal scaling, without covering neighboring cards.
 
-Kontextmenü:
+Context menu:
 
-* Abspielen;
-* Favorisieren oder Favorit entfernen;
-* Zu Sammlung hinzufügen;
-* Umbenennen;
-* Teilen;
-* Herunterladen, wenn eine Datei existiert;
-* Löschen.
+* Play;
+* Favorite or Remove favorite;
+* Add to collection;
+* Rename;
+* Share;
+* Download, if a file exists;
+* Delete.
 
-Auf Touch-Geräten müssen diese Aktionen ohne Hover erreichbar sein.
+On touch devices these actions must be reachable without hover.
 
-Hover-Previews nur, wenn echte Videos vorhanden sind. Lade sie verzögert und stoppe sie zuverlässig beim Verlassen der Karte. Spiele niemals mehrere Vorschauen gleichzeitig ab.
+Hover previews only when real videos exist. Load them lazily and reliably stop them when the pointer leaves the card. Never play multiple previews at the same time.
 
-## 9. Bibliothek
+## 9. Library
 
-Die Bibliothek ist eine leistungsfähige, übersichtliche Clip-Galerie.
+The library is a capable, well-organized clip gallery.
 
-Oben:
+Top:
 
-* Titel „Bibliothek“;
-* tatsächliche Clip-Anzahl;
-* Suche;
-* Upload-Aktion.
+* title "Library";
+* actual clip count;
+* search;
+* upload action.
 
-Filter:
+Filters:
 
-* Spiel;
-* Favoriten;
-* Zeitraum;
-* Tags;
-* Verarbeitungsstatus.
+* game;
+* favorites;
+* time range;
+* tags;
+* processing status.
 
-Sortierung:
+Sorting:
 
-* Neueste zuerst;
-* Älteste zuerst;
-* Titel;
-* Dauer;
-* Dateigröße.
+* Newest first;
+* Oldest first;
+* Title;
+* Duration;
+* File size.
 
-Nutze kompakte Filterchips und Popovers. Aktive Filter müssen sichtbar und leicht zurücksetzbar sein.
+Use compact filter chips and popovers. Active filters must be visible and easy to reset.
 
-Die Suche berücksichtigt Titel, Spiel und Tags. Suche, Filter und Sortierung müssen gemeinsam funktionieren.
+Search covers title, game and tags. Search, filters and sorting must work together.
 
-Desktop ungefähr vier bis fünf Karten pro Reihe, abhängig von verfügbarer Breite. Tablet zwei bis drei. Mobile eine bis zwei, ohne unlesbare Miniaturkarten.
+Desktop roughly four to five cards per row, depending on available width. Tablet two to three. Mobile one to two, without unreadable miniature cards.
 
-Mehrfachauswahl:
+Multi-select:
 
-* expliziter Auswahlmodus;
-* Clips markieren;
-* ausgewählte Clips zu einer Sammlung hinzufügen;
-* favorisieren;
-* nach Bestätigung löschen.
+* an explicit selection mode;
+* mark clips;
+* add selected clips to a collection;
+* favorite;
+* delete after confirmation.
 
-Die Aktionsleiste erscheint nur bei aktiver Auswahl.
+The action bar appears only while a selection is active.
 
-## 10. Clip-Detailseite und Player
+## 10. Clip Detail Page and Player
 
-Ein eigener, direkt verlinkbarer Clip-Bereich.
+A dedicated, directly linkable clip view.
 
-Der Player steht im Vordergrund und nutzt die verfügbare Fläche großzügig.
+The player takes center stage and makes generous use of the available space.
 
-Funktionen:
+Features:
 
-* Wiedergabe und Pause;
-* Seekbar;
-* aktuelle Zeit und Gesamtdauer;
-* Lautstärke und Stummschaltung;
-* Vollbild;
-* Wiedergabegeschwindigkeit;
-* Picture-in-Picture, sofern unterstützt.
+* play and pause;
+* seek bar;
+* current time and total duration;
+* volume and mute;
+* fullscreen;
+* playback speed;
+* picture-in-picture, where supported.
 
-Ein hochwertig integrierter nativer Player ist besser als unvollständige eigene Controls.
+A well-integrated native player is better than incomplete custom controls.
 
-Tastatur:
+Keyboard:
 
-* Leertaste für Wiedergabe/Pause;
-* Pfeiltasten zum Springen;
-* M für stumm;
-* F für Vollbild;
-* Escape zum Schließen geeigneter Overlays.
+* Space for play/pause;
+* arrow keys to skip;
+* M to mute;
+* F for fullscreen;
+* Escape to close suitable overlays.
 
-Shortcuts greifen nicht, wenn der Nutzer in einem Eingabefeld schreibt. Verhindere Konflikte mit nativen Player-Funktionen.
+Shortcuts do not fire while the user is typing in an input field. Prevent conflicts with native player functions.
 
-Unter dem Player:
+Below the player:
 
-* editierbarer Titel;
-* Spiel und Aufnahmedatum;
-* Favorit;
-* Teilen;
-* Zu Sammlung;
-* weiteres Menü;
-* Tags;
-* optionale Notiz.
+* editable title;
+* game and recording date;
+* favorite;
+* share;
+* add to collection;
+* more menu;
+* tags;
+* optional note.
 
-Technische Informationen wie Codec, Dateigröße und Ursprungsgerät gehören in einen einklappbaren Detailbereich.
+Technical information such as codec, file size and source device belongs in a collapsible details section.
 
-Weitere Clips desselben Spiels erscheinen darunter.
+More clips from the same game appear below.
 
-Wiedergabefortschritt speichern und bei erneutem Öffnen anbieten. Ein fast vollständig gesehener Clip soll nicht dauerhaft unter „Weiterschauen“ stehen.
+Save playback progress and offer to resume when the clip is reopened. A clip that has been watched almost completely should not stay under "Continue watching" permanently.
 
-Verwende echte Player-Ereignisse für Fortschritt und Fehlerzustände.
+Use real player events for progress and error states.
 
-## 11. Sammlungen
+## 11. Collections
 
-Sammlungen sind kuratierte Gruppen eigener Clips.
+Collections are curated groups of the user's own clips.
 
-Beispiele:
+Examples (user-named, shown as German content with glosses):
 
-* „Clutches“;
-* „Mit den Jungs“;
-* „Komplettes Chaos“;
-* „Beste Momente 2026“.
+* "Clutches";
+* "Mit den Jungs" ("With the boys");
+* "Komplettes Chaos" ("Complete chaos");
+* "Beste Momente 2026" ("Best moments 2026").
 
-Übersicht:
+Overview:
 
-* große Coverkarten;
-* Titel;
-* Anzahl enthaltener Clips;
-* letzte Änderung.
+* large cover cards;
+* title;
+* number of contained clips;
+* last modified.
 
-Detailseite:
+Detail page:
 
-* Coverkomposition;
-* editierbarer Titel und Beschreibung;
-* zugehörige Clips;
-* Clips hinzufügen und entfernen.
+* cover composition;
+* editable title and description;
+* the clips it contains;
+* add and remove clips.
 
-Neue Sammlung über einen kleinen zugänglichen Dialog erstellen. Eingaben validieren.
+Create a new collection through a small, accessible dialog. Validate the input.
 
-Sammlungen und Favoriten müssen nach einem Neuladen erhalten bleiben.
+Collections and favorites must survive a reload.
 
-## 12. Uploads und Geräte
+## 12. Uploads and Devices
 
-Der Uploadstatus ist jederzeit über ein kompaktes Element erreichbar.
+Upload status is always reachable through a compact element.
 
-Eine seitliche Ansicht oder ein Panel zeigt:
+A side view or panel shows:
 
-* aktuelle Datei;
-* Fortschritt;
-* Warteschlange;
-* erfolgreich abgeschlossene Uploads;
-* Fehler mit verständlicher Ursache;
-* erneuten Versuch, sofern implementiert.
+* current file;
+* progress;
+* queue;
+* successfully completed uploads;
+* errors with an understandable cause;
+* retry, if implemented.
 
-Manueller Upload:
+Manual upload:
 
-* Drag-and-drop;
-* Dateiauswahl;
-* verständliche Format- und Größenprüfung;
-* Videodateien lokal ansehen, falls noch kein Server existiert.
+* drag and drop;
+* file picker;
+* understandable format and size checks;
+* watch video files locally if no server exists yet.
 
-Kennzeichne lokale Vorschauen ausdrücklich: „Nur in diesem Browser verfügbar – noch nicht auf dem Server gespeichert.“
+Label local previews explicitly: "Only available in this browser – not yet saved on the server."
 
-Speichere große Videodateien nicht in localStorage. Räume Object-URLs auf, wenn sie nicht mehr gebraucht werden.
+Do not store large video files in localStorage. Revoke object URLs once they are no longer needed.
 
-Geräteseite:
+Devices page:
 
-* verbundene PCs;
-* letzter Kontakt;
-* überwachte Ordner;
-* Uploadstatus;
-* Zuordnung von Ordnern zu Spielen.
+* connected PCs;
+* last contact;
+* watched folders;
+* upload status;
+* mapping of folders to games.
 
-Eine beispielhafte Ordnerzuordnung:
+An example folder mapping:
 
 `D:\Clips\Valorant` → VALORANT
 
-Falls kein Desktop-Agent existiert, verwende klar gekennzeichnete Beispieldaten. Zeige keinen vermeintlich funktionierenden Download- oder Kopplungsprozess.
+If no desktop agent exists, use clearly labeled sample data. Do not show a supposedly working download or pairing process.
 
-Erkläre knapp den vorgesehenen Ablauf: Desktop-App installieren, Server verbinden, Aufnahmeordner auswählen.
+Briefly explain the intended flow: install the desktop app, connect the server, choose the recording folder.
 
-## 13. Teilen
+## 13. Sharing
 
-Ein Clip kann später über einen privaten Link erreichbar sein.
+A clip can later be reachable through a private link.
 
 Dialog:
 
-* Link erstellen;
-* Ablaufdatum auswählen;
-* Link kopieren;
-* Link widerrufen.
+* create link;
+* choose expiry date;
+* copy link;
+* revoke link.
 
-Wichtig: Ein lokal gespeicherter Demo-Token ist keine echte öffentliche Freigabe und keine Zugriffskontrolle.
+Important: a locally stored demo token is not a real public share and not access control.
 
-Ohne Backend:
+Without a backend:
 
-* öffentliche Freigabe als noch nicht verfügbar kennzeichnen;
-* bei Bedarf eine explizit benannte Vorschau der Freigabeseite anbieten;
-* keine falsche Erfolgsmeldung über einen angeblich extern erreichbaren Link zeigen.
+* label public sharing as not yet available;
+* if needed, offer an explicitly named preview of the share page;
+* do not show a false success message about a supposedly externally reachable link.
 
-Die Freigabeansicht ist reduziert:
+The share view is minimal:
 
-* dezente Marke;
-* Player;
-* Titel;
-* Spiel;
-* keine Navigation in die private Bibliothek.
+* subtle branding;
+* player;
+* title;
+* game;
+* no navigation into the private library.
 
-## 14. Einstellungen
+## 14. Settings
 
-Übersichtliche Bereiche:
+Clear sections:
 
-* Profil;
-* Wiedergabe;
-* Erscheinungsbild;
-* Speicher;
-* Geräte.
+* Profile;
+* Playback;
+* Appearance;
+* Storage;
+* Devices.
 
-Sinnvolle Optionen:
+Sensible options:
 
-* automatische stumme Vorschauen;
-* Wiedergabegeschwindigkeit;
-* reduzierte Bewegung;
-* Speicherinformationen, sofern verfügbar.
+* automatic muted previews;
+* playback speed;
+* reduced motion;
+* storage information, where available.
 
-Zeige nur Einstellungen als bedienbar an, die tatsächlich Auswirkungen haben. Serverfunktionen ohne Integration werden eindeutig als nicht verbunden dargestellt.
+Only show settings as operable when they actually have an effect. Server features without integration are clearly shown as not connected.
 
-Speicherstatistiken müssen aus vorhandenen Daten berechnet oder als Demo-Werte gekennzeichnet sein.
+Storage statistics must be computed from existing data or labeled as demo values.
 
-## 15. Sprache und Produkttexte
+## 15. Language and Product Copy
 
-Die Oberfläche ist auf Deutsch.
+The interface is in English.
 
-Schreibe kurze, konkrete Texte:
+Write short, concrete copy:
 
-* „Zuletzt hinzugefügt“
-* „Weiterschauen“
-* „Deine Spiele“
-* „Clip hochladen“
-* „Zur Sammlung“
-* „Noch keine Clips“
-* „Keine Treffer“
-* „Upload erneut versuchen“
+* "Recently added"
+* "Continue watching"
+* "Your games"
+* "Upload clip"
+* "Add to collection"
+* "No clips yet"
+* "No results"
+* "Retry upload"
 
-Keine Marketingtexte innerhalb der Anwendung. Keine Entwicklerbegriffe wie „Mock Provider“, „API Adapter“ oder „Hydration“ im Nutzerinterface.
+No marketing copy inside the application. No developer terms such as "Mock Provider", "API Adapter" or "Hydration" in the user interface.
 
-Eine kleine globale Kennzeichnung „Demo“ genügt für die Beispieldaten. An Aktionen mit realen Auswirkungen muss zusätzlich klar sein, was funktioniert und was noch keine Serververbindung hat.
+A small global "Demo" label is enough for the sample data. On actions with real effects it must additionally be clear what works and what does not have a server connection yet.
 
-## 16. Demo-Inhalte und Medien
+## 16. Demo Content and Media
 
-Die Anwendung muss beim ersten Start überzeugend befüllt sein.
+The application must be convincingly populated on first launch.
 
-Erstelle mindestens:
+Create at least:
 
-* 18 unterschiedliche Clip-Datensätze;
-* fünf Spiele;
-* vier Sammlungen;
-* mehrere Favoriten;
-* drei begonnene Clips;
-* sinnvolle Tags;
-* unterschiedliche Aufnahmezeitpunkte.
+* 18 distinct clip records;
+* five games;
+* four collections;
+* several favorites;
+* three started clips;
+* sensible tags;
+* varied recording times.
 
-Beispieltitel:
+Sample titles (German clip content, glossed):
 
-* „Das war der letzte Schuss“
-* „Wir hatten einen Plan“
-* „1 HP und trotzdem gewonnen“
-* „Niemand hat die Granate gesehen“
-* „Der sauberste Drift bisher“
-* „Dieser Boss hatte andere Pläne“
+* "Das war der letzte Schuss" ("That was the last shot")
+* "Wir hatten einen Plan" ("We had a plan")
+* "1 HP und trotzdem gewonnen" ("1 HP and still won")
+* "Niemand hat die Granate gesehen" ("Nobody saw the grenade")
+* "Der sauberste Drift bisher" ("The cleanest drift yet")
+* "Dieser Boss hatte andere Pläne" ("This boss had other plans")
 
-Verwende konsistente, plausible Daten. Ein 30-Sekunden-Clip darf keinen Fortschritt von zwei Minuten haben.
+Use consistent, plausible data. A 30-second clip must not have two minutes of progress.
 
-Medien sind ein entscheidender Teil des Designs:
+Media is a decisive part of the design:
 
-* verwende zuerst geeignete vorhandene Projekt-Assets;
-* nutze rechtmäßig verfügbare Beispielmedien mit nachvollziehbarer Herkunft;
-* keine zufälligen Stockfotos von Büros, Landschaften oder Personen;
-* keine kaputten externen URLs;
-* keine identische Vorschau für alle Clips;
-* keine fremden Videos herunterladen, deren Nutzung unklar ist;
-* keine KI-Bilder als echtes Gameplay ausgeben.
+* use suitable existing project assets first;
+* use legally available sample media with traceable origin;
+* no random stock photos of offices, landscapes or people;
+* no broken external URLs;
+* no identical thumbnail for all clips;
+* do not download third-party videos whose usage rights are unclear;
+* do not pass off AI images as real gameplay.
 
-Falls Bildgenerierung verfügbar ist, können eigene illustrative Game-Motive für Demo-Cover entstehen. Diese ersetzen keine echten abspielbaren Clips.
+If image generation is available, custom illustrative game artwork can be created for demo covers. It does not replace real playable clips.
 
-Mindestens ein echter abspielbarer Beispielclip soll den vollständigen Player-Ablauf demonstrieren, sofern geeignetes Material verfügbar ist. Weise im Abschluss transparent auf fehlende Medien hin.
+At least one real playable sample clip should demonstrate the full player flow, provided suitable material is available. Be transparent about missing media in the final summary.
 
-Wähle für den Hero das stärkste verfügbare Motiv und passe Bildausschnitt, Textposition und Verlauf daran an.
+Pick the strongest available image for the hero and adapt the crop, text position and gradient to it.
 
-## 17. Datenmodell und Zustand
+## 17. Data Model and State
 
-Definiere typisierte Modelle für:
+Define typed models for:
 
 * Clip;
 * Game;
@@ -547,229 +547,229 @@ Definiere typisierte Modelle für:
 * PlaybackProgress;
 * UserPreferences.
 
-Ein Clip enthält mindestens:
+A clip contains at least:
 
 * ID;
-* Titel;
-* Spiel-ID;
-* Thumbnail;
-* optionale Videoquelle;
-* Dauer;
-* Aufnahmedatum;
-* Dateigröße;
-* Auflösung;
-* Tags;
-* Favoritenstatus;
-* Verarbeitungsstatus.
+* title;
+* game ID;
+* thumbnail;
+* optional video source;
+* duration;
+* recording date;
+* file size;
+* resolution;
+* tags;
+* favorite status;
+* processing status.
 
-Leite Listen und Zähler aus einer zentralen Datenquelle ab. Vermeide getrennte, widersprüchliche Kopien desselben Clips auf verschiedenen Seiten.
+Derive lists and counters from a single central data source. Avoid separate, contradictory copies of the same clip on different pages.
 
-Trenne:
+Separate:
 
-* UI-Komponenten;
-* Seiten;
-* Datenzugriff;
-* Domain-Modelle;
-* Demo-Inhalte;
-* persistierten Nutzerzustand.
+* UI components;
+* pages;
+* data access;
+* domain models;
+* demo content;
+* persisted user state.
 
-Persistiere in der Demo:
+Persist in the demo:
 
-* Favoriten;
-* Titeländerungen;
-* Sammlungen;
-* Tags;
-* Wiedergabefortschritt;
-* Einstellungen.
+* favorites;
+* title changes;
+* collections;
+* tags;
+* playback progress;
+* settings.
 
-Demo-Daten dürfen nicht bei jedem Rendern oder Neuladen Nutzeränderungen überschreiben. Biete in den Einstellungen eine ausdrücklich benannte Funktion zum Zurücksetzen der Demo an.
+Demo data must not overwrite user changes on every render or reload. Offer an explicitly named function in the settings to reset the demo.
 
-## 18. Interaktionen
+## 18. Interactions
 
-Jedes sichtbare interaktive Element hat eine tatsächliche Funktion.
+Every visible interactive element has an actual function.
 
-Beispiele:
+Examples:
 
-* Spielkarte öffnet die nach Spiel gefilterte Bibliothek.
-* „Alle anzeigen“ öffnet die passende Ansicht.
-* Favorisieren aktualisiert alle betroffenen Stellen.
-* Suchergebnisse reagieren auf die Eingabe.
-* Clip-Karte öffnet den richtigen Clip.
-* Sammlung enthält die ausgewählten Clips.
-* Kontextmenüs sind bedienbar.
-* Dialoge schließen per Escape.
-* Zurücknavigation erhält möglichst Filter und Scrollposition.
+* A game card opens the library filtered by that game.
+* "Show all" opens the matching view.
+* Favoriting updates every affected place.
+* Search results respond to input.
+* A clip card opens the right clip.
+* A collection contains the selected clips.
+* Context menus are operable.
+* Dialogs close with Escape.
+* Navigating back preserves filters and scroll position where possible.
 
-Keine leeren Click-Handler. Keine Erfolgstoasts für nicht durchgeführte Aktionen.
+No empty click handlers. No success toasts for actions that were not performed.
 
-Destruktive Aktionen benötigen eine klare Bestätigung oder eine zuverlässig funktionierende Rückgängig-Funktion.
+Destructive actions require a clear confirmation or a reliably working undo.
 
-## 19. Zustände
+## 19. States
 
-Gestalte auch:
+Also design:
 
-* leere Bibliothek;
-* leere Sammlung;
-* keine Suchtreffer;
-* fehlendes Thumbnail;
-* nicht abspielbares Format;
-* fehlende Videodatei;
-* Uploadfehler;
-* Server nicht erreichbar;
-* Verarbeitung läuft;
-* ungültige Clip-ID;
-* unbekannte Route.
+* empty library;
+* empty collection;
+* no search results;
+* missing thumbnail;
+* unplayable format;
+* missing video file;
+* upload error;
+* server unreachable;
+* processing in progress;
+* invalid clip ID;
+* unknown route.
 
-Skeletons orientieren sich an der tatsächlichen Inhaltsstruktur. Füge keine künstlichen Wartezeiten hinzu, nur um Ladeanimationen zu zeigen.
+Skeletons follow the actual content structure. Do not add artificial delays just to show loading animations.
 
-Fehlertexte erklären das Problem und nennen eine tatsächlich verfügbare nächste Aktion.
+Error messages explain the problem and name a next action that is actually available.
 
-## 20. Animation und Bedienqualität
+## 20. Animation and Interaction Quality
 
-Animationen unterstützen die Orientierung:
+Animations support orientation:
 
-* kurze Hover-Übergänge;
-* weiches Öffnen von Menüs und Dialogen;
-* dezenter Wechsel zwischen Ansichten;
-* ruhige Fortschrittsanimationen.
+* short hover transitions;
+* smooth opening of menus and dialogs;
+* subtle transitions between views;
+* calm progress animations.
 
-Richtwert: etwa 120–220 Millisekunden für kleine Interaktionen.
+Guideline: roughly 120–220 milliseconds for small interactions.
 
-Keine dauerhaft schwebenden Elemente, übertriebenen Bounces oder Scroll-Effekte, die die Bedienung erschweren.
+No permanently floating elements, exaggerated bounces or scroll effects that make the interface harder to use.
 
-Respektiere `prefers-reduced-motion`.
+Respect `prefers-reduced-motion`.
 
-Horizontal scrollende Reihen:
+Horizontally scrolling rows:
 
-* Touch und Trackpad unterstützen;
-* Desktop-Pfeile nur bei vorhandenem Überlauf;
-* keine abgeschnittenen Fokusrahmen;
-* keine unbeabsichtigte horizontale Bewegung der gesamten Seite.
+* support touch and trackpad;
+* desktop arrows only when there is overflow;
+* no clipped focus rings;
+* no unintended horizontal movement of the whole page.
 
-## 21. Responsive Design und Barrierefreiheit
+## 21. Responsive Design and Accessibility
 
-Prüfe mindestens:
+Check at least:
 
-* 390 Pixel;
-* 768 Pixel;
-* 1440 Pixel;
-* 1920 Pixel.
+* 390 pixels;
+* 768 pixels;
+* 1440 pixels;
+* 1920 pixels.
 
-Auf kleinen Displays:
+On small displays:
 
-* Navigation reduzieren;
-* Filter in ein gut bedienbares Panel verschieben;
-* wichtige Aktionen sichtbar halten;
-* Player ohne überlagerte Controls;
-* ausreichend große Touch-Flächen;
-* Dialoge dürfen zu Bottom Sheets werden.
+* reduce navigation;
+* move filters into an easy-to-use panel;
+* keep important actions visible;
+* player without overlapping controls;
+* sufficiently large touch targets;
+* dialogs may become bottom sheets.
 
-Außerdem:
+Also:
 
-* semantische Buttons und Links;
-* beschriftete Icon-Buttons;
-* sichtbarer Tastaturfokus;
-* korrektes Fokusmanagement in Dialogen;
-* sinnvolle Überschriftenhierarchie;
-* Statusinformationen nicht ausschließlich durch Farbe;
-* dekorative Bilder ohne unnötige Screenreader-Ausgabe.
+* semantic buttons and links;
+* labeled icon buttons;
+* visible keyboard focus;
+* correct focus management in dialogs;
+* a sensible heading hierarchy;
+* status information not conveyed by color alone;
+* decorative images without unnecessary screen reader output.
 
 ## 22. Performance
 
-* Lade Bilder unterhalb des sichtbaren Bereichs verzögert.
-* Reserviere Bildflächen über feste Seitenverhältnisse.
-* Lade keine vollständigen Videos für jede Karte.
-* Beschränke Video-Preloads.
-* Stoppe nicht sichtbare Vorschauen.
-* Verwende passende Thumbnail-Größen.
-* Vermeide unnötige Re-Renders.
-* Lade umfangreiche Ansichten bei Bedarf nach.
-* Behalte Nutzerzustand bei Navigation.
+* Lazy-load images below the visible area.
+* Reserve image space with fixed aspect ratios.
+* Do not load full videos for every card.
+* Limit video preloading.
+* Stop previews that are not visible.
+* Use appropriate thumbnail sizes.
+* Avoid unnecessary re-renders.
+* Load heavy views on demand.
+* Keep user state across navigation.
 
-Die Anwendung soll auch mit einer größeren Bibliothek strukturell funktionieren. Eine vollständige Optimierung für hunderttausende Clips gehört nicht in diese erste Phase.
+The application should also work structurally with a larger library. Full optimization for hundreds of thousands of clips does not belong in this first phase.
 
-## 23. Visuelle Qualitätskontrolle
+## 23. Visual Quality Control
 
-Beurteile das tatsächliche Ergebnis im Browser.
+Judge the actual result in the browser.
 
-Prüfe:
+Check:
 
-1. Wirkt die erste Bildschirmansicht wie eine hochwertige Streaming-App?
-2. Sind Gameplay-Motive stärker als die umgebende Oberfläche?
-3. Ist der Hero lesbar und sauber komponiert?
-4. Ist bereits weiterer Inhalt sichtbar?
-5. Stimmen Abstände, Radien und Typografie über alle Seiten überein?
-6. Sind Navigation und Aktionen sofort verständlich?
-7. Wirken Karten hochwertig, ohne überladen zu sein?
-8. Ist die mobile Ansicht bewusst gestaltet?
-9. Gibt es überlagerte Texte, abgeschnittene Menüs oder leere Bildflächen?
-10. Sind Demo-Funktionen ehrlich gekennzeichnet?
+1. Does the first screen feel like a high-quality streaming app?
+2. Is the gameplay imagery stronger than the surrounding interface?
+3. Is the hero legible and cleanly composed?
+4. Is further content already visible?
+5. Are spacing, radii and typography consistent across all pages?
+6. Are navigation and actions immediately understandable?
+7. Do cards feel high-quality without being cluttered?
+8. Is the mobile view deliberately designed?
+9. Are there overlapping texts, clipped menus or empty image areas?
+10. Are demo features honestly labeled?
 
-Verbessere erkannte Schwächen vor dem Abschluss. Beschränke dich nicht darauf, dass die Anwendung technisch rendert.
+Fix identified weaknesses before finishing. Do not settle for the application merely rendering technically.
 
-## 24. Verifikation
+## 24. Verification
 
-Führe die vorhandenen relevanten Prüfungen aus:
+Run the existing relevant checks:
 
-* Typecheck;
-* Lint, sofern eingerichtet;
-* Produktionsbuild;
-* zentrale Interaktionsprüfungen.
+* typecheck;
+* lint, if set up;
+* production build;
+* core interaction checks.
 
-Prüfe besonders:
+Pay special attention to:
 
-* Suche zusammen mit Filtern;
-* Favoriten nach Neuladen;
-* Sammlung erstellen und Clip hinzufügen;
-* direkte Navigation auf eine Clip-URL;
-* Player und Fortschritt;
-* mobile Menüs;
-* lokale Dateivorschau;
-* Fehler bei fehlenden Medien.
+* search combined with filters;
+* favorites after a reload;
+* creating a collection and adding a clip;
+* direct navigation to a clip URL;
+* player and progress;
+* mobile menus;
+* local file preview;
+* errors for missing media.
 
-Schreibe gezielte Tests für relevante Zustandslogik. Vermeide Tests, die lediglich Markup oder Implementierungsdetails spiegeln.
+Write targeted tests for relevant state logic. Avoid tests that merely mirror markup or implementation details.
 
-Falls Browserprüfung oder Medienbeschaffung nicht möglich sind, benenne diese konkrete Einschränkung. Behaupte keine durchgeführten Prüfungen.
+If browser checks or obtaining media are not possible, name that specific limitation. Do not claim checks that were not performed.
 
-## 25. Fertigstellung
+## 25. Completion
 
-Das Ergebnis soll lokal startbar und als zusammenhängendes Produkt erlebbar sein.
+The result should be startable locally and feel like a coherent product.
 
-Liefere:
+Deliver:
 
-* implementierte Weboberfläche;
-* funktionierende Navigation;
-* hochwertige Startseite;
-* Bibliothek mit Suche und Filtern;
-* Clip-Ansicht mit Player;
-* persistierende Favoriten und Sammlungen;
-* ehrliche Upload- und Geräteansichten;
-* responsive Gestaltung;
-* kurze Startanleitung;
-* knappe Übersicht noch fehlender Backend-Funktionen.
+* the implemented web interface;
+* working navigation;
+* a high-quality home page;
+* a library with search and filters;
+* a clip view with player;
+* persisted favorites and collections;
+* honest upload and device views;
+* responsive design;
+* a short getting-started guide;
+* a brief overview of backend features still missing.
 
-Veröffentliche oder deploye die Anwendung nur bei entsprechender ausdrücklicher Beauftragung.
+Only publish or deploy the application when explicitly asked to.
 
-Beginne jetzt mit der Prüfung des Projekts und setze ReplayHaven um. Priorisiere zuerst die visuelle Qualität von Startseite, Clip-Karten und Player. Übertrage dieses Niveau anschließend konsistent auf die restlichen Ansichten.
+Start now by reviewing the project and build ReplayHaven. First prioritize the visual quality of the home page, clip cards and player. Then carry that level consistently over to the remaining views.
 
-## 26. Open-Source-Repository, Betrieb und Arbeitsteilung
+## 26. Open-Source Repository, Operations and Division of Work
 
-ReplayHaven wird als öffentliches Repository gepflegt. Diese Regeln gelten für alle Beiträge, auch für KI-Agenten.
+ReplayHaven is maintained as a public repository. These rules apply to all contributions, including AI agents.
 
-Auslieferung:
+Delivery:
 
-* Server als Docker-Image `ghcr.io/<owner>/replayhaven`, mehrarchitekturfähig (amd64, arm64). Nutzer brauchen nur `compose.yaml` und eine `.env`; `setup-server.sh` deckt Einrichtung und Build aus dem Quellcode ab.
-* Windows-Client als NSIS-Installer `ReplayHaven-Client-Setup.exe` in den GitHub-Releases. Der Server verweist unter „Geräte“ auf einen lokal abgelegten Installer oder auf `REPLAYHAVEN_CLIENT_DOWNLOAD_URL`.
-* Ein Git-Tag `vX.Y.Z` löst den Release-Workflow aus: Installer, Image, gepinnte Compose-Datei, Prüfsummen.
-* Konfiguration ausschließlich über Umgebungsvariablen (`.env.example`). Keine persönlichen Adressen, Gerätenamen oder Hardwarebezeichnungen im Code oder in der Dokumentation.
+* Server as the Docker image `ghcr.io/<owner>/replayhaven`, multi-architecture (amd64, arm64). Users only need `compose.yaml` and a `.env`; `setup-server.sh` covers setup and building from source.
+* Windows client as the NSIS installer `ReplayHaven-Client-Setup.exe` in the GitHub releases. Under "Devices", the server points to a locally stored installer or to `REPLAYHAVEN_CLIENT_DOWNLOAD_URL`.
+* A Git tag `vX.Y.Z` triggers the release workflow: installer, image, pinned Compose file, checksums.
+* Configuration exclusively via environment variables (`.env.example`). No personal addresses, device names or hardware designations in the code or documentation.
 
-Qualität:
+Quality:
 
-* CI prüft Typen, Lint, Formatierung, Unit-Tests, Browser-Tests, Docker-Build mit Container-Smoke-Test und den entpackten Windows-Client.
-* Lizenz MIT für den Quellcode. Demo-Medien und gebündelte FFmpeg-Builds unterliegen eigenen Bedingungen (`THIRD-PARTY.md`).
-* Oberflächentexte bleiben deutsch; Code, Kommentare, Commit-Nachrichten und Entwicklerdokumentation sind englisch.
+* CI checks types, lint, formatting, unit tests, browser tests, the Docker build with a container smoke test, and the unpacked Windows client.
+* MIT license for the source code. Demo media and bundled FFmpeg builds are subject to their own terms (`THIRD-PARTY.md`).
+* The repository is in English: interface copy, code, comments, commit messages and developer documentation. Generated clip titles and tags are currently still German product content.
 
-Arbeitsteilung:
+Division of work:
 
-* Die Weboberfläche unter `src/` wird in einem eigenen Design-Durchgang nach den Abschnitten 3 bis 23 gestaltet. Arbeiten an Server, Client, Build, Betrieb und Dokumentation dürfen die Weboberfläche nicht umgestalten und nur streng technische Anpassungen daran vornehmen.
-* Produktregeln aus Abschnitt 2 gelten uneingeschränkt: Originale bleiben unangetastet, Fähigkeiten werden nicht vorgetäuscht, Serverfunktionen ohne Verbindung werden ehrlich gekennzeichnet.
+* The web interface under `src/` is designed in a dedicated design pass following sections 3 to 23. Work on the server, client, build, operations and documentation must not redesign the web interface and may only make strictly technical adjustments to it.
+* The product rules from section 2 apply without exception: originals stay untouched, capabilities are not faked, and server features without a connection are honestly labeled.

@@ -21,14 +21,14 @@ it.each([
   ['KAFE DOSTOYEVSKY', 'Kafe Dostoyevsky'],
   ['0REGON', 'Oregon'],
   ['NIGHTHAVEN LABS', 'Nighthaven Labs'],
-  // PP-OCRv5 ohne Leerzeichen, mit einem Lesefehler (R6-Clips vom 2026-09-25).
+  // PP-OCRv5 without spaces, with one misread (R6 clips from 2026-09-25).
   ['NIGHTHAVENLABS', 'Nighthaven Labs'],
   ['KAFEDOSTOYEVSKI', 'Kafe Dostoyevsky'],
   ['KAFEDOSTOYEVSK', 'Kafe Dostoyevsky'],
   ['BANKVAULT', undefined],
-  // Ein Raum in der Ortsanzeige, keine Karte.
+  // A room in the location display, not a map.
   ['Tower', undefined],
-  // Raumnamen und Sätze sind keine Karte.
+  // Room names and sentences are not maps.
   ['TOWER STAIRS', undefined],
   ['BANK VAULT', undefined],
   ['Welcome to the house', undefined],
@@ -41,7 +41,7 @@ it.each([
   ['YOURTEAM', 'YOUR TEAM'],
   ['ENEMIESELIMINATED', 'ENEMIES ELIMINATED'],
   ['OPPONENTSFOUNDTHEBOMBS', 'OPPONENTS FOUND THE BOMBS'],
-  // Nur ganz aus Bannerwörtern Zusammengesetztes wird zerlegt.
+  // Only text made entirely of banner words is split.
   ['PICKUPTHEDEFUSER', 'PICKUPTHEDEFUSER'],
   ['ROUND2', 'ROUND2'],
   ['Holographic', 'Holographic'],
@@ -50,7 +50,7 @@ it.each([
 });
 
 it.each([
-  // So gelesen am 2026-09-25 (R6-Clip vom 2024-12-07): Banner in Stücken, "TEAM" verlesen.
+  // As read on 2026-09-25 (R6 clip from 2024-12-07): banner in pieces, "TEAM" misread.
   [['YOURTEAA', 'WONROUND2', 'ENEMIESELIMINATED', 'PU:2.2'], 'YOUR TEAM WON ROUND'],
   [['WONROUND2', 'PU:2.'], ''],
   [['WONROUND2', 'ENEMIESELIMINATED'], 'YOUR TEAM WON ROUND'],
@@ -87,7 +87,7 @@ it('takes a map seen in two frames and round results, never kills', () => {
     [
       at(0.25, 'OREGON'),
       at(0.75, 'OREGON', '+100 KILL'),
-      at(1.25, 'SpielerEins [Waffe] Gegner'),
+      at(1.25, 'PlayerOne [Weapon] Enemy'),
       at(60.25, 'YOUR TEAM WON ROUND 3'),
       at(60.75, 'YOUR TEAM WON ROUND 3'),
       at(61.25, 'ROUND WON'),
@@ -143,26 +143,26 @@ it('allows only the recognised map in titles and adds it to the fallback title',
   expect(titleProblems('Doppel-Kill auf Bank', kills, kills, { maps: R6_MAPS }).join(' ')).toMatch(
     /nicht erkannt/,
   );
-  // Mit Ereignis gehört die erkannte Karte in den Titel, die Kurzform genügt.
+  // With an event, the recognised map belongs in the title; the short form is enough.
   expect(titleProblems('Doppel-Kill', kills, kills, place).join(' ')).toMatch(/auf Oregon/);
   const kafe = { map: 'Kafe Dostoyevsky', maps: R6_MAPS };
   expect(titleProblems('Doppel-Kill auf Kafe', kills, kills, kafe)).toEqual([]);
   expect(titleProblems('Stiller Rundenbeginn', [], [], place)).toEqual([]);
-  // Ohne Texterkennung bleibt es wie bisher.
+  // Without text recognition, nothing changes.
   expect(titleProblems('Doppel-Kill auf Bank', kills, kills)).toEqual([]);
   expect(fallbackTitle([event('roundWon', 100, 'ocr')], [], [], null, 'Oregon')).toBe(
     'Runde gewonnen auf Oregon',
   );
-  // Mit zwei Ereignissen steht die Karte beim ersten.
+  // With two events, the map goes with the first.
   expect(
     fallbackTitle(
-      [event('roundWon', 118, 'ocr'), { ...event('death', 110, 'screen'), other: 'GegnerEins' }],
+      [event('roundWon', 118, 'ocr'), { ...event('death', 110, 'screen'), other: 'EnemyOne' }],
       [],
       [],
       null,
       'Kanal',
     ),
-  ).toBe('Runde gewonnen auf Kanal – Von GegnerEins ausgeschaltet');
+  ).toBe('Runde gewonnen auf Kanal – Von EnemyOne ausgeschaltet');
 });
 
 const models = developmentModels();
@@ -172,7 +172,7 @@ it.skipIf(!existsSync(models.det))(
     const root = await mkdtemp(join(tmpdir(), 'replayhaven-r6-'));
     try {
       const media = new MediaProcessor({});
-      // Zwei Sekunden Kartenname, zwei Sekunden Rundenende, als Standbilder zu einem Video.
+      // Two seconds of map name, two seconds of round end, as stills joined into a video.
       const card = async (name: string, text: string, size: number) => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="1280" height="720" fill="#202830"/><text x="640" y="380" font-family="sans-serif" font-weight="bold" font-size="${size}" fill="#ffffff" text-anchor="middle">${text}</text></svg>`;
         await sharp(Buffer.from(svg)).png().toFile(join(root, name));
@@ -219,7 +219,7 @@ it.skipIf(!existsSync(models.det))(
       expect(found?.map).toBe('Oregon');
       expect(found?.events.map((e) => [e.kind, e.seconds])).toEqual([['roundWon', 2.25]]);
       expect(found?.trace).toMatchObject({ frames: 8, map: 'Oregon', events: 1 });
-      // Dasselbe im Worker-Thread, mit dem Bundle, das auch der Client baut.
+      // The same in the worker thread, with the bundle the client also builds.
       const script = join(root, 'r6-worker.cjs');
       await build({
         entryPoints: [join(__dirname, 'r6-worker.ts')],
@@ -259,7 +259,7 @@ it.skipIf(!existsSync(models.det))(
 it('passes load errors, aborts and crashes of the text worker on', async () => {
   const root = await mkdtemp(join(tmpdir(), 'replayhaven-r6-'));
   try {
-    // Ein gestellter Worker, der das Protokoll von serveTexts spricht.
+    // A fake worker that speaks the serveTexts protocol.
     const script = join(root, 'worker.cjs');
     await writeFile(
       script,
@@ -270,7 +270,7 @@ parentPort.on('message', (m) => {
     parentPort.postMessage({ id: m.id, error: { message: 'Das angegebene Modul wurde nicht gefunden.', code: 'ERR_DLOPEN_FAILED' } });
   if (m.type === 'clip') paths.set(m.id, m.path);
   if (m.type === 'clip' && m.path === 'crash.mp4') process.exit(3);
-  // Wie ONNX Runtime mitten in einem Bild: Der Abbruch wirkt erst danach, hier gar nicht.
+  // Like ONNX Runtime mid-frame: the abort only takes effect afterwards, here not at all.
   if (m.type === 'abort' && paths.get(m.id) !== 'stuck.mp4')
     parentPort.postMessage({ id: m.id, value: { events: [], trace: { frames: 1, seconds: 0, events: 0 } } });
 });`,
@@ -280,31 +280,31 @@ parentPort.on('message', (m) => {
       data: { models: developmentModels(), ffmpeg: '', ffprobe: '' },
     });
     try {
-      // Der Ladefehler kommt mit seinem Code an, sodass der Hinweis auf die Runtime greift.
+      // The load error arrives with its code, so the runtime hint applies.
       const problem = await texts.problem();
       expect(problem?.message).toBe('Das angegebene Modul wurde nicht gefunden.');
       expect(missingLibrary(problem)).toBe(true);
-      // Ein Abbruch gilt der laufenden Anfrage; sie endet mit dem, was bis dahin gelesen ist.
+      // An abort applies to the running request; it ends with what was read so far.
       const stop = new AbortController();
       const reading = texts.forClip('slow.mp4', 'R6', stop.signal);
       stop.abort();
       expect((await reading)?.trace.frames).toBe(1);
-      // Stirbt der Worker, scheitert die Anfrage; die nächste startet einen neuen.
+      // If the worker dies, the request fails; the next one starts a new worker.
       await expect(texts.forClip('crash.mp4', 'R6')).rejects.toThrow(
-        /unerwartet beendet \(Code 3\)/,
+        /exited unexpectedly \(code 3\)/,
       );
       expect(await texts.problem()).toBeInstanceOf(Error);
-      // Andere Spiele erreichen den Worker gar nicht.
+      // Other games never reach the worker.
       expect(await texts.forClip('clip.mp4', 'Fortnite')).toBeUndefined();
-      // Beenden bricht laufende Anfragen ab und wartet auf ihre Antwort, statt den Worker mitten
-      // in einer Rechnung zu beenden; das risse ONNX Runtime samt Prozess mit.
+      // Closing aborts running requests and waits for their answers instead of stopping the
+      // worker mid-computation, which would take ONNX Runtime and the process down with it.
       const busy = texts.forClip('slow.mp4', 'R6');
       await texts.close();
       expect((await busy)?.trace.frames).toBe(1);
-      // Antwortet der Worker nicht, endet das Warten nach der Frist.
+      // If the worker does not answer, waiting ends after the deadline.
       const stuck = texts.forClip('stuck.mp4', 'R6');
       const closing = texts.close(50);
-      await expect(stuck).rejects.toThrow('Texterkennung beendet.');
+      await expect(stuck).rejects.toThrow('Text recognition stopped.');
       await closing;
     } finally {
       await texts.close();
@@ -318,13 +318,13 @@ parentPort.on('message', (m) => {
 it('loads the models again after a failed attempt', async () => {
   const load = vi
     .spyOn(TextReader, 'load')
-    .mockRejectedValueOnce(new Error('Datei gesperrt'))
+    .mockRejectedValueOnce(new Error('File locked'))
     .mockResolvedValue({ read: async () => [], close: async () => {} } as unknown as TextReader);
   try {
     const media = { rawFrames: async function* () {} } as unknown as MediaProcessor;
     const texts = new ClipTexts({ media, models: developmentModels() });
     const signal = new AbortController().signal;
-    await expect(texts.forClip('clip.mp4', 'R6', signal)).rejects.toThrow('Datei gesperrt');
+    await expect(texts.forClip('clip.mp4', 'R6', signal)).rejects.toThrow('File locked');
     expect((await texts.forClip('clip.mp4', 'R6', signal))?.trace.frames).toBe(0);
     expect(load).toHaveBeenCalledTimes(2);
   } finally {

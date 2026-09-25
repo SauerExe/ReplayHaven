@@ -2,7 +2,7 @@ import type { MouseEvent } from 'react';
 
 export type Navigate = (href: string) => void;
 
-/** Echte Links mit href, damit Mittelklick und „In neuem Tab öffnen“ funktionieren; sonst navigiert die App. */
+/** Real links with href so middle-click and "Open in new tab" work; otherwise the app navigates. */
 export function linkHandler(onNavigate: Navigate | undefined, href: string) {
   return (event: MouseEvent<HTMLAnchorElement>) => {
     if (

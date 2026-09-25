@@ -8,10 +8,10 @@ import type { SpeechSegment, Transcript } from './speech';
 import type { MediaProcessor } from '../server/media';
 
 /**
- * Spracherkennung für den Voice-Chat mit Parakeet TDT 0.6B v3 (NVIDIA, CC-BY-4.0) über
- * sherpa-onnx auf der CPU, Sprachabschnitte per Silero-VAD. Gemessen am 2026-09-24: 3,6 s für
- * zwei Minuten Ton, Whisper medium brauchte 91 s. Die Modelle (rund 670 MB) werden bei Bedarf
- * geladen, gepinnt auf Revision und SHA-256.
+ * Speech recognition for voice chat with Parakeet TDT 0.6B v3 (NVIDIA, CC-BY-4.0) via
+ * sherpa-onnx on the CPU, speech segments via Silero VAD. Measured on 2026-09-24: 3.6 s for two
+ * minutes of audio, Whisper medium needed 91 s. The models (about 670 MB) are downloaded when
+ * needed, pinned to revision and SHA-256.
  */
 
 const PARAKEET =
@@ -50,7 +50,7 @@ export const SPEECH_MODELS = {
   },
 } satisfies Record<string, ModelFile>;
 
-/** Gesamtgröße der Sprachmodelle in Bytes, für den Hinweis vor dem Download. */
+/** Total size of the speech models in bytes, for the notice before the download. */
 export const SPEECH_BYTES = Object.values(SPEECH_MODELS).reduce((sum, m) => sum + m.bytes, 0);
 
 export function speechFolder(env: NodeJS.ProcessEnv = process.env) {
@@ -59,7 +59,7 @@ export function speechFolder(env: NodeJS.ProcessEnv = process.env) {
 
 type SpeechPaths = Record<keyof typeof SPEECH_MODELS, string>;
 
-/** Lädt fehlende Sprachmodelle nach `folder`, jede Datei gegen Größe und SHA-256 geprüft. */
+/** Downloads missing speech models into `folder`, each file checked against size and SHA-256. */
 export async function ensureSpeechModels(
   folder = speechFolder(),
   onDownload?: (file: string) => void,
@@ -73,7 +73,7 @@ export async function ensureSpeechModels(
 const SAMPLE_RATE = 16000;
 const VAD_WINDOW = 512;
 
-// sherpa-onnx liefert keine Typen für die hier genutzten Teile.
+// sherpa-onnx ships no types for the parts used here.
 interface SherpaSegment {
   start: number;
   samples: Float32Array;
@@ -105,7 +105,7 @@ export class ParakeetSpeech {
     private readonly options: {
       media: MediaProcessor;
       models: SpeechPaths;
-      /** Pfad zu sherpa-onnx-node im fertigen Client; sonst aus node_modules. */
+      /** Path to sherpa-onnx-node in the packaged client; otherwise from node_modules. */
       runtime?: string;
       threads?: number;
     },
@@ -119,7 +119,7 @@ export class ParakeetSpeech {
       modelConfig: {
         transducer: { encoder: models.encoder, decoder: models.decoder, joiner: models.joiner },
         tokens: models.tokens,
-        // Wie die Texterkennung höchstens die Hälfte der Kerne, damit ein Spiel nicht ruckelt.
+        // Like the text recognition, at most half the cores, so a game does not stutter.
         numThreads: this.options.threads ?? Math.max(1, availableParallelism() >> 1),
         provider: 'cpu',
         modelType: 'nemo_transducer',
@@ -128,7 +128,7 @@ export class ParakeetSpeech {
     return { sherpa: this.sherpa, recognizer: this.recognizer };
   }
 
-  /** Die Tonspur mit der Stimme: die Mikrofonspur, sonst die einzige, gemischte Spur. */
+  /** The audio track with the voice: the microphone track, otherwise the only, mixed track. */
   private async voice(path: string) {
     const { audio } = await this.options.media.probe(path);
     if (!audio.length) return undefined;
@@ -165,7 +165,7 @@ export class ParakeetSpeech {
       );
       const drain = async () => {
         while (!vad.isEmpty()) {
-          if (signal?.aborted) throw new Error('Spracherkennung abgebrochen.');
+          if (signal?.aborted) throw new Error('Speech recognition cancelled.');
           const part = vad.front(false);
           vad.pop();
           const stream = recognizer.createStream();

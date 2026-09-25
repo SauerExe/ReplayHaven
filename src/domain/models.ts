@@ -77,6 +77,8 @@ export interface ServerInfo {
   queue: number;
   clientDownloadAvailable?: boolean;
   gameMetadata?: GameMetadataStatus;
+  /** Background creation of web playback copies (server/playback.ts); missing on older servers. */
+  playback?: { mode: string; pending: number; current?: string; done: number };
   devices: {
     id: string;
     name: string;
@@ -139,7 +141,7 @@ export interface ClipFilters {
   sort?: string;
 }
 
-/** Spielinfos vom Server, nachgeschlagen bei Steam. Ohne exakten Treffer bleibt nur `label`. */
+/** Game info from the server, looked up on Steam. Without an exact match only `label` is set. */
 export interface ServerGame {
   key: string;
   label: string;

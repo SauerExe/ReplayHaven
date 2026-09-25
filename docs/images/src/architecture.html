@@ -5,12 +5,12 @@
     <title>ReplayHaven architecture</title>
     <link rel="stylesheet" href="common.css" />
     <script>
-      // ?theme=light rendert die helle Fassung für GitHub im hellen Modus.
+      // ?theme=light renders the light version for GitHub in light mode.
       document.documentElement.dataset.theme =
         new URLSearchParams(location.search).get('theme') || 'dark';
     </script>
     <style>
-      /* Dunkel wie GitHub im dunklen Modus, damit die Grafik ohne Kante im README steht. */
+      /* Dark like GitHub in dark mode, so the graphic sits in the README without a visible edge. */
       :root[data-theme='dark'] {
         --bg: #0d1117;
         --surface: #151b23;

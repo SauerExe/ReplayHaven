@@ -10,4 +10,4 @@ await build({
   format: 'esm',
   packages: 'external',
 });
-console.log('Server-Bundle erstellt.');
+console.log('Server bundle created.');

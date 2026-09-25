@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { House, Layers, LayoutGrid, Monitor, Search, Upload, UserRound, X } from 'lucide-react';
+import { t, type MessageKey } from '../i18n';
 import { BrandMark } from './icons';
 import { linkHandler, type Navigate } from './links';
 
-const NAV = [
-  { href: '/', label: 'Start', icon: House },
-  { href: '/library', label: 'Bibliothek', icon: LayoutGrid },
-  { href: '/collections', label: 'Sammlungen', icon: Layers },
-  { href: '/devices', label: 'Geräte', icon: Monitor },
+const NAV: { href: string; label: MessageKey; icon: typeof House }[] = [
+  { href: '/', label: 'stream.nav.home', icon: House },
+  { href: '/library', label: 'stream.nav.library', icon: LayoutGrid },
+  { href: '/collections', label: 'stream.nav.collections', icon: Layers },
+  { href: '/devices', label: 'stream.nav.devices', icon: Monitor },
 ];
 
 export interface StreamingHeaderProps {
-  /** href des aktiven Menüpunkts. */
+  /** href of the active menu item. */
   active?: string;
   onNavigate?: Navigate;
   onSearch?: (query: string) => void;
@@ -49,7 +50,7 @@ export function StreamingHeader({
         <a
           className="stream-brand"
           href="/"
-          aria-label="ReplayHaven Startseite"
+          aria-label={t('stream.nav.brand')}
           onClick={linkHandler(onNavigate, '/')}
         >
           <BrandMark />
@@ -57,7 +58,7 @@ export function StreamingHeader({
             Replay<span>Haven</span>
           </span>
         </a>
-        <nav className="stream-nav" aria-label="Hauptnavigation">
+        <nav className="stream-nav" aria-label={t('stream.nav.main')}>
           {NAV.map((item) => (
             <a
               key={item.href}
@@ -65,7 +66,7 @@ export function StreamingHeader({
               aria-current={active === item.href ? 'page' : undefined}
               onClick={linkHandler(onNavigate, item.href)}
             >
-              {item.label}
+              {t(item.label)}
             </a>
           ))}
         </nav>
@@ -82,12 +83,12 @@ export function StreamingHeader({
             >
               {searching && (
                 <input
-                  // Die Suche öffnet sich auf Wunsch; dann gehört der Fokus ins Feld.
+                  // Search opens on request; focus then belongs in the field.
                   autoFocus
                   type="search"
                   className="stream-search-input"
-                  aria-label="Clips, Spiele oder Tags suchen"
-                  placeholder="Clips, Spiele, Tags …"
+                  aria-label={t('stream.search.label')}
+                  placeholder={t('stream.search.placeholder')}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   onKeyDown={(event) => {
@@ -102,7 +103,7 @@ export function StreamingHeader({
                 ref={toggleRef}
                 type="button"
                 className="stream-icon-button"
-                aria-label={searching ? 'Suche schließen' : 'Suchen'}
+                aria-label={searching ? t('stream.search.close') : t('stream.search.open')}
                 aria-expanded={searching}
                 onClick={() => (searching ? closeSearch() : setSearching(true))}
               >
@@ -118,24 +119,24 @@ export function StreamingHeader({
             <button
               type="button"
               className="stream-add"
-              aria-label="Clip hinzufügen"
+              aria-label={t('stream.home.addClip')}
               onClick={onAddClip}
             >
               <Upload size={18} strokeWidth={2} aria-hidden="true" />
-              <span>Clip hinzufügen</span>
+              <span>{t('stream.home.addClip')}</span>
             </button>
           )}
           <a
             className="stream-profile"
             href={profileHref}
-            aria-label="Konto und Einstellungen"
+            aria-label={t('stream.nav.profile')}
             onClick={linkHandler(onNavigate, profileHref)}
           >
             <UserRound size={20} strokeWidth={2} aria-hidden="true" />
           </a>
         </div>
       </header>
-      <nav className="stream stream-tabbar" aria-label="Hauptnavigation">
+      <nav className="stream stream-tabbar" aria-label={t('stream.nav.main')}>
         {NAV.map((item) => (
           <a
             key={item.href}
@@ -144,7 +145,7 @@ export function StreamingHeader({
             onClick={linkHandler(onNavigate, item.href)}
           >
             <item.icon size={24} strokeWidth={2} aria-hidden="true" />
-            {item.label}
+            {t(item.label)}
           </a>
         ))}
       </nav>

@@ -8,6 +8,7 @@ import type {
 } from '../domain/models';
 import { games as seedGames } from '../data/seed';
 import { gameKey } from '../domain/gameKey';
+import { t, tp } from '../i18n';
 import type { Confidence } from './format';
 
 export interface StreamHighlight {
@@ -19,9 +20,9 @@ export interface StreamHighlight {
 export interface StreamClip {
   id: string;
   title: string;
-  /** Anzeigename des Spiels, „Deine Aufnahme“ wenn unbekannt. */
+  /** Display name of the game, "Your recording" if unknown. */
   game: string;
-  /** Wie im Bibliotheksfilter: `cs2` oder `name:<Ordnername>`; leer, wenn das Spiel unbekannt ist. */
+  /** As in the library filter: `cs2` or `name:<folder name>`; empty if the game is unknown. */
   gameKey: string;
   gameCover?: string;
   thumbnail: string;
@@ -37,7 +38,7 @@ export interface StreamClip {
   analyzing: boolean;
   description: string;
   highlights: StreamHighlight[];
-  /** Ein KI-Ergebnis liegt vor; Titel und Zeitmarken stammen dann aus der Analyse. */
+  /** An AI result exists; title and highlights then come from the analysis. */
   hasAnalysis: boolean;
   confidence?: Confidence;
   provider?: string;
@@ -53,28 +54,31 @@ export interface StreamCollection {
   updatedAt?: string;
 }
 
-/** Spielinfos wie in „Deine Spiele“: vom Server (Steam) oder aus den Beispieldaten. */
+/** Game info as in "Your games": from the server (Steam) or from the sample data. */
 export interface StreamGame {
-  /** Wie StreamClip.gameKey. */
+  /** Like StreamClip.gameKey. */
   key: string;
   name: string;
   cover?: string;
   genre?: string;
-  /** Erscheinungsdatum, wie Steam es liefert, etwa „21. Aug. 2012“. */
+  /** Release date as Steam delivers it, e.g. "21 Aug, 2012". */
   released?: string;
   description?: string;
-  /** Steam-Seite des Spiels. */
+  /** The game's Steam page. */
   source?: string;
 }
 
 export interface StreamLibrary {
   clips: StreamClip[];
   collections: StreamCollection[];
-  /** Je gameKey; Clips ohne erkanntes Spiel stehen hier nicht. */
+  /** Per gameKey; clips without a detected game are not listed here. */
   games: Record<string, StreamGame>;
 }
 
-export const UNKNOWN_GAME = 'Deine Aufnahme';
+/** Display name for clips whose game is unknown, in the current UI language. */
+export function unknownGame(): string {
+  return t('stream.unknownGame');
+}
 
 const RUNNING = new Set(['queued', 'preparing', 'analyzing']);
 
@@ -86,7 +90,7 @@ export function toStreamClip(
 ): StreamClip {
   const analysis = clip.analysis;
   const result = analysis?.result;
-  // Server-Aufnahmen tragen den Ordnernamen, Beispiel-Clips eine Spiel-ID; so filtert auch die Bibliothek.
+  // Server recordings carry the folder name, sample clips a game ID; the library filters the same way.
   const seedGame = clip.gameName ? undefined : knownGames.find((g) => g.id === clip.gameId);
   const info = clip.gameName
     ? (gameInfo[clip.gameName] ?? gameInfo[gameKey(clip.gameName)])
@@ -102,7 +106,7 @@ export function toStreamClip(
   return {
     id: clip.id,
     title: clip.title,
-    game: info?.name || clip.gameName || seedGame?.name || result?.game || UNKNOWN_GAME,
+    game: info?.name || clip.gameName || seedGame?.name || result?.game || unknownGame(),
     gameKey: clip.gameName ? `name:${clip.gameName}` : (seedGame?.id ?? ''),
     gameCover: info?.cover || seedGame?.cover || undefined,
     thumbnail: clip.thumbnail || '',
@@ -191,20 +195,17 @@ export interface StreamStatus {
   text: string;
 }
 
-/** Fußzeile der Startseite; „online“ wie auf der Geräteseite: Kontakt in den letzten 90 Sekunden. */
+/** Home page footer; "online" as on the devices page: contact within the last 90 seconds. */
 export function serverStatus(
   server: Pick<ServerInfo, 'connected' | 'devices'>,
   now: number,
 ): StreamStatus {
-  if (!server.connected) return { connected: false, text: 'Server nicht verbunden' };
+  if (!server.connected) return { connected: false, text: t('stream.server.disconnected') };
   const uploading = server.devices.filter(
     (d) => !d.paused && now - Date.parse(d.lastSeen) < 90000,
   ).length;
   return {
     connected: true,
-    text:
-      uploading === 0
-        ? 'Server verbunden'
-        : `Server verbunden · ${uploading} ${uploading === 1 ? 'Gerät lädt' : 'Geräte laden'} neue Aufnahmen automatisch hoch`,
+    text: uploading === 0 ? t('stream.server.connected') : tp('stream.server.uploading', uploading),
   };
 }

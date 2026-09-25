@@ -21,8 +21,16 @@ import { Igdb } from './metadata';
 import { createProvider } from './providers';
 import type { AnalysisProvider } from './providers';
 import { AnalysisWorker } from './worker';
+import { PlaybackBackfill } from './playback';
 import { analysisSchema, parseAnalysis, clipPatchSchema, settingsSchema } from './schema';
 const idSchema = z.string().uuid();
+/** The message of the first validation problem, e.g. a too short password. */
+function zodMessage(error: unknown) {
+  const issue = error instanceof z.ZodError ? error.issues[0] : undefined;
+  if (!issue) return 'The input or the video file is invalid.';
+  const field = issue.path.join('.');
+  return field ? `Invalid ${field}: ${issue.message}` : issue.message;
+}
 function tokenEqual(a: string, b: string) {
   return timingSafeEqual(
     createHash('sha256').update(a).digest(),
@@ -33,7 +41,18 @@ export async function buildServer(
   config: ServerConfig,
   overrides: { provider?: AnalysisProvider; media?: MediaProcessor } = {},
 ) {
-  const app = Fastify({ logger: false, bodyLimit: 1024 * 1024, requestTimeout: 30 * 60000 });
+  const app = Fastify({
+    logger: false,
+    bodyLimit: 1024 * 1024,
+    // Uploads of up to 2 GB over slow connections may take a while.
+    requestTimeout: 30 * 60000,
+    // Longer than the idle timeout of common reverse proxies (Traefik: 90 s), so a proxy never
+    // reuses a connection the server is just closing.
+    keepAliveTimeout: 120_000,
+    // Behind Traefik, Caddy or nginx: take protocol and client address from X-Forwarded-*.
+    // A hop count works at runtime (proxy-addr) although the type only names boolean and string.
+    trustProxy: (config.trustProxy ?? false) as boolean | string,
+  });
   const db = new VaultDatabase(config.dataDir);
   const media = overrides.media || new MediaProcessor(config);
   const coverDir = join(config.dataDir, 'covers');
@@ -51,6 +70,11 @@ export async function buildServer(
     (name) => {
       games.schedule(name);
     },
+    () => playback.kick(),
+  );
+  // Web renditions for streaming, created one clip at a time in the background (playback.ts).
+  const playback = new PlaybackBackfill(db, config.dataDir, media, config.playback ?? 'web', () =>
+    worker.hasWork(),
   );
   await mkdir(join(config.dataDir, 'incoming'), { recursive: true });
   await app.register(cookie, {
@@ -62,6 +86,7 @@ export async function buildServer(
   await app.register(fastifyStatic, { root: resolve('dist'), serve: false });
   const origins = new Set([
     config.publicOrigin,
+    ...(config.extraOrigins ?? []),
     `http://localhost:${config.port}`,
     `http://127.0.0.1:${config.port}`,
   ]);
@@ -70,10 +95,10 @@ export async function buildServer(
     reply.header('Cache-Control', 'no-store');
     reply.header('X-Content-Type-Options', 'nosniff');
     if (req.headers.origin && !origins.has(req.headers.origin))
-      return reply.code(403).send({ error: 'Diese Herkunft ist nicht freigegeben.' });
+      return reply.code(403).send({ error: 'This origin is not allowed.' });
     if (auth.guard(req, reply)) return reply;
   });
-  // Konten, Geräte und Kopplung (server/auth-routes.ts).
+  // Accounts, roles, devices and pairing (server/auth-routes.ts).
   const auth = registerAuth(app, new Accounts(db.db), config);
   app.setErrorHandler((error, req, reply) => {
     void req;
@@ -82,20 +107,20 @@ export async function buildServer(
     reply.code(status).send({
       error:
         status === 413
-          ? 'Die Datei ist größer als 2 GB.'
+          ? 'The file is larger than 2 GB.'
           : status === 400
-            ? 'Die Eingaben oder die Videodatei sind ungültig.'
+            ? zodMessage(error)
             : status === 404
-              ? 'Eintrag nicht gefunden.'
+              ? 'Not found.'
               : status === 409 && error instanceof Error
                 ? error.message
-                : 'Die Anfrage konnte nicht verarbeitet werden. Prüfe Server und Datei.',
+                : 'The request could not be processed. Check the server and the file.',
     });
   });
   app.post('/api/session', async (req, reply) => {
     const { token } = z.object({ token: z.string().max(1000) }).parse(req.body);
     if (config.token && !tokenEqual(token, config.token))
-      return reply.code(401).send({ error: 'Der Zugangsschlüssel stimmt nicht.' });
+      return reply.code(401).send({ error: 'The access key is wrong.' });
     reply.setCookie('vault_session', 'vault', {
       signed: true,
       httpOnly: true,
@@ -113,7 +138,7 @@ export async function buildServer(
       () => true,
       () => false,
     );
-  /** Spielinfos für die Kacheln der Bibliothek: Name, Beschreibung, Genre, Cover. */
+  /** Game info for the library tiles: name, description, genre, cover. */
   app.get('/api/games', async () =>
     games.list().map((g) => ({
       key: g.key,
@@ -135,15 +160,15 @@ export async function buildServer(
   app.post('/api/games/refresh', async (_req, reply) => {
     if (!config.gameMetadata)
       return reply.code(409).send({
-        error: 'Der automatische Abruf von Spielinfos ist auf diesem Server deaktiviert.',
+        error: 'Automatic game info lookups are disabled on this server.',
       });
     return reply.code(202).send({ queued: games.backfill(undefined, true) });
   });
   app.get<{ Params: { key: string } }>('/api/games/:key/cover', async (req, reply) => {
     const entry = games.list().find((g) => g.key === req.params.key);
-    if (!entry?.info?.cover) return reply.code(404).send({ error: 'Kein Cover vorhanden.' });
+    if (!entry?.info?.cover) return reply.code(404).send({ error: 'No cover available.' });
     reply.header('Cache-Control', 'private, max-age=86400');
-    // Der Dateiname stammt aus dem gespeicherten Eintrag, nicht aus der Anfrage.
+    // The file name comes from the stored entry, not from the request.
     return reply.sendFile(entry.info.cover, coverDir);
   });
   app.get('/api/status', async () => ({
@@ -163,6 +188,7 @@ export async function buildServer(
     devices: db.devices(),
     clientDownloadAvailable: (await localInstaller()) || !!config.clientDownloadUrl,
     gameMetadata: games.status(),
+    playback: playback.status(),
   }));
   app.get('/api/downloads/windows', async (_req, reply) => {
     if (await localInstaller()) {
@@ -173,7 +199,7 @@ export async function buildServer(
     if (config.clientDownloadUrl) return reply.redirect(config.clientDownloadUrl, 302);
     return reply
       .code(404)
-      .send({ error: 'Der Windows-Installer wurde auf diesem Server noch nicht bereitgestellt.' });
+      .send({ error: 'The Windows installer has not been provided on this server yet.' });
   });
   app.put('/api/settings/analysis', async (req) => {
     const settings = settingsSchema.parse(req.body);
@@ -188,16 +214,16 @@ export async function buildServer(
   );
   app.get<{ Params: { id: string } }>('/api/clips/:id', async (req, reply) => {
     const clip = db.get(idSchema.parse(req.params.id));
-    if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip nicht gefunden.' });
+    if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
     return publicClip(clip);
   });
   app.post('/api/clips', async (req, reply) => {
     const file = await req.file();
-    if (!file) return reply.code(400).send({ error: 'Wähle eine Videodatei.' });
+    if (!file) return reply.code(400).send({ error: 'Choose a video file.' });
     const extension = extname(file.filename).toLowerCase();
     if (!['.mp4', '.m4v', '.mov', '.webm', '.mkv'].includes(extension)) {
       file.file.resume();
-      return reply.code(400).send({ error: 'Unterstützt werden MP4, WebM, MOV, M4V und MKV.' });
+      return reply.code(400).send({ error: 'Supported formats are MP4, WebM, MOV, M4V and MKV.' });
     }
     const id = randomUUID();
     const temporary = join(config.dataDir, 'incoming', `${id}.part`);
@@ -217,7 +243,7 @@ export async function buildServer(
       );
       if (file.file.truncated || !size)
         return reply.code(file.file.truncated ? 413 : 400).send({
-          error: file.file.truncated ? 'Die Datei ist größer als 2 GB.' : 'Die Datei ist leer.',
+          error: file.file.truncated ? 'The file is larger than 2 GB.' : 'The file is empty.',
         });
       const digest = hash.digest('hex');
       const duplicate = db.findHash(digest);
@@ -240,11 +266,11 @@ export async function buildServer(
       };
       const recorded = header('x-recorded-at');
       const gameNameHeader = header('x-game-name');
-      // Spielinfos im Hintergrund holen; der Upload wartet nicht darauf.
+      // Fetch game info in the background; the upload does not wait for it.
       if (gameNameHeader) games.schedule(gameNameHeader);
       const clip: StoredClip = {
         id,
-        title: file.filename.replace(/\.[^.]+$/, '').slice(0, 120) || 'Neue Aufnahme',
+        title: file.filename.replace(/\.[^.]+$/, '').slice(0, 120) || 'New recording',
         gameId: 'recording',
         gameName: gameNameHeader,
         thumbnail: '',
@@ -263,7 +289,7 @@ export async function buildServer(
         originalName: file.filename.slice(0, 240),
         originalFile,
         hash: digest,
-        deviceName: header('x-device-name') || 'Browser-Upload',
+        deviceName: header('x-device-name') || 'Browser upload',
         analysis: { status: 'preparing' },
       };
       clip.expectsClientAnalysis = req.headers['x-client-analysis'] === '1';
@@ -277,7 +303,7 @@ export async function buildServer(
   app.post<{ Params: { id: string } }>('/api/clips/:id/client-analysis', async (req, reply) => {
     const id = idSchema.parse(req.params.id);
     const clip = db.get(id);
-    if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip nicht gefunden.' });
+    if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
     const payload = z
       .object({
         result: analysisSchema,
@@ -287,19 +313,19 @@ export async function buildServer(
       .parse(req.body);
     const actual = await media.probe(clip.originalFile);
     if (Math.abs(payload.duration - actual.duration) > Math.max(1, actual.duration * 0.01))
-      return reply.code(400).send({ error: 'Analyse und Videodauer stimmen nicht überein.' });
+      return reply.code(400).send({ error: 'Analysis and video duration do not match.' });
     const result = parseAnalysis(JSON.stringify(payload.result), actual.duration);
     const latest = db.get(id)!;
-    if (latest.deleted) return reply.code(404).send({ error: 'Clip wurde entfernt.' });
+    if (latest.deleted) return reply.code(404).send({ error: 'The clip was removed.' });
     games.schedule(latest.gameName || result.game);
     const previous =
       latest.analysis?.provider === 'client' && latest.analysis.status === 'ready'
         ? latest.analysis.result
         : undefined;
-    // Wiederholte Übertragung desselben Ergebnisses ändert nichts. Eine neue Analyse ersetzt
-    // dagegen die alte: sonst behielte das Archiv die Titel und Tags früherer Fassungen für immer.
+    // Sending the same result again changes nothing. A new analysis replaces the old one:
+    // otherwise the archive would keep titles and tags of earlier versions forever.
     if (previous && JSON.stringify(previous) === JSON.stringify(result)) return publicClip(latest);
-    // Die Tags der vorigen Analyse gehen, eigene Tags bleiben.
+    // Tags of the previous analysis go, the user's own tags stay.
     const stale = new Set(previous?.tags ?? []);
     return publicClip(
       db.patch(id, {
@@ -324,7 +350,7 @@ export async function buildServer(
   app.patch<{ Params: { id: string } }>('/api/clips/:id', async (req, reply) => {
     const id = idSchema.parse(req.params.id);
     const clip = db.get(id);
-    if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip nicht gefunden.' });
+    if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
     const patch = clipPatchSchema.parse(req.body);
     if (patch.gameName) games.schedule(patch.gameName);
     return publicClip(
@@ -333,20 +359,20 @@ export async function buildServer(
   });
   app.delete<{ Params: { id: string } }>('/api/clips/:id', async (req, reply) => {
     const id = idSchema.parse(req.params.id);
-    if (!db.get(id)) return reply.code(404).send({ error: 'Clip nicht gefunden.' });
+    if (!db.get(id)) return reply.code(404).send({ error: 'Clip not found.' });
     db.patch(id, { deleted: true });
     return { removed: true };
   });
   app.post<{ Params: { id: string } }>('/api/clips/:id/analyze', async (req, reply) => {
     const id = idSchema.parse(req.params.id);
     const clip = db.get(id);
-    if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip nicht gefunden.' });
+    if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
     if (!aiConfigured(config))
-      return reply.code(409).send({ error: 'Richte zuerst einen KI-Anbieter auf dem Server ein.' });
+      return reply.code(409).send({ error: 'Set up an AI provider on the server first.' });
     if (clip.status !== 'ready')
-      return reply.code(409).send({ error: 'Warte, bis die Videoverarbeitung abgeschlossen ist.' });
+      return reply.code(409).send({ error: 'Wait until video processing has finished.' });
     if (['queued', 'analyzing', 'preparing'].includes(clip.analysis?.status || ''))
-      return reply.code(409).send({ error: 'Die Analyse läuft bereits.' });
+      return reply.code(409).send({ error: 'The analysis is already running.' });
     const queued = db.patch(id, {
       analysis: { ...clip.analysis, status: 'queued', error: undefined },
     })!;
@@ -356,9 +382,9 @@ export async function buildServer(
   app.post<{ Params: { id: string } }>('/api/clips/:id/retry-media', async (req, reply) => {
     const id = idSchema.parse(req.params.id);
     const clip = db.get(id);
-    if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip nicht gefunden.' });
+    if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
     if (clip.status !== 'error')
-      return reply.code(409).send({ error: 'Die Videoverarbeitung ist nicht fehlgeschlagen.' });
+      return reply.code(409).send({ error: 'Video processing has not failed.' });
     db.patch(id, { status: 'processing', analysis: { status: 'preparing' } });
     worker.kick();
     return reply.code(202).send({ queued: true });
@@ -366,7 +392,7 @@ export async function buildServer(
   for (const kind of ['video', 'thumbnail', 'download'] as const)
     app.get<{ Params: { id: string } }>(`/api/clips/:id/${kind}`, async (req, reply) => {
       const clip = db.get(idSchema.parse(req.params.id));
-      if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip nicht gefunden.' });
+      if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
       const directory = join(config.dataDir, 'clips', clip.id);
       const path =
         kind === 'thumbnail'
@@ -375,13 +401,20 @@ export async function buildServer(
             ? clip.originalFile
             : clip.playbackFile;
       if (!path || !(await stat(path).catch(() => null)))
-        return reply.code(404).send({ error: 'Die Datei ist noch nicht verfügbar.' });
+        return reply.code(404).send({ error: 'The file is not available yet.' });
+      // Private data: browsers may cache it, shared caches may not. The video URL carries a
+      // version (playback.ts videoSource), so a new rendition is never mixed with a cached one.
+      if (kind !== 'download')
+        reply.header(
+          'Cache-Control',
+          kind === 'video' ? 'private, max-age=86400' : 'private, max-age=3600',
+        );
       if (kind === 'download')
         reply.header(
           'Content-Disposition',
           `attachment; filename="clip${extname(path)}"; filename*=UTF-8''${encodeURIComponent(clip.originalName)}`,
         );
-      return reply.sendFile(path.split(/[\\/]/).pop()!, directory);
+      return reply.sendFile(path.split(/[\\/]/).pop()!, directory, { cacheControl: false });
     });
   app.post('/api/devices/heartbeat', async (req) => {
     const device = z
@@ -400,11 +433,11 @@ export async function buildServer(
   });
   app.setNotFoundHandler(async (req, reply) => {
     if (req.url.startsWith('/api/'))
-      return reply.code(404).send({ error: 'API-Endpunkt nicht gefunden.' });
+      return reply.code(404).send({ error: 'API endpoint not found.' });
     const path = decodeURIComponent(req.url.split('?')[0]);
     return reply.sendFile(path.includes('.') ? path.replace(/^\//, '') : 'index.html');
   });
-  // Auch ohne neue Uploads werden abgelaufene Einträge und fehlgeschlagene Abrufe nachgeholt.
+  // Expired entries and failed lookups are retried even without new uploads.
   games.backfill();
   const metadataTimer = config.gameMetadata
     ? setInterval(() => games.backfill(), 3600000)
@@ -412,10 +445,12 @@ export async function buildServer(
   metadataTimer?.unref();
   app.addHook('onClose', async () => {
     clearInterval(metadataTimer);
+    await playback.stop();
     await worker.stop();
     await games.stop();
     db.close();
   });
   worker.recover();
+  playback.kick();
   return { app, db, worker, games };
 }

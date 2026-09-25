@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 for (const width of [1440, 390])
-  test(`Profilmenü verschiebt weder Header noch Inhalt bei ${width}px`, async ({ page }) => {
+  test(`profile menu moves neither header nor content at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
     const trigger = page.locator('.profile-button:visible, .mobile-more:visible');

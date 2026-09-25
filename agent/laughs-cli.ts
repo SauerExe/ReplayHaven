@@ -9,9 +9,9 @@ import { MediaProcessor } from '../server/media';
 import { loadConfig } from '../server/config';
 
 /**
- * Messwerkzeug für Stufe 1 aus docs/TON-KONZEPT.md: listet je Aufnahme Lacher und Rufe in der
- * Mikrofonspur, mit Zeit und Stärke, und die Rechenzeit. Braucht weder KI noch Upload; die
- * Analyse ändert sich dadurch nicht.
+ * Measuring tool for stage 1 from docs/AUDIO-CONCEPT.md: lists the laughs and shouts in the
+ * microphone track of each recording, with time and strength, plus the compute time. Needs
+ * neither AI nor upload; the analysis does not change because of it.
  */
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -26,24 +26,24 @@ const { values, positionals } = parseArgs({
 });
 if (values.help || !positionals.length) {
   console.log(
-    'Lacher und Rufe finden (YAMNet, nur Messung):\nnpm run laughs -- "D:\\Clips" [weitere Clips oder Ordner] [--json lacher.json] [--scores fenster.csv] [--threshold 0.3] [--track 2]\nOhne --track zählt die erkannte Mikrofonspur; Clips ohne eigene Mikrofonspur werden übersprungen. --scores schreibt die Werte jedes Fensters zum Kalibrieren der Schwelle. Das Modell (16 MB) wird beim ersten Lauf geladen und geprüft.',
+    'Find laughs and shouts (YAMNet, measurement only):\nnpm run laughs -- "D:\\Clips" [more clips or folders] [--json laughs.json] [--scores windows.csv] [--threshold 0.3] [--track 2]\nWithout --track the detected microphone track counts; clips without a separate microphone track are skipped. --scores writes the score of every window for calibrating the threshold. The model (16 MB) is downloaded and verified on the first run.',
   );
   process.exit(values.help ? 0 : 1);
 }
 const threshold = values.threshold ? Number(values.threshold) : 0.3;
 if (!(threshold > 0 && threshold < 1)) {
-  console.log('--threshold braucht eine Zahl zwischen 0 und 1, etwa 0.3.');
+  console.log('--threshold needs a number between 0 and 1, for example 0.3.');
   process.exit(1);
 }
 const chosen = values.track ? Number(values.track) - 1 : undefined;
 if (chosen !== undefined && !(Number.isInteger(chosen) && chosen >= 0)) {
-  console.log('--track braucht die Nummer der Spur wie bei npm run audio, beginnend mit 1.');
+  console.log('--track needs the track number as shown by npm run audio, starting at 1.');
   process.exit(1);
 }
 
 const media = new MediaProcessor(loadConfig());
 const model = await ensureModel(values.models ?? modelFolder(), undefined, fetch, () =>
-  console.log('YAMNet wird geladen (16 MB) und geprüft …'),
+  console.log('Downloading and verifying YAMNet (16 MB) …'),
 );
 const detector = await LaughDetector.load(model);
 const files: string[] = [];
@@ -52,11 +52,11 @@ for (const input of positionals) {
   files.push(...((await stat(path)).isDirectory() ? await listVideos(path) : [path]));
 }
 
-const decimal = (value: number, digits: number) => value.toFixed(digits).replace('.', ',');
+const decimal = (value: number, digits: number) => value.toFixed(digits);
 const seconds = (value: number) => decimal(value, 1);
-const label = { laugh: 'Lachen', shout: 'Rufen' } as const;
+const label = { laugh: 'laugh', shout: 'shout' } as const;
 const results: unknown[] = [];
-const rows = ['clip;sekunde;lachen;rufen;sprache'];
+const rows = ['clip;second;laugh;shout;speech'];
 let audioSeconds = 0;
 let cpuSeconds = 0;
 let measured = 0;
@@ -65,7 +65,7 @@ for (const file of files) {
   try {
     const { audio, duration } = await media.probe(file);
     let track = chosen;
-    let basis = 'mit --track gewählt';
+    let basis = 'chosen with --track';
     if (track === undefined) {
       const levels = new Map<number, { mean: number; max: number }>();
       for (const t of audio) levels.set(t.index, await media.audioLevels(file, t.index));
@@ -75,7 +75,7 @@ for (const file of files) {
     }
     const info = audio.find((t) => t.index === track);
     if (track === undefined || !info) {
-      console.log(`${basename(file)}: übersprungen, keine eigene Mikrofonspur (${basis})`);
+      console.log(`${basename(file)}: skipped, no separate microphone track (${basis})`);
       results.push({ clip: basename(file), skipped: basis });
       continue;
     }
@@ -99,7 +99,7 @@ for (const file of files) {
     audioSeconds += samples.length / 16000;
     cpuSeconds += cpuTime;
     console.log(
-      `${basename(file)} (${seconds(duration)} s, Spur ${track + 1}, Kanal ${channel}): ${laughs} Lacher, ${moments.length - laughs} Rufe, höchster Lachwert ${decimal(peak, 2)}, Sprache in ${Math.round(speech * 100)} % der Fenster, ${seconds(cpuTime)} s CPU`,
+      `${basename(file)} (${seconds(duration)} s, track ${track + 1}, channel ${channel}): ${laughs} laugh(s), ${moments.length - laughs} shout(s), highest laugh score ${decimal(peak, 2)}, speech in ${Math.round(speech * 100)} % of windows, ${seconds(cpuTime)} s CPU`,
     );
     for (const m of moments)
       console.log(
@@ -124,17 +124,17 @@ for (const file of files) {
           .join(';'),
       );
   } catch (error) {
-    console.log(`${basename(file)}: Fehler (${error instanceof Error ? error.message : '?'})`);
+    console.log(`${basename(file)}: error (${error instanceof Error ? error.message : '?'})`);
     results.push({ clip: basename(file), error: error instanceof Error ? error.message : '?' });
   }
 }
 await detector.close();
 console.log(
-  `\n${files.length} Aufnahmen, ${measured} mit Mikrofonspur gemessen, ${laughing} mit Lacher (Schwelle ${decimal(threshold, 2)}).`,
+  `\n${files.length} recordings, ${measured} measured with a microphone track, ${laughing} with a laugh (threshold ${decimal(threshold, 2)}).`,
 );
 if (audioSeconds > 0)
   console.log(
-    `Rechenzeit: ${seconds((cpuSeconds / audioSeconds) * 60)} s CPU je Minute Mikrofonspur.`,
+    `Compute time: ${seconds((cpuSeconds / audioSeconds) * 60)} s CPU per minute of microphone track.`,
   );
 if (values.json) {
   await writeFile(resolve(values.json), JSON.stringify({ threshold, results }, null, 2));
@@ -142,5 +142,5 @@ if (values.json) {
 }
 if (values.scores) {
   await writeFile(resolve(values.scores), `${rows.join('\n')}\n`);
-  console.log(`Fensterwerte: ${resolve(values.scores)}`);
+  console.log(`Window scores: ${resolve(values.scores)}`);
 }

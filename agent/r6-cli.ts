@@ -8,9 +8,9 @@ import { MediaProcessor } from '../server/media';
 import { loadConfig } from '../server/config';
 
 /**
- * Messwerkzeug für die R6-Texterkennung: liest je Clip Karte und Rundenausgang, ohne KI und
- * ohne Upload. Mit --rows schreibt es alle gelesenen Zeilen je Bild in die JSON-Ausgabe, um
- * Fehlgriffe nachzuvollziehen.
+ * Measurement tool for R6 text recognition: reads map and round result per clip, without AI and
+ * without upload. With --rows it writes every read line per frame to the JSON output to trace
+ * misses.
  */
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -23,7 +23,7 @@ const { values, positionals } = parseArgs({
 });
 if (values.help || !positionals.length) {
   console.log(
-    'R6-Texterkennung prüfen:\nnpm run r6 -- "D:\\Clips\\Tom Clancy\'s Rainbow Six Siege" [weitere Clips oder Ordner] [--json ergebnis.json] [--rows] [--fps 2]',
+    'Check R6 text recognition:\nnpm run r6 -- "D:\\Clips\\Tom Clancy\'s Rainbow Six Siege" [more clips or folders] [--json result.json] [--rows] [--fps 2]',
   );
   process.exit(values.help ? 0 : 1);
 }
@@ -39,13 +39,13 @@ for (const input of positionals) {
 const results: unknown[] = [];
 const reader = values.rows ? await TextReader.load(models) : undefined;
 for (const path of files) {
-  // Wie im Client: das Spiel kommt aus dem Ordner. Einzeln übergebene Clips gelten als R6.
+  // As in the client, the game comes from the folder. Clips passed individually count as R6.
   const game = isR6(gameLabel('', path)) ? gameLabel('', path) : 'Rainbow Six';
   try {
     const found = await texts.forClip(path, game, new AbortController().signal);
     if (!found) continue;
     console.log(
-      `${basename(path)}: Karte ${found.map ?? '—'}, ${found.events.length} Ergebnis(se), ${found.trace.frames} Bilder in ${found.trace.seconds} s`,
+      `${basename(path)}: map ${found.map ?? '—'}, ${found.events.length} result(s), ${found.trace.frames} frames in ${found.trace.seconds} s`,
     );
     for (const e of found.events)
       console.log(`  ${e.seconds?.toFixed(1).padStart(6)} s  ${e.kind}  "${e.text}"`);
@@ -58,7 +58,7 @@ for (const path of files) {
         });
     results.push({ clip: basename(path), ...found, ...(reader ? { rows } : {}) });
   } catch (error) {
-    console.log(`${basename(path)}: Fehler (${error instanceof Error ? error.message : '?'})`);
+    console.log(`${basename(path)}: error (${error instanceof Error ? error.message : '?'})`);
     results.push({ clip: basename(path), error: error instanceof Error ? error.message : '?' });
   }
 }

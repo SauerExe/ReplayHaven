@@ -9,23 +9,23 @@ import { join } from 'node:path';
 import type { InferenceSession } from 'onnxruntime-node';
 
 /**
- * Stufe 1 aus docs/TON-KONZEPT.md: Lacher und Rufe in einer Tonspur finden, mit YAMNet auf der
- * CPU. Bisher nur für das Messwerkzeug `npm run laughs`; die Analyse nutzt es nicht.
+ * Stage 1 from docs/AUDIO-CONCEPT.md: find laughs and shouts in an audio track, with YAMNet on
+ * the CPU. So far only used by the measuring tool `npm run laughs`; the analysis does not use it.
  */
 
 const moduleRequire = createRequire(typeof __filename === 'string' ? __filename : import.meta.url);
 
 export interface ModelFile {
   url: string;
-  /** Dateiname in der Ablage; sonst der letzte Teil der Adresse. */
+  /** File name in the model folder; otherwise the last part of the URL. */
   file?: string;
   bytes: number;
   sha256: string;
 }
 
 /**
- * YAMNet als ONNX (Apache-2.0): unveränderte tf2onnx-Umwandlung mit dem Mel-Frontend im Graph,
- * gepinnt auf Revision und Prüfsumme. Es liegt nicht im Installer, sondern wird bei Bedarf geladen.
+ * YAMNet as ONNX (Apache-2.0): unmodified tf2onnx conversion with the mel frontend in the graph,
+ * pinned to revision and checksum. It is not in the installer but downloaded when needed.
  */
 export const YAMNET: ModelFile = {
   url: 'https://huggingface.co/audiomagic/yamnet-onnx/resolve/f25b741c2f0bdc6d7e6db24b5fddda23347dbafd/yamnet.onnx',
@@ -34,21 +34,21 @@ export const YAMNET: ModelFile = {
 };
 
 export const SAMPLE_RATE = 16000;
-/** Ein Fenster umfasst 0,96 s, das nächste beginnt 0,48 s später. */
+/** A window spans 0.96 s; the next one starts 0.48 s later. */
 export const WINDOW = 15360;
 export const HOP = 7680;
-/** Samples, die ein Fenster tatsächlich liest: dazu der Rest des letzten STFT-Rahmens, 0,975 s. */
+/** Samples a window actually reads: plus the rest of the last STFT frame, 0.975 s. */
 const PATCH = 15600;
 const CLASSES = 521;
-/** AudioSet-Klassen in YAMNet: Lachen samt Untertypen, Rufen bis Schreien und Jubel, Sprache. */
+/** AudioSet classes in YAMNet: laughter and subtypes, shouting to screaming and cheering, speech. */
 const LAUGH = [13, 14, 15, 16, 17, 18];
 const SHOUT = [6, 7, 8, 9, 10, 11, 61];
 const SPEECH = 0;
-/** Fenster je Modelllauf: zwei Minuten, damit lange Aufnahmen den Speicher nicht sprengen. */
+/** Windows per model run: two minutes, so long recordings do not blow up memory. */
 const FRAMES_PER_RUN = 250;
 
 export interface WindowScore {
-  /** Beginn des Fensters in Sekunden; es reicht 0,96 s weiter. */
+  /** Start of the window in seconds; it extends 0.96 s further. */
   seconds: number;
   laugh: number;
   shout: number;
@@ -62,7 +62,7 @@ export interface Moment {
   peak: number;
 }
 
-/** Ablage für geladene Modelle, unter Windows im lokalen App-Ordner. */
+/** Folder for downloaded models, on Windows in the local app data folder. */
 export function modelFolder(env: NodeJS.ProcessEnv = process.env) {
   return env.LOCALAPPDATA
     ? join(env.LOCALAPPDATA, 'ReplayHaven', 'models')
@@ -81,8 +81,8 @@ async function matches(path: string, model: ModelFile) {
 }
 
 /**
- * Pfad zum Modell im Ordner `folder`; fehlt es dort oder stimmt es nicht, wird es geladen und
- * gegen Größe und SHA-256 geprüft. Eine Datei mit falscher Prüfsumme wird nie abgelegt.
+ * Path to the model in `folder`; if it is missing there or does not match, it is downloaded and
+ * checked against size and SHA-256. A file with a wrong checksum is never stored.
  */
 export async function ensureModel(
   folder: string,
@@ -95,13 +95,12 @@ export async function ensureModel(
   onDownload?.();
   const response = await get(model.url);
   if (!response.ok || !response.body)
-    throw new Error(`Modell nicht ladbar (HTTP ${response.status}).`);
+    throw new Error(`Model could not be downloaded (HTTP ${response.status}).`);
   await mkdir(folder, { recursive: true });
   const partial = `${path}.part`;
-  // Gestreamt auf die Platte: das Sprachmodell hat 650 MB und gehört nicht in den Speicher.
+  // Streamed to disk: the speech model is 650 MB and does not belong in memory.
   const hash = createHash('sha256');
-  const wrong = () =>
-    new Error('Das geladene Modell hat eine falsche Prüfsumme und wurde verworfen.');
+  const wrong = () => new Error('The downloaded model has a wrong checksum and was discarded.');
   let size = 0;
   try {
     await pipeline(
@@ -125,12 +124,12 @@ export async function ensureModel(
 }
 
 /**
- * Eine Spur für YAMNet. Liegt das Mikrofon nur auf einem Kanal (der andere mindestens 20 dB
- * leiser), zählt nur dieser; sonst der Mittelwert beider Kanäle.
+ * One track for YAMNet. If the microphone is on only one channel (the other at least 20 dB
+ * quieter), only that one counts; otherwise the mean of both channels.
  */
 export function monoFrom(channels: readonly Float32Array[]): {
   samples: Float32Array;
-  channel: 'mono' | 'links' | 'rechts' | 'beide';
+  channel: 'mono' | 'left' | 'right' | 'both';
 } {
   if (channels.length < 2) return { samples: channels[0] ?? new Float32Array(), channel: 'mono' };
   const [left, right] = channels;
@@ -141,26 +140,26 @@ export function monoFrom(channels: readonly Float32Array[]): {
   };
   const l = power(left);
   const r = power(right);
-  // 20 dB Abstand in der Amplitude sind Faktor 100 in der Leistung.
-  if (r < l / 100) return { samples: left, channel: 'links' };
-  if (l < r / 100) return { samples: right, channel: 'rechts' };
+  // 20 dB difference in amplitude is a factor of 100 in power.
+  if (r < l / 100) return { samples: left, channel: 'left' };
+  if (l < r / 100) return { samples: right, channel: 'right' };
   const samples = new Float32Array(Math.min(left.length, right.length));
   for (let i = 0; i < samples.length; i++) samples[i] = (left[i] + right[i]) / 2;
-  return { samples, channel: 'beide' };
+  return { samples, channel: 'both' };
 }
 
 /**
- * Wie viele Fenster YAMNet für so viele Samples liefert; was nicht aufgeht, füllt es mit Stille
- * auf. Am Modell nachgezählt; die Formel im README der ONNX-Fassung liegt am Rand um eins daneben.
+ * How many windows YAMNet returns for this many samples; a remainder is padded with silence.
+ * Counted against the model; the formula in the ONNX version's README is off by one at the edge.
  */
 export function windowCount(samples: number) {
   return samples === 0 ? 0 : 1 + Math.ceil(Math.max(0, samples - PATCH) / HOP);
 }
 
 /**
- * Stellen mit Lachen oder Rufen. Ein Fenster zählt ab `threshold`, ein Treffer aber erst, wenn
- * von drei aufeinanderfolgenden Fenstern mindestens zwei darüber liegen. Treffer mit höchstens
- * einem Fenster Abstand gehören zu einem Moment.
+ * Spots with laughing or shouting. A window counts from `threshold` on, but a hit only when at
+ * least two of three consecutive windows are above it. Hits at most one window apart belong to
+ * one moment.
  */
 export function findMoments(
   windows: readonly WindowScore[],
@@ -208,7 +207,7 @@ export class LaughDetector {
     private readonly framesPerRun: number,
   ) {}
 
-  /** Lädt YAMNet; `threads` begrenzt die Rechenkerne, Vorgabe ist die Hälfte. */
+  /** Loads YAMNet; `threads` limits the CPU cores, half by default. */
   static async load(
     model: string,
     options: { threads?: number; runtime?: string; framesPerRun?: number } = {},
@@ -224,9 +223,8 @@ export class LaughDetector {
   }
 
   /**
-   * Werte je Fenster für eine Spur mit 16 kHz. Lange Spuren laufen in Stücken, die genau an
-   * Fenstergrenzen anschließen und alle Samples ihres letzten Fensters enthalten, sodass sich
-   * dieselben Werte ergeben wie in einem Lauf.
+   * Scores per window for a 16 kHz track. Long tracks run in pieces that join exactly at window
+   * boundaries and contain all samples of their last window, so the scores match a single run.
    */
   async scores(samples: Float32Array): Promise<WindowScore[]> {
     const total = windowCount(samples.length);

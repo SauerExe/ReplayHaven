@@ -2,6 +2,7 @@ import { Fragment, useEffect, useId, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Download, Heart, Play, Plus, Sparkles, X } from 'lucide-react';
+import { t } from '../i18n';
 import {
   confidenceLabel,
   formatDuration,
@@ -16,18 +17,19 @@ import { Picture } from './Picture';
 import { useReturnFocus } from './useReturnFocus';
 
 export interface DetailDialogProps {
-  /** Offen, solange ein Clip gesetzt ist. */
+  /** Open while a clip is set. */
   clip: StreamClip | null;
-  /** „Mehr aus <Spiel>“, siehe moreFromGame. */
+  /** "More from <game>", see moreFromGame. */
   more: StreamClip[];
   now: number;
   onClose: () => void;
   onPlay: (id: string, startAt?: number) => void;
   onOpenClip: (id: string) => void;
-  onToggleFavorite: (id: string) => void;
+  /** Missing for accounts that may not change clips; the heart is hidden then. */
+  onToggleFavorite?: (id: string) => void;
   onAddToCollection?: (id: string) => void;
   onEditTags?: (id: string) => void;
-  /** Weitere Aktionen nach den runden Knöpfen, etwa ClipMenu. */
+  /** More actions after the round buttons, e.g. ClipMenu. */
   menu?: ReactNode;
 }
 
@@ -37,7 +39,7 @@ export function DetailDialog({ clip, onClose, ...props }: DetailDialogProps) {
   const clipId = clip?.id;
   const returnFocus = useReturnFocus(!!clip);
 
-  // Beim Wechsel über „Mehr aus …“ beginnt der neue Clip oben, mit dem Fokus auf „Abspielen“.
+  // When switching via "More from …", the new clip starts at the top with focus on "Play".
   useEffect(() => {
     if (!clipId) return;
     overlayRef.current?.scrollTo({ top: 0 });
@@ -89,7 +91,7 @@ function DetailBody({
 }) {
   const marksId = useId();
   const moreId = useId();
-  const confidence = clip.confidence ? confidenceLabel[clip.confidence] : '';
+  const confidence = clip.confidence ? confidenceLabel(clip.confidence) : '';
   const meta = [
     { key: 'when', text: formatWhen(clip.recordedAt, now) },
     { key: 'duration', text: formatDuration(clip.duration) },
@@ -106,7 +108,7 @@ function DetailBody({
           eager
         />
         <div className="stream-detail-shade" aria-hidden="true" />
-        <Dialog.Close className="stream-detail-close" aria-label="Schließen">
+        <Dialog.Close className="stream-detail-close" aria-label={t('common.close')}>
           <X size={20} strokeWidth={2.5} aria-hidden="true" />
         </Dialog.Close>
         <div className="stream-detail-lead">
@@ -122,41 +124,43 @@ function DetailBody({
               onClick={() => onPlay(clip.id)}
             >
               <Play size={22} fill="currentColor" strokeWidth={0} aria-hidden="true" />
-              Abspielen
+              {t('stream.play')}
             </button>
             {onAddToCollection && (
               <button
                 type="button"
                 className="stream-round"
-                aria-label="Zur Sammlung hinzufügen"
-                title="Zur Sammlung hinzufügen"
+                aria-label={t('stream.detail.addToCollection')}
+                title={t('stream.detail.addToCollection')}
                 onClick={() => onAddToCollection(clip.id)}
               >
                 <Plus size={20} strokeWidth={2.5} aria-hidden="true" />
               </button>
             )}
-            <button
-              type="button"
-              className="stream-round"
-              aria-label="Favorit"
-              title="Favorit"
-              aria-pressed={clip.favorite}
-              onClick={() => onToggleFavorite(clip.id)}
-            >
-              <Heart
-                size={20}
-                strokeWidth={2.2}
-                fill={clip.favorite ? 'currentColor' : 'none'}
-                aria-hidden="true"
-              />
-            </button>
+            {onToggleFavorite && (
+              <button
+                type="button"
+                className="stream-round"
+                aria-label={t('stream.favorite')}
+                title={t('stream.favorite')}
+                aria-pressed={clip.favorite}
+                onClick={() => onToggleFavorite(clip.id)}
+              >
+                <Heart
+                  size={20}
+                  strokeWidth={2.2}
+                  fill={clip.favorite ? 'currentColor' : 'none'}
+                  aria-hidden="true"
+                />
+              </button>
+            )}
             {clip.downloadUrl && (
               <a
                 className="stream-round"
                 href={clip.downloadUrl}
                 download={clip.title}
-                aria-label="Original herunterladen"
-                title="Original herunterladen"
+                aria-label={t('stream.detail.download')}
+                title={t('stream.detail.download')}
               >
                 <Download size={20} strokeWidth={2.2} aria-hidden="true" />
               </a>
@@ -170,7 +174,9 @@ function DetailBody({
         <div className="stream-detail-grid">
           <div className="stream-detail-main">
             <p className="stream-detail-meta">
-              {isNew(clip.recordedAt, now) && <span className="stream-detail-new">Neu</span>}
+              {isNew(clip.recordedAt, now) && (
+                <span className="stream-detail-new">{t('stream.tile.new')}</span>
+              )}
               {meta.map((part, index) => (
                 <Fragment key={part.key}>
                   {index > 0 && (
@@ -188,7 +194,7 @@ function DetailBody({
               </Dialog.Description>
             )}
             {(clip.tags.length > 0 || onEditTags) && (
-              <ul className="stream-chips" aria-label="Tags">
+              <ul className="stream-chips" aria-label={t('stream.tags')}>
                 {clip.tags.map((tag) => (
                   <li key={tag} className="stream-chip">
                     {tag}
@@ -201,7 +207,7 @@ function DetailBody({
                       className="stream-chip stream-chip--add"
                       onClick={() => onEditTags(clip.id)}
                     >
-                      {clip.tags.length ? 'Tags bearbeiten' : 'Tag hinzufügen'}
+                      {clip.tags.length ? t('stream.menu.editTags') : t('stream.detail.addTag')}
                     </button>
                   </li>
                 )}
@@ -209,33 +215,33 @@ function DetailBody({
             )}
           </div>
           <dl className="stream-facts">
-            <dt>Spiel</dt>
+            <dt>{t('stream.detail.game')}</dt>
             <dd>{clip.game}</dd>
             {clip.deviceName && (
               <>
-                <dt>Aufnahme</dt>
+                <dt>{t('stream.detail.recording')}</dt>
                 <dd>{clip.deviceName}</dd>
               </>
             )}
             {clip.analyzing ? (
               <>
-                <dt>Analyse</dt>
+                <dt>{t('stream.detail.analysis')}</dt>
                 <dd className="stream-facts-live">
                   <Sparkles size={15} aria-hidden="true" />
-                  Läuft gerade
+                  {t('stream.detail.running')}
                 </dd>
               </>
             ) : (
               clip.provider && (
                 <>
-                  <dt>Analyse</dt>
+                  <dt>{t('stream.detail.analysis')}</dt>
                   <dd>{providerLabel(clip.provider)}</dd>
                 </>
               )
             )}
             {confidence && (
               <>
-                <dt>Sicherheit</dt>
+                <dt>{t('stream.detail.confidence')}</dt>
                 <dd className={`stream-confidence stream-confidence--${clip.confidence}`}>
                   {confidence[0].toUpperCase() + confidence.slice(1)}
                 </dd>
@@ -247,8 +253,8 @@ function DetailBody({
         {clip.highlights.length > 0 && (
           <section className="stream-marks" aria-labelledby={marksId}>
             <div className="stream-section-head">
-              <h3 id={marksId}>Zeitmarken</h3>
-              <span>Aus der KI-Analyse</span>
+              <h3 id={marksId}>{t('stream.detail.highlights')}</h3>
+              <span>{t('stream.detail.fromAi')}</span>
             </div>
             <ul className="stream-marks-list">
               {clip.highlights.map((mark) => (
@@ -271,7 +277,7 @@ function DetailBody({
 
         {more.length > 0 && (
           <section className="stream-more" aria-labelledby={moreId}>
-            <h3 id={moreId}>Mehr aus {clip.game}</h3>
+            <h3 id={moreId}>{t('stream.detail.moreFrom', { game: clip.game })}</h3>
             <ul className="stream-more-grid">
               {more.map((other) => (
                 <li key={other.id}>

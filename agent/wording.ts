@@ -2,50 +2,51 @@ import { SIGNIFICANCE, WEAPON_WITH, countWord, phrase } from './events';
 import type { EventKind, GameEvent, Weapon } from './events';
 
 /**
- * Prüfung und Nachbearbeitung der Texte, die das Modell schreibt. Es formuliert gut, behauptet
- * aber gelegentlich, was nicht stattfand ("Tod durch Feuerwaffe" über einem Clip, in dem der
- * Nutzer zwei Gegner ausschaltet) oder schreibt Anzeigen ab ("3 vs 1", "FINKA im Visier").
- * Beides lässt sich gegen die belegten Ereignisse prüfen (.docs/05-experimente.md, E17).
+ * Checking and post-processing of the texts the model writes. It phrases things well but now and
+ * then claims what did not happen ("Tod durch Feuerwaffe" over a clip in which the user
+ * eliminates two enemies) or copies HUD readouts ("3 vs 1", "FINKA im Visier"). Both can be
+ * checked against the proven events (.docs/05-experimente.md, E17).
  */
 
 const KILLS: EventKind[] = ['kill', 'multikill', 'headshot', 'ace'];
 const WINS: EventKind[] = ['roundWon', 'matchWon', 'ace', 'clutch'];
 const LOSSES: EventKind[] = ['roundLost', 'matchLost'];
 
-// "von hinten ausgeschaltet" beschreibt den eigenen Kill, "von Deadlock ausgeschaltet" den Tod.
+// "von hinten ausgeschaltet" describes the player's own kill, "von Deadlock ausgeschaltet" a death.
 const DEATH_BY =
   /\bvon\s+(?!hinten\b|oben\b|unten\b|vorne\b|links\b|rechts\b|weitem\b|nahem\b)[^\s,.;:!?]+(?:\s+[^\s,.;:!?]+)?\s+(?:ausgeschaltet|eliminiert|erledigt|erwischt|getötet|niedergestreckt)/i;
 const DEATH = /\b(?:tod|tot|gestorben|stirbt|stirbst|getötet|ausgeschieden|draufgegangen)\b/i;
-// Aktiv gesagt: "Deadlock schaltet dich aus" ist ein Tod, "du schaltest ihn aus" ein Kill.
+// Active voice: "Deadlock schaltet dich aus" is a death, "du schaltest ihn aus" a kill.
 const DEATH_ACTIVE =
   /\b(?:schaltet|erledigt|erwischt|killt|tötet|eliminiert|holt|schlägt|besiegt|erschießt)\b[^.,;!?]{0,30}\b(?:dich|mich)\b/i;
-// Nachgestellt: "Ausgeschaltet von GegnerEins", "Erledigt durch einen Sturz".
+// Trailing agent: "Ausgeschaltet von GegnerEins", "Erledigt durch einen Sturz".
 const DEATH_PASSIVE =
   /\b(?:ausgeschaltet|eliminiert|erledigt|erwischt|getötet|besiegt)\s+(?:von|durch)\b/i;
 const KILL_ACTIVE = /\b(?:schaltest|erledigst|erwischst|eliminierst|killst|holst)\b/i;
-// Auch als Tätigkeit ("Zombies töten") eine Behauptung, die ein Ereignis braucht.
+// Even as an activity ("Zombies töten") this is a claim that needs an event.
 const KILL =
   /\b(?:kills?|headshots?|kopfsch(?:uss|üssen?)|ace|multikill|(?:doppel|dreifach|vierfach|mehrfach)-?kills?|abschuss|abgeschossen|abschie(?:ß|ss)en|töten|killen)\b/i;
-// Nur gegen Replay-Ereignisse geprüft: Snipes und Knocks ("niedergeschlagen" ist kein Kill).
+// Only checked against replay events: snipes and knocks ("niedergeschlagen" is not a kill).
 const SNIPE = /\b(?:snipes?|gesnip(?:ed|t)|no-?scope\w*)\b/i;
 const KNOCK = /\b(?:knocks?|geknockt|umgeknockt|niedergeschlagen)\b/i;
-// Kann Kill oder Tod meinen; zulässig, sobald eins von beiden belegt ist.
+// Can mean a kill or a death; allowed as soon as either one is proven.
 const EITHER =
   /\b(?:ausgeschaltet|ausschalten|eliminiert|eliminieren|eliminierung(?:en)?|erledigt|erledigen|erwischt|besiegt)\b/i;
-// "Gegner besiegt" ist ein Kill, kein Sieg.
+// "Gegner besiegt" is a kill, not a win.
 const WIN = /(?<!be)sieg|gewonnen|gewinn|victory/i;
 const LOSS = /niederlage|verloren|verlier/i;
-// Wiederbelebung und Zuschauen setzen einen Tod voraus, ohne ihn zu behaupten.
+// Revive and spectating imply a death without claiming one.
 const AFTER_DEATH = /respawn|wiederbeleb|zuschau|ausgeschieden/i;
 
 const GENERIC =
   /\b(?:spielabschnitt|gameplay|spielszene|spielansicht|aufnahme|clip|screenshot|bildschirm|video)\b/i;
 const METHOD =
   /\b(?:stichprobe|frames?|einzelbild\w*|beobachtung\w*|notiz\w*|belegbild|sekunden?)\b/i;
-// Der Voice-Chat als solcher sagt nichts über den Clip ("Verwirrung im Voice-Chat"); das Thema
-// des Gesprächs dagegen schon, deshalb eine eigene Rückmeldung, die es behalten lässt.
+// Voice chat as such says nothing about the clip ("Verwirrung im Voice-Chat"); the topic of the
+// conversation does, hence a separate piece of feedback that lets the model keep it.
 const CHAT = /\b(?:voice-?chats?|sprachchats?|chats?|gespräch\w*|diskussion\w*|unterhaltung\w*)\b/i;
-// Nur die Ortsangabe ("… im Voice-Chat"), die der Ersatztitel streichen kann, ohne das Thema zu verlieren.
+// Only the location phrase ("… im Voice-Chat"), which the fallback title can drop without
+// losing the topic.
 const CHAT_PLACE = /\s+(?:im|in|aus dem|über den)\s+(?:voice-?chat|sprachchat|chat)\b/gi;
 const SCORE = /\d+\s*[:–-]\s*\d+|\b\d+\s*vs\.?\s*\d+\b|\b\d+\s*\/\s*\d+\b/i;
 
@@ -59,7 +60,7 @@ function shouting(text: string) {
 }
 const has = (events: GameEvent[], kinds: EventKind[]) => events.some((e) => kinds.includes(e.kind));
 
-/** Behauptungen, die kein Ereignis deckt. Leer, wenn der Text nichts Unbelegtes sagt. */
+/** Claims no event backs up. Empty if the text says nothing unproven. */
 export function unsupportedClaims(text: string, events: GameEvent[]) {
   const problems: string[] = [];
   const deathBy = DEATH_BY.test(text) || DEATH_ACTIVE.test(text);
@@ -70,12 +71,12 @@ export function unsupportedClaims(text: string, events: GameEvent[]) {
   if ((deathBy || DEATH.test(rest)) && !death)
     problems.push('behauptet deinen Tod, den keine Meldung belegt');
   if (killed && !kill) problems.push('behauptet einen Kill, den keine Meldung belegt');
-  // Replay-Ereignisse sind gezählt und vermessen; nur mit ihnen lassen sich Snipes, Knocks,
-  // Serien und Entfernungen prüfen. Clips ohne Replay prüft das wie bisher.
+  // Replay events are counted and measured; only with them can snipes, knocks, streaks and
+  // distances be checked. Clips without a replay are checked as before.
   if (events.some((e) => e.source === 'replay'))
     problems.push(...exactClaims(rest, events, killed));
   else {
-    // Auch eine gelesene Serie ist gezählt: "Vierfach-Kill" bei drei Kills stimmt nicht.
+    // A streak that was read is counted too: "Vierfach-Kill" with three kills is wrong.
     const counted = Math.max(
       0,
       ...events.map((e) => (e.kind === 'multikill' ? (e.count ?? 2) : 0)),
@@ -84,10 +85,10 @@ export function unsupportedClaims(text: string, events: GameEvent[]) {
     if (counted && series > counted)
       problems.push(`behauptet ${series} Kills in Folge, belegt sind ${counted}`);
   }
-  // In R6 heißt ein Operator ACE ("KILLED BY xiTango | ACE"); ein Ace braucht eine eigene Meldung.
+  // In R6 an operator is called ACE ("KILLED BY xiTango | ACE"); an ace needs its own message.
   if (/\bace\b/i.test(text) && !has(events, ['ace']))
     problems.push('behauptet ein Ace, das keine Meldung belegt');
-  // Kopfschüsse sind gezählt: "Drei Kopfschüsse" bei zweien stimmt nicht (VAL-B1, 2026-09-25).
+  // Headshots are counted: "Drei Kopfschüsse" with two is wrong (VAL-B1, 2026-09-25).
   const heads = Math.max(
     events.filter((e) => e.kind === 'headshot').length,
     ...events.map((e) => (e.kind === 'multikill' ? (e.headshots ?? 0) : 0)),
@@ -111,7 +112,7 @@ export function unsupportedClaims(text: string, events: GameEvent[]) {
 function exactClaims(text: string, events: GameEvent[], killed: boolean) {
   const problems: string[] = [];
   const kill = has(events, KILLS);
-  // "Snipe-Knock über 180 m" beschreibt einen Knock, keinen Kill.
+  // "Snipe-Knock über 180 m" describes a knock, not a kill.
   if (SNIPE.test(text) && !killed && !kill && !(KNOCK.test(text) && has(events, ['knock'])))
     problems.push('behauptet einen Kill, den keine Meldung belegt');
   if (KNOCK.test(text) && !kill && !has(events, ['knock']))
@@ -149,17 +150,17 @@ function exactClaims(text: string, events: GameEvent[], killed: boolean) {
   return problems;
 }
 
-/** Gewöhnliche Wendungen mit "auf", die keine Karte meinen ("Kopfschuss auf Distanz"). */
+/** Common phrases with "auf" that do not refer to a map ("Kopfschuss auf Distanz"). */
 const COMMON_AFTER_AUF =
   /^(?:Distanz|Entfernung|Abstand|Anhieb|Augenhöhe|Sicht|Zeit|Kurs|Ansage|Kommando|Befehl|Risiko|Ansatz|Knopfdruck|Zuruf|Deckung|Führung|Position|Stellung|Lauer|Sicherheit|Eis|Feuer|Wasser|Lava|Kopf|Kette|Ketten)$/i;
 
-/** Was über den Ort bekannt ist: die erkannte Karte und alle Karten des Spiels. */
+/** What is known about the location: the recognised map and all maps of the game. */
 export interface MapContext {
   map?: string;
   maps: readonly string[];
 }
 
-/** Was an einem Titel nicht stimmt, als Sätze für die Rückfrage an das Modell. */
+/** What is wrong with a title, as sentences for the follow-up question to the model. */
 export function titleProblems(
   title: string,
   events: GameEvent[],
@@ -167,7 +168,7 @@ export function titleProblems(
   place?: MapContext,
 ) {
   const problems = unsupportedClaims(title, events);
-  // Eine Karte im Titel muss die erkannte sein; geraten wäre sie oft falsch.
+  // A map in the title must be the recognised one; a guessed one would often be wrong.
   const named = place?.maps.find((m) => new RegExp(`\\b${m}\\b`, 'i').test(title));
   if (named && named !== place?.map)
     problems.push(
@@ -175,28 +176,28 @@ export function titleProblems(
         ? `nennt die Karte ${named}, erkannt wurde ${place.map}`
         : `nennt die Karte ${named}, die nicht erkannt wurde`,
     );
-  // Auch ein Ort, den es gar nicht gibt: Qwen3.5 schrieb am 2026-09-24 "Gelber Bagger auf
-  // Dantzig" zu einem Bild ohne Kartennamen. "auf" plus Eigenname zählt als Kartenangabe.
-  // Am Titelende nach "auf", "über", "in", "bei", "nach" oder "vor": Qwen3.5 schrieb zum selben
-  // Bild auch "Übersicht über Dantzig".
+  // Also a place that does not exist at all: on 2026-09-24 Qwen3.5 wrote "Gelber Bagger auf
+  // Dantzig" for a frame without a map name. "auf" plus a proper noun counts as a map.
+  // At the end of the title after "auf", "über", "in", "bei", "nach" or "vor": for the same
+  // frame Qwen3.5 also wrote "Übersicht über Dantzig".
   const where =
     /(?<!\p{L})(?:auf|über|in|bei|nach|vor)\s+([A-ZÄÖÜ][\p{L}'-]+(?:\s+[A-ZÄÖÜ][\p{L}'-]+)?)\s*[!.]?$/u.exec(
       title.trim(),
     );
-  // Ebenso zwei großgeschriebene Wörter nach einer Präposition ("Übersicht über Dirt Haul"):
-  // im Deutschen fast immer ein Eigenname, einzelne Wörter ("in Deckung") dagegen oft nicht.
-  // Wortgrenze per Lookbehind: \b kennt kein "ü" und fände "über" nicht.
+  // Likewise two capitalised words after a preposition ("Übersicht über Dirt Haul"): in
+  // German almost always a proper noun, whereas single words ("in Deckung") often are not.
+  // Word boundary via lookbehind: \b does not know "ü" and would not find "über".
   const compound =
     /(?<!\p{L})(?:auf|über|in|im|am|an|bei|nach|vor)\s+([A-ZÄÖÜ][\p{L}'-]+\s+[A-ZÄÖÜ][\p{L}'-]+)/u.exec(
       title,
     );
-  // "auf Kafe" meint "Kafe Dostoyevsky": der Anfang des Kartennamens zählt als die Karte.
+  // "auf Kafe" means "Kafe Dostoyevsky": the start of the map name counts as the map.
   const isMap = (name: string) =>
     !!place?.map && `${place.map.toLowerCase()} `.startsWith(`${name.toLowerCase()} `);
   const invented = [where?.[1], compound?.[1]].find(
     (name) => name && !COMMON_AFTER_AUF.test(name) && !isMap(name),
   );
-  // Mit belegtem Ereignis gehört die erkannte Karte in den Titel ("Dreifach-Kill auf Oregon").
+  // With a proven event the recognised map belongs in the title ("Dreifach-Kill auf Oregon").
   const short = place?.map?.split(' ')[0];
   if (place?.map && headlineEvents.length && !new RegExp(`\\b${short}\\b`, 'i').test(title))
     problems.push(`nennt die erkannte Karte nicht; hänge "auf ${place.map}" an`);
@@ -218,8 +219,8 @@ export function titleProblems(
       'nennt den Voice-Chat statt seines Inhalts; behalte Thema oder Pointe und lass das Wort weg',
     );
   if (words(title).length > 8 || title.length > 60) problems.push('ist zu lang');
-  // Die Du-Form gilt für die Beschreibung; als Überschrift wird sie schief ("Du von Deadlock
-  // ausgeschaltet"). Die Ich-Form verwechselt die Perspektive ("Omen schaltet mich").
+  // The second person ("du") is for the description; in a headline it reads oddly ("Du von
+  // Deadlock ausgeschaltet"). The first person confuses the perspective ("Omen schaltet mich").
   if (/^du\b/i.test(title.trim())) problems.push('beginnt mit "Du", ist aber eine Überschrift');
   if (/\b(?:ich|mich|mir|mein\w*)\b/i.test(title)) problems.push('spricht in der Ich-Form');
   const main = headlineEvents[0];
@@ -232,8 +233,8 @@ export function titleProblems(
     problems.push(`benennt das wichtigste belegte Ereignis nicht (${label(main)})`);
   else if (main && !problems.length && !mentionsDetail(title, main))
     problems.push(`lässt das Besondere am Ereignis weg (${label(main)})`);
-  // "Ausgeschaltet in der Luft" liest sich wie ein Kill, war aber der eigene Tod (FN-02,
-  // 2026-09-25). Ohne eigenen Kill muss ein Titel zum Tod sagen, wen es erwischt hat.
+  // "Ausgeschaltet in der Luft" reads like a kill but was the player's own death (FN-02,
+  // 2026-09-25). Without an own kill, a title about a death must say who got eliminated.
   else if (
     main?.kind === 'death' &&
     !problems.length &&
@@ -246,13 +247,13 @@ export function titleProblems(
   return problems;
 }
 
-/** Zahl einer genannten Serie: "Doppel-Kill" 2, "Triple Kill" 3. 0 ohne Serie. */
+/** Count of a named streak: "Doppel-Kill" 2, "Triple Kill" 3. 0 without a streak. */
 function seriesIn(text: string) {
   const series: [RegExp, number][] = [
     [/\b(?:fünffach|penta)\w*/i, 5],
     [/\b(?:vierfach|quad)\w*/i, 4],
     [/\b(?:dreifach|triple)\w*/i, 3],
-    // Auch "Doppelter Kopfschuss".
+    // Also "Doppelter Kopfschuss".
     [/\b(?:doppel|double|zweifach)(?:-?kills?|-?eliminierung\w*|te[rnms]?\b|\b)/i, 2],
   ];
   return series.find(([pattern]) => pattern.test(text))?.[1] ?? 0;
@@ -273,8 +274,9 @@ const KILL_NOUNS = 'kills?|abschüsse|eliminierungen|kopfschüssen?|headshots';
 const HEADSHOT_NOUNS = 'kopfschüssen?|kopfschuss|headshots?';
 const HEADSHOT = /\b(?:kopfsch(?:uss|üssen?)|headshots?)\b/i;
 /**
- * Genannte Anzahl vor einem Wort wie "Kills": "Drei Kills in Folge", "zwei schnelle Abschüsse",
- * "Drei-Kill-Serie", "4 Kills". Entfernungen wie "200 Meter Kill" sind keine Anzahl. 0 ohne Angabe.
+ * Count stated before a word like "Kills": "Drei Kills in Folge", "zwei schnelle Abschüsse",
+ * "Drei-Kill-Serie", "4 Kills". Distances like "200 Meter Kill" are not a count. 0 if none
+ * is stated.
  */
 function countIn(text: string, nouns: string) {
   const match = new RegExp(
@@ -284,7 +286,7 @@ function countIn(text: string, nouns: string) {
   return match ? (NUMBERS[match[1].toLowerCase()] ?? Number(match[1])) : 0;
 }
 
-/** Genannte Entfernung in Metern: "über 180 m", "180-m-Snipe", "200 Meter". */
+/** Stated distance in metres: "über 180 m", "180-m-Snipe", "200 Meter". */
 function distanceIn(text: string) {
   const match = /\b(\d{2,4})\s*-?\s*m(?:eter[n]?)?\b/i.exec(text);
   return match ? Number(match[1]) : undefined;
@@ -304,14 +306,14 @@ const WEAPON_WORDS: [Weapon[], RegExp][] = [
   [['vehicle'], /fahrzeug|überfahren/i],
 ];
 
-/** Waffen, die ein Text nennt. */
+/** Weapons a text mentions. */
 function weaponsIn(text: string) {
   return WEAPON_WORDS.filter(([, pattern]) => pattern.test(text)).flatMap(([weapons]) => weapons);
 }
 
 /**
- * Was ein Ereignis aus dem Replay besonders macht, soll der Titel tragen: die Zahl einer Serie,
- * einen Snipe oder eine große Entfernung. Gelesene Meldungen haben solche Angaben nicht.
+ * What makes a replay event special should be in the title: the size of a streak, a snipe or
+ * a long distance. Messages read from the screen carry no such details.
  */
 function mentionsDetail(title: string, event: GameEvent) {
   if (event.kind === 'multikill' && event.count)
@@ -345,14 +347,14 @@ function mentions(title: string, event: GameEvent) {
   return LOSS.test(title);
 }
 
-/** Entfernung für Titel: abgerundet auf zehn Meter, damit "über" immer stimmt. */
+/** Distance for titles: rounded down to ten metres so that "über" (over) is always true. */
 function over(distance: number | undefined) {
   return distance !== undefined && distance >= 50
     ? ` über ${Math.floor(distance / 10) * 10} m`
     : '';
 }
 
-/** Kurzform eines Replay-Treffers: "Snipe über 180 m", "Kill mit der Schrotflinte". */
+/** Short form of a replay hit: "Snipe über 180 m", "Kill mit der Schrotflinte". */
 function hitLabel(event: GameEvent, noun: 'Kill' | 'Knock') {
   if (event.weapon === 'noscope') return `No-Scope-${noun}${over(event.distance)}`;
   if (event.weapon === 'sniper')
@@ -363,7 +365,7 @@ function hitLabel(event: GameEvent, noun: 'Kill' | 'Knock') {
   return noun === 'Kill' ? 'Gegner ausgeschaltet' : 'Gegner niedergeschlagen';
 }
 
-/** Kurzform eines Ereignisses, für Ersatztitel und Zeitmarken. */
+/** Short form of an event, for fallback titles and highlights. */
 export function label(event: GameEvent) {
   const text = event.text.toUpperCase();
   switch (event.kind) {
@@ -417,8 +419,8 @@ export function label(event: GameEvent) {
 }
 
 /**
- * Ersatztitel, wenn auch der zweite Vorschlag des Modells nicht besteht. Mit Ereignis nennt er
- * es schlicht, ohne Ereignis nimmt er den Vorschlag des Modells und entfernt nur Abgeschriebenes.
+ * Fallback title when the model's second suggestion fails too. With an event it simply names
+ * it; without one it takes the model's suggestion and only removes copied HUD text.
  */
 export function fallbackTitle(
   headlineEvents: GameEvent[],
@@ -428,7 +430,7 @@ export function fallbackTitle(
   map?: string,
 ) {
   const where = map ? ` auf ${map}` : '';
-  // Kill und Tod gegen denselben Gegner im selben Moment sind ein Abtausch (FN-19).
+  // A kill and a death against the same enemy at the same moment are a trade (FN-19).
   const death = headlineEvents.find((e) => e.kind === 'death' && e.other);
   const traded = headlineEvents.find(
     (e) =>
@@ -439,15 +441,15 @@ export function fallbackTitle(
       ),
   );
   if (death && traded) return `Abtausch mit ${death.other}${where}`;
-  // Die Karte gehört zum ersten Ereignis: "Runde gewonnen auf Kanal – Von … ausgeschaltet".
+  // The map belongs to the first event: "Runde gewonnen auf Kanal – Von … ausgeschaltet".
   if (headlineEvents.length)
     return [`${label(headlineEvents[0])}${where}`, ...headlineEvents.slice(1).map(label)].join(
       ' – ',
     );
   if (mostly === 'loading') return 'Ladebildschirm';
   if (mostly === 'menu') return 'Im Menü';
-  // Der jüngste Vorschlag zuerst: er antwortet auf die Rückfrage und hat deren Mängel meist
-  // schon behoben ("Eiswand im Voice-Chat", dann "Obi-Wan und Yoda im Voice-Chat").
+  // Latest suggestion first: it answers the follow-up question and has usually fixed its
+  // problems already ("Eiswand im Voice-Chat", then "Obi-Wan und Yoda im Voice-Chat").
   for (const candidate of [...modelTitles].reverse()) {
     if (unsupportedClaims(candidate, events).length) continue;
     const repaired = candidate
@@ -475,15 +477,15 @@ export function fallbackTitle(
   return 'Ohne besonderes Ereignis';
 }
 
-// Methodengerede, das in der Fußzeile der Bibliothek landete: "Bildstichprobe aus Sekunde 118.37 …".
+// Method talk that ended up in the library footer: "Bildstichprobe aus Sekunde 118.37 …".
 const METHOD_SENTENCE =
   /stichprobe|einzelbild|beobachtung|notiz|belegbild|beigefügte\w* bild|bild aus sekunde|sekunde \d|verlässlichste\w* beleg|unzuverlässig|bildschirmtext|daran zu prüfen|hinweise? (?:im|aus dem) prompt/i;
-// Einblendungen der Aufnahmesoftware sind kein Spielinhalt.
+// Overlays from the recording software are not game content.
 const OVERLAY_SENTENCE =
   /nvidia|geforce|shadowplay|instant replay|game bar|discord|steam-overlay|die aufnahme wurde (?:begonnen|gestartet|gespeichert)/i;
 const PERFORMANCE_SENTENCE = /\b\d+\s*fps\b|\bfps\b|\bping\b|\blatenz\b/i;
 
-/** Entfernt Sätze über das Verfahren, die Aufnahmesoftware und Leistungsanzeigen. */
+/** Removes sentences about the method, the recording software and performance overlays. */
 export function cleanText(text: string, { keepOverlay = false } = {}) {
   const sentences = text
     .replace(/\s+/g, ' ')
@@ -507,35 +509,35 @@ export interface Highlight {
 }
 
 /**
- * Zeitmarken: zuerst die belegten Ereignisse, dann die Vorschläge des Modells, sofern sie nichts
- * Unbelegtes behaupten und nicht dieselbe Stelle oder denselben Titel wiederholen. Vorher standen
- * sechs Marken mit demselben Titel "Tod durch Feuerwaffe" untereinander.
+ * Highlights: first the proven events, then the model's suggestions, as long as they claim
+ * nothing unproven and do not repeat the same position or title. Previously six highlights
+ * with the same title "Tod durch Feuerwaffe" were listed one below the other.
  */
-/** Sekunden Vorlauf vor einer Zeitmarke aus Meldung oder Replay. */
+/** Seconds of lead-in before a highlight from a message or replay. */
 export const HIGHLIGHT_LEAD = 1;
-/** Mindestabstand eines Modellvorschlags zu einer belegten Marke, in Sekunden. */
+/** Minimum distance of a model suggestion from a proven highlight, in seconds. */
 const PROVEN_GAP = 3;
-/** Ereignisse eines Augenblicks, deren Einblendung erst danach erscheint. */
+/** Instant events whose on-screen message only appears afterwards. */
 const SUDDEN: EventKind[] = ['kill', 'multikill', 'headshot', 'knock', 'death', 'ace', 'clutch'];
 export function tidyHighlights(
   proposed: Highlight[],
   events: GameEvent[],
   duration: number,
-  /** Lachstellen aus dem Transkript (agent/speech.ts); die Marke setzt kurz vor dem Lachen an. */
+  /** Laughs from the transcript (agent/speech.ts); the highlight starts shortly before the laugh. */
   laughs: readonly { start: number; end: number }[] = [],
 ) {
   const out: Highlight[] = [];
-  // Neben belegten Ereignissen reichen wenige Vorschläge; sonst reihen sich "Kampfbericht",
-  // "Schneeumgebung" und "Karte B Site" hinter den eigentlichen Moment.
+  // Next to proven events a few suggestions are enough; otherwise "Kampfbericht",
+  // "Schneeumgebung" and "Karte B Site" line up behind the actual moment.
   let room = events.some((e) => ['screen', 'replay', 'ocr'].includes(e.source)) ? 3 : 5;
   const key = (title: string) => title.toLowerCase().replace(/[^a-zäöüß0-9]+/g, '');
-  // Belegte Kills und Tode dürfen gleich heißen: drei Kills sind drei Stellen. Ein Siegerbanner,
-  // das in zwei Bildern stand, ist dagegen eine Stelle, ebenso ein Vorschlag mit vergebenem Titel.
-  // Das Modell nennt belegte Momente zur Zeit der Einblendung; neben der vorgezogenen Marke
-  // desselben Moments wäre das eine zweite, deshalb halten Vorschläge Abstand zu belegten Marken.
+  // Proven kills and deaths may share a title: three kills are three positions. A victory banner
+  // seen in two frames, however, is one position, as is a suggestion with a title already taken.
+  // The model places proven moments at the time of the on-screen message; next to the earlier
+  // highlight of the same moment that would be a second one, so suggestions keep their distance.
   const proven: number[] = [];
-  // `belegt`: aus Ereignis oder Ton; `wiederholbar`: derselbe Titel darf mehrmals stehen.
-  const add = (h: Highlight, source: 'vorschlag' | 'belegt' | 'wiederholbar' = 'vorschlag') => {
+  // `proven`: from an event or audio; `repeatable`: the same title may appear several times.
+  const add = (h: Highlight, source: 'suggested' | 'proven' | 'repeatable' = 'suggested') => {
     if (!Number.isFinite(h.seconds) || h.seconds < 0 || h.seconds > duration) return;
     const seconds = h.seconds;
     const title = h.title.replace(/\s+/g, ' ').trim().slice(0, 120);
@@ -543,29 +545,29 @@ export function tidyHighlights(
     if (
       out.some(
         (o) =>
-          (source !== 'wiederholbar' && key(o.title) === key(title)) ||
+          (source !== 'repeatable' && key(o.title) === key(title)) ||
           Math.abs(o.seconds - seconds) < 1.5,
       ) ||
-      (source === 'vorschlag' && proven.some((p) => Math.abs(p - seconds) < PROVEN_GAP))
+      (source === 'suggested' && proven.some((p) => Math.abs(p - seconds) < PROVEN_GAP))
     )
       return;
-    if (source !== 'vorschlag') proven.push(seconds);
+    if (source !== 'suggested') proven.push(seconds);
     out.push({
       seconds: Number(seconds.toFixed(2)),
       title,
       description: cleanText(h.description).slice(0, 400),
     });
   };
-  // Eine Zeitmarke soll den Moment zeigen, nicht die Einblendung danach: gelesene Meldungen
-  // beginnen am letzten Bild ohne sie, alle mit etwas Vorlauf, damit man den Kill kommen sieht.
-  // Ergebnisbanner stehen lange und markieren ihr Erscheinen selbst; sie bleiben, wo sie sind.
+  // A highlight should show the moment, not the message afterwards: messages that were read
+  // start at the last frame without them, all with some lead-in so you see the kill coming.
+  // Result banners stay on screen for long and mark their own appearance; they stay put.
   const start = (e: GameEvent, seconds: number) =>
     SUDDEN.includes(e.kind) ? Math.max(0, seconds - HIGHLIGHT_LEAD) : seconds;
-  // An derselben Stelle gewinnt das gewichtigere Ereignis: der Dreifach-Kill vor dem dritten Kill.
+  // At the same position the weightier event wins: the triple kill before the third kill.
   const ordered = [...events].sort(
     (a, b) => (a.seconds ?? 0) - (b.seconds ?? 0) || SIGNIFICANCE[b.kind] - SIGNIFICANCE[a.kind],
   );
-  const sourceOf = (e: GameEvent) => (SUDDEN.includes(e.kind) ? 'wiederholbar' : 'belegt');
+  const sourceOf = (e: GameEvent) => (SUDDEN.includes(e.kind) ? 'repeatable' : 'proven');
   for (const e of ordered)
     if (e.seconds !== null && (e.source === 'screen' || e.source === 'ocr'))
       add(
@@ -588,7 +590,7 @@ export function tidyHighlights(
         title: 'Lachflash',
         description: 'Lachen im Voice-Chat.',
       },
-      'wiederholbar',
+      'repeatable',
     );
   for (const h of proposed) {
     if (room <= 0) break;
@@ -602,9 +604,9 @@ export function tidyHighlights(
 }
 
 /**
- * Vorbehalt für die Fußzeile. Die Angaben des Modells waren fast immer Methodengerede oder
- * zweifelten an belegten Tatsachen ("unklar, ob du bereits ausgeschaltet wurdest" unter
- * "GETÖTET VON DEADLOCK"). Hier steht deshalb nur, was an der Beleglage tatsächlich offen ist.
+ * Caveat for the footer. The model's own notes were almost always method talk or doubted proven
+ * facts ("unklar, ob du bereits ausgeschaltet wurdest" under "GETÖTET VON DEADLOCK"). So this
+ * only states what is actually open about the evidence.
  */
 export function uncertaintyFor(headlineEvents: GameEvent[], lostFrames: number) {
   const notes: string[] = [];

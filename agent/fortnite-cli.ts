@@ -10,9 +10,9 @@ import { MediaProcessor } from '../server/media';
 import { loadConfig } from '../server/config';
 
 /**
- * Messwerkzeug für die Fortnite-Replays: zeigt ohne KI und ohne Upload, welches Konto je Replay
- * erkannt wird und welche Ereignisse auf welche Clipsekunde fallen. Die JSON-Ausgabe ist für
- * den Abgleich mit den von Hand geprüften Clips gedacht.
+ * Measurement tool for the Fortnite replays: shows, without AI and without upload, which account
+ * is detected per replay and which events land on which clip second. The JSON output is meant for
+ * comparison with hand-checked clips.
  */
 const { values } = parseArgs({
   options: {
@@ -26,7 +26,7 @@ const { values } = parseArgs({
 const demos = values.demos ?? defaultDemosFolder();
 if (values.help || !demos) {
   console.log(
-    'Fortnite-Replays prüfen:\nnpm run fortnite -- --clips "D:\\Clips" [--demos "…\\FortniteGame\\Saved\\Demos"] [--account EPIC-ID] [--json ergebnis.json]\nOhne --demos gilt %LOCALAPPDATA%\\FortniteGame\\Saved\\Demos.',
+    'Check Fortnite replays:\nnpm run fortnite -- --clips "D:\\Clips" [--demos "…\\FortniteGame\\Saved\\Demos"] [--account EPIC-ID] [--json result.json]\nWithout --demos, %LOCALAPPDATA%\\FortniteGame\\Saved\\Demos is used.',
   );
   process.exit(values.help ? 0 : 1);
 }
@@ -36,8 +36,8 @@ console.log(`Replays in ${resolve(demos)}: ${survey.length}`);
 for (const r of survey)
   console.log(
     r.error
-      ? `  ${r.file}: unlesbar (${r.error})`
-      : `  ${r.file}: ${r.live ? 'nimmt noch auf' : `v${r.gameVersion ?? '?'}, ${r.start}, ${r.minutes} min, Platz ${r.placement ?? '?'}, ${r.eliminations} Eliminierungen im Match, eigene laut Statistik ${r.statsEliminations ?? '?'}`}${r.owner ? `\n    Konto: ${r.owner.id ?? '—'} (${r.owner.basis.join('; ')})` : ''}`,
+      ? `  ${r.file}: unreadable (${r.error})`
+      : `  ${r.file}: ${r.live ? 'still recording' : `v${r.gameVersion ?? '?'}, ${r.start}, ${r.minutes} min, place ${r.placement ?? '?'}, ${r.eliminations} eliminations in the match, own per stats ${r.statsEliminations ?? '?'}`}${r.owner ? `\n    Account: ${r.owner.id ?? '—'} (${r.owner.basis.join('; ')})` : ''}`,
   );
 const clips: {
   clip: string;
@@ -53,28 +53,28 @@ if (values.clips) {
     try {
       const { duration } = await media.probe(path);
       const lookup = await replays.lookup(path, duration, (await stat(path)).mtimeMs);
-      // Was als Titel aus den Ereignissen folgen würde, ohne das Modell: der Ersatztitel.
+      // What the events would give as a title without the model: the fallback title.
       const heads = headline(lookup.events, Math.max(duration * 0.6, duration - 30));
       clips.push({ clip: basename(path), duration, lookup, titles: heads.map(label) });
     } catch (error) {
       clips.push({ clip: basename(path), error: error instanceof Error ? error.message : '?' });
     }
   }
-  console.log(`\nFortnite-Clips in ${resolve(values.clips)}: ${clips.length}`);
+  console.log(`\nFortnite clips in ${resolve(values.clips)}: ${clips.length}`);
   for (const c of clips) {
     if (c.error || !c.lookup) {
-      console.log(`  ${c.clip}: Fehler (${c.error})`);
+      console.log(`  ${c.clip}: error (${c.error})`);
       continue;
     }
     const { status, trace, events } = c.lookup;
     console.log(
-      `  ${c.clip} (${c.duration?.toFixed(1)} s): ${status}${trace.reason ? ` — ${trace.reason}` : ''}${trace.file ? `, ${trace.file} ab ${trace.clipStartInReplay} s, Anker ${trace.anchor}` : ''}`,
+      `  ${c.clip} (${c.duration?.toFixed(1)} s): ${status}${trace.reason ? ` — ${trace.reason}` : ''}${trace.file ? `, ${trace.file} from ${trace.clipStartInReplay} s, anchor ${trace.anchor}` : ''}`,
     );
     for (const e of events)
       console.log(
         `    ${e.seconds?.toFixed(1).padStart(6)} s  ${label(e)}${e.distance !== undefined ? ` (${Math.round(e.distance)} m)` : ''}`,
       );
-    if (c.titles?.length) console.log(`    Titel ohne KI: ${c.titles.join(' – ')}`);
+    if (c.titles?.length) console.log(`    Title without AI: ${c.titles.join(' – ')}`);
   }
 }
 if (values.json) {

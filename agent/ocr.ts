@@ -11,17 +11,16 @@ import latin from './ocr-models.json';
 const moduleRequire = createRequire(typeof __filename === 'string' ? __filename : import.meta.url);
 
 /**
- * Texterkennung mit PaddleOCR (Erkennung PP-OCRv4, Lesen PP-OCRv5 lateinisch) über ONNX Runtime
- * auf der CPU: erst finden, wo Text
- * steht (Erkennungsmodell, DB-Verfahren), dann jede Zeile lesen (CTC). Nachgebaut ohne OpenCV
- * und ohne canvas: Bilder kommen als rohe RGB-Pixel von FFmpeg. Spieloberflächen schreiben
- * waagerecht, deshalb genügen achsparallele Rechtecke statt gedrehter Boxen.
+ * Text recognition with PaddleOCR (detection PP-OCRv4, reading PP-OCRv5 Latin) via ONNX Runtime
+ * on the CPU: first find where text is (detection model, DB method), then read each line (CTC).
+ * Rebuilt without OpenCV and without canvas: frames arrive as raw RGB pixels from FFmpeg. Game
+ * interfaces write horizontally, so axis-aligned rectangles suffice instead of rotated boxes.
  *
- * Vorverarbeitung und Schwellen folgen den Vorgaben von PaddleOCR: Seitenlänge höchstens 960
- * und durch 32 teilbar, Schwelle 0,3, Mindestgüte 0,6, Aufweitung 1,5, Zeilenhöhe 48.
+ * Preprocessing and thresholds follow PaddleOCR's defaults: side length at most 960 and
+ * divisible by 32, threshold 0.3, minimum box score 0.6, unclip ratio 1.5, line height 48.
  */
 
-/** Ein Bild als rohe Pixel, drei Byte je Pixel in der Reihenfolge Rot, Grün, Blau. */
+/** An image as raw pixels, three bytes per pixel in the order red, green, blue. */
 export interface RgbFrame {
   width: number;
   height: number;
@@ -37,9 +36,9 @@ export interface Box {
 
 export interface TextLine {
   text: string;
-  /** Mittlere Sicherheit der gelesenen Zeichen, 0 bis 1. */
+  /** Mean confidence of the read characters, 0 to 1. */
   score: number;
-  /** Lage im Bild in Pixeln des Eingangsbilds. */
+  /** Position in pixels of the input image. */
   box: Box;
 }
 
@@ -49,12 +48,12 @@ const BOX_THRESHOLD = 0.6;
 const UNCLIP_RATIO = 1.5;
 const REC_HEIGHT = 48;
 const REC_MIN_WIDTH = 320;
-/** Längere Zeilen gibt es auf Spieloberflächen nicht; begrenzt die Rechenzeit je Box. */
+/** Game interfaces have no longer lines; limits the computing time per box. */
 const REC_MAX_WIDTH = 1600;
 const DET_MEAN = [0.485, 0.456, 0.406];
 const DET_STD = [0.229, 0.224, 0.225];
 
-/** Skaliert ein Bild bilinear. */
+/** Scales an image bilinearly. */
 export function resizeRgb(frame: RgbFrame, width: number, height: number): RgbFrame {
   const out = new Uint8Array(width * height * 3);
   const sx = frame.width / width;
@@ -83,7 +82,7 @@ export function resizeRgb(frame: RgbFrame, width: number, height: number): RgbFr
   return { width, height, data: out };
 }
 
-/** Schneidet ein Rechteck aus, an den Bildrand geklemmt. */
+/** Cuts out a rectangle, clamped to the image edge. */
 export function crop(frame: RgbFrame, box: Box): RgbFrame {
   const x0 = Math.max(0, Math.floor(box.x));
   const y0 = Math.max(0, Math.floor(box.y));
@@ -101,8 +100,8 @@ export function crop(frame: RgbFrame, box: Box): RgbFrame {
 }
 
 /**
- * Eingabe des Erkennungsmodells: längste Seite höchstens 960, beide Seiten auf Vielfache von 32,
- * Kanäle in der Reihenfolge Blau, Grün, Rot wie bei OpenCV, normiert.
+ * Input of the detection model: longest side at most 960, both sides rounded to multiples of 32,
+ * channels in the order blue, green, red as in OpenCV, normalised.
  */
 export function detInput(frame: RgbFrame) {
   const scale = Math.min(1, DET_LIMIT / Math.max(frame.width, frame.height));
@@ -120,9 +119,9 @@ export function detInput(frame: RgbFrame) {
 }
 
 /**
- * Textkästen aus der Wahrscheinlichkeitskarte (DB-Verfahren): Schwelle, zusammenhängende
- * Flächen, deren mittlere Wahrscheinlichkeit die Mindestgüte erreichen muss, dann um den Rand
- * aufgeweitet, den das Modell bewusst schmal lernt. Koordinaten in Pixeln der Karte.
+ * Text boxes from the probability map (DB method): threshold, connected regions whose mean
+ * probability must reach the minimum score, then expanded by the border the model deliberately
+ * learns narrow. Coordinates in pixels of the map.
  */
 export function boxesFromMap(map: Float32Array, width: number, height: number): Box[] {
   const label = new Int32Array(width * height);
@@ -167,11 +166,11 @@ export function boxesFromMap(map: Float32Array, width: number, height: number): 
     const grow = (w * h * UNCLIP_RATIO) / (2 * (w + h));
     boxes.push({ x: minX - grow, y: minY - grow, w: w + 2 * grow, h: h + 2 * grow });
   }
-  // Lesereihenfolge: Zeilen von oben nach unten, in der Zeile von links nach rechts.
+  // Reading order: rows top to bottom, within a row left to right.
   return boxes.sort((a, b) => (Math.abs(a.y - b.y) < 10 ? a.x - b.x : a.y - b.y));
 }
 
-/** Eingabe des Lesemodells: Höhe 48, Breite nach Seitenverhältnis, mindestens 320 (aufgefüllt). */
+/** Input of the recognition model: height 48, width by aspect ratio, at least 320 (padded). */
 export function recInput(line: RgbFrame) {
   const content = Math.min(
     REC_MAX_WIDTH,
@@ -188,7 +187,7 @@ export function recInput(line: RgbFrame) {
   return { data, width };
 }
 
-/** Liest die Ausgabe des Lesemodells: je Schritt das wahrscheinlichste Zeichen, Wiederholungen und Leerstellen fallen weg. */
+/** Decodes the recognition model output: the most likely character per step, dropping repeats and blanks. */
 export function ctcDecode(probs: Float32Array, steps: number, classes: number, keys: string[]) {
   let text = '';
   let total = 0;
@@ -215,9 +214,9 @@ export function ctcDecode(probs: Float32Array, steps: number, classes: number, k
 }
 
 /**
- * Fasst Wörter einer Zeile zusammen. Das Erkennungsmodell trennt oft an Wortabständen
- * ("ROUND" und "WON"); Meldungen sind aber ganze Zeilen. Zusammen gehört, was auf gleicher
- * Höhe liegt und höchstens eine Zeichenhöhe Abstand hat.
+ * Joins the words of a line. The detection model often splits at word gaps ("ROUND" and "WON"),
+ * but messages are whole lines. What sits at the same height with at most one character height
+ * of gap belongs together.
  */
 export function joinRows(lines: TextLine[]): TextLine[] {
   const rows: (TextLine & { count: number })[] = [];
@@ -251,19 +250,19 @@ export function joinRows(lines: TextLine[]): TextLine[] {
 export interface OcrModels {
   det: string;
   rec: string;
-  /** Zeichenliste des Lesemodells, eine Zeile je Zeichen. */
+  /** Character list of the recognition model, one line per character. */
   keys: string;
 }
 
 /**
- * Das Lesemodell PP-OCRv5 für lateinische Schrift. Das Erkennungsmodell bleibt PP-OCRv4: das
- * v5-Gegenstück ist 88 MB groß und doppelt so langsam, gewinnt aber kaum etwas dazu (62 gegen 65
- * von 75 Namen, .docs/tools/ocr-vergleich.mts).
+ * The PP-OCRv5 recognition model for Latin script. The detection model stays PP-OCRv4: its v5
+ * counterpart is 88 MB and twice as slow but gains hardly anything (62 vs 65 of 75 names,
+ * .docs/tools/ocr-vergleich.mts).
  */
 export const LATIN_REC: ModelFile = latin.rec;
 export const LATIN_KEYS: ModelFile = latin.keys;
 
-/** Lädt das v5-Lesemodell samt Zeichenliste in `folder`, falls es fehlt, geprüft per SHA-256. */
+/** Downloads the v5 recognition model and its character list into `folder` if missing, verified by SHA-256. */
 export async function ensureLatinModels(folder = modelFolder()) {
   return {
     rec: await ensureModel(folder, LATIN_REC),
@@ -272,8 +271,8 @@ export async function ensureLatinModels(folder = modelFolder()) {
 }
 
 /**
- * Die Modelle eines Entwicklungs-Checkouts: Erkennung aus der devDependency @gutenye/ocr-models,
- * Lesen mit PP-OCRv5, sobald `ensureLatinModels` es geladen hat, sonst noch mit PP-OCRv4.
+ * The models of a development checkout: detection from the devDependency @gutenye/ocr-models,
+ * recognition with PP-OCRv5 once `ensureLatinModels` has downloaded it, otherwise PP-OCRv4.
  */
 export function developmentModels(root = process.cwd(), folder = modelFolder()): OcrModels {
   const assets = `${root}/node_modules/@gutenye/ocr-models/assets`;
@@ -288,9 +287,9 @@ export function developmentModels(root = process.cwd(), folder = modelFolder()):
 }
 
 /**
- * Ob ONNX Runtime an einer fehlenden Bibliothek scheiterte, unter Windows meist an der Visual C++
- * Runtime (unter anderem MSVCP140_ATOMIC_WAIT.dll). Windows meldet das je nach Sprache englisch
- * oder deutsch; der Fehlercode von Node ist in beiden Fällen derselbe.
+ * Whether ONNX Runtime failed on a missing library, on Windows usually the Visual C++ Runtime
+ * (among others MSVCP140_ATOMIC_WAIT.dll). Windows reports this in English or German depending on
+ * the system language; Node's error code is the same in both cases.
  */
 export function missingLibrary(error: unknown) {
   const message = error instanceof Error ? error.message : '';
@@ -311,15 +310,15 @@ export class TextReader {
   ) {}
 
   /**
-   * Lädt beide Modelle. `threads` begrenzt die Rechenkerne, damit ein laufendes Spiel nicht
-   * ruckelt; Vorgabe ist die Hälfte.
+   * Loads both models. `threads` limits the CPU cores so a running game does not stutter; the
+   * default is half.
    */
   static async load(
     models: OcrModels,
     threads = Math.max(1, availableParallelism() >> 1),
     runtime?: string,
   ) {
-    // Im fertigen Client liegt ONNX Runtime neben den FFmpeg-Dateien, nicht im App-Archiv.
+    // In the packaged client, ONNX Runtime sits next to the FFmpeg files, not in the app archive.
     const ort = moduleRequire(runtime ?? 'onnxruntime-node') as typeof import('onnxruntime-node');
     const options = { intraOpNumThreads: threads, interOpNumThreads: 1 };
     const [det, rec, keys] = await Promise.allSettled([
@@ -328,19 +327,19 @@ export class TextReader {
       readFile(models.keys, 'utf8'),
     ]);
     if (det.status === 'rejected' || rec.status === 'rejected' || keys.status === 'rejected') {
-      // Was schon geladen ist, gleich wieder freigeben, statt es bis zur Speicherbereinigung zu halten.
+      // Release what already loaded right away instead of holding it until garbage collection.
       for (const session of [det, rec])
         if (session.status === 'fulfilled') await session.value.release().catch(() => {});
       throw [det, rec, keys].find((part) => part.status === 'rejected')!.reason;
     }
-    // Leerzeichen hängt PaddleOCR als letztes Zeichen an (use_space_char).
+    // PaddleOCR appends the space as the last character (use_space_char).
     return new TextReader(ort, det.value, rec.value, [
       ...keys.value.replace(/\r/g, '').split('\n'),
       ' ',
     ]);
   }
 
-  /** Findet alle Textzeilen eines Bildes und liest sie. */
+  /** Finds all text lines in an image and reads them. */
   async read(frame: RgbFrame, minScore = 0.5): Promise<TextLine[]> {
     const input = detInput(frame);
     const detected = await this.det.run({
@@ -353,7 +352,7 @@ export class TextReader {
     for (const found of boxesFromMap(map, input.width, input.height)) {
       const box = { x: found.x * sx, y: found.y * sy, w: found.w * sx, h: found.h * sy };
       const line = crop(frame, box);
-      // Senkrechter Text (höher als breit) kommt auf Spieloberflächen kaum vor.
+      // Vertical text (taller than wide) hardly occurs in game interfaces.
       if (line.height > line.width * 1.5) continue;
       const rec = recInput(line);
       const output = await this.rec.run({

@@ -1,4 +1,5 @@
 import { canContinue } from '../data/repository';
+import { compareText, t } from '../i18n';
 import { formatRemaining, formatWhen, isNew } from './format';
 import type { StreamClip, StreamCollection, StreamLibrary } from './model';
 import { smartCollections, smartHref } from './smart';
@@ -24,11 +25,11 @@ export interface CollectionTileData {
   thumbnails: string[];
   count: number;
   href: string;
-  /** Ersetzt die Zeile „3 Clips“, etwa auf der Sammlungsseite. */
+  /** Replaces the "3 clips" line, e.g. on the collections page. */
   meta?: string;
-  /** Spiele in der Sammlung, für die kleinen Cover unter dem Titel. */
+  /** Games in the collection, for the small covers below the title. */
   games?: { key: string; name: string; cover: string }[];
-  /** Markiert automatische Sammlungen. */
+  /** Marks automatic collections. */
   automatic?: boolean;
 }
 
@@ -43,7 +44,7 @@ export type StreamRow =
   | (RowBase & { kind: 'games'; items: GameTileData[] })
   | (RowBase & { kind: 'collections'; items: CollectionTileData[] });
 
-/** Mehr Kacheln pro Reihe bringen auf der Startseite nichts; der Rest liegt in der Bibliothek. */
+/** More tiles per row add nothing on the home page; the rest is in the library. */
 export const ROW_LIMIT = 20;
 const GAME_ROWS = 3;
 
@@ -52,18 +53,30 @@ function timeOf(iso: string) {
   return Number.isFinite(time) ? time : 0;
 }
 
-function recorded(clip: StreamClip) {
+/**
+ * When the clip was recorded. The server stores the recording time sent by the client (the file's
+ * modification time, i.e. when the recorder finished writing it), not the upload time. Clips with
+ * an unreadable date sort last.
+ */
+export function recordedTime(clip: Pick<StreamClip, 'recordedAt'>): number {
   return timeOf(clip.recordedAt);
 }
 
+/** Chronologically newest recording first; ties keep a stable order by id. */
 export function newestFirst(clips: StreamClip[]): StreamClip[] {
-  return [...clips].sort((a, b) => recorded(b) - recorded(a));
+  return [...clips].sort(
+    (a, b) => recordedTime(b) - recordedTime(a) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
 }
 
-/** Neuester fertige Clip mit KI-Ergebnis, sonst schlicht der neueste. */
+/**
+ * The featured clip on the home page: the most recently recorded clip that can be played. It no
+ * longer waits for an AI result, otherwise a re-analysis or a queue of fresh uploads pushed an old
+ * clip into the spotlight. Without any playable clip, simply the newest one.
+ */
 export function pickHero(clips: StreamClip[]): StreamClip | null {
   const sorted = newestFirst(clips);
-  return sorted.find((c) => c.status === 'ready' && c.hasAnalysis) ?? sorted[0] ?? null;
+  return sorted.find((c) => c.status === 'ready') ?? sorted[0] ?? null;
 }
 
 export function libraryHref(gameKey: string): string {
@@ -75,7 +88,7 @@ interface GameGroup {
   clips: StreamClip[];
 }
 
-/** Spiele nach Anzahl Clips, bei Gleichstand das mit dem neueren Clip zuerst. */
+/** Games by number of clips; on a tie, the one with the newer clip first. */
 function groupByGame(sorted: StreamClip[]): GameGroup[] {
   const groups = new Map<string, StreamClip[]>();
   for (const clip of sorted) {
@@ -89,15 +102,15 @@ function groupByGame(sorted: StreamClip[]): GameGroup[] {
     .sort(
       (a, b) =>
         b.clips.length - a.clips.length ||
-        recorded(b.clips[0]) - recorded(a.clips[0]) ||
-        a.clips[0].game.localeCompare(b.clips[0].game, 'de'),
+        recordedTime(b.clips[0]) - recordedTime(a.clips[0]) ||
+        compareText(a.clips[0].game, b.clips[0].game),
     );
 }
 
 function slug(value: string) {
   return (
     value
-      .toLocaleLowerCase('de')
+      .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '') || 'spiel'
   );
@@ -107,7 +120,7 @@ function clipTile(clip: StreamClip, meta: string, now: number, markNew = false):
   return { clip, meta, isNew: markNew && isNew(clip.recordedAt, now) };
 }
 
-/** Cover vom Server oder aus den Beispieldaten, sonst das Vorschaubild eines Clips. */
+/** Cover from the server or the sample data, otherwise a clip's thumbnail. */
 export function gameCover(clips: StreamClip[]): string {
   return (
     clips.find((c) => c.gameCover)?.gameCover || clips.find((c) => c.thumbnail)?.thumbnail || ''
@@ -124,7 +137,7 @@ function gameTile(group: GameGroup): GameTileData {
   };
 }
 
-/** „Deine Spiele“ und die Spieleleiste der Bibliothek: an beiden Stellen dieselben Daten. */
+/** "Your games" and the library's game bar: the same data in both places. */
 export function gameTiles(clips: StreamClip[]): GameTileData[] {
   return groupByGame(newestFirst(clips)).map(gameTile);
 }
@@ -162,7 +175,7 @@ export function buildRows(
     kind: 'clips',
     variant: 'continue',
     id: 'weiterschauen',
-    title: 'Weiterschauen',
+    title: t('stream.rows.continue'),
     items: continuing.map((clip) => {
       const { seconds, duration } = clip.progress!;
       return {
@@ -179,7 +192,7 @@ export function buildRows(
     kind: 'clips',
     variant: 'default',
     id: 'neu',
-    title: 'Neu hinzugefügt',
+    title: t('stream.rows.new'),
     href: '/library',
     items: sorted.slice(0, ROW_LIMIT).map((clip) => clipTile(clip, when(clip), now, true)),
   });
@@ -188,7 +201,7 @@ export function buildRows(
     kind: 'clips',
     variant: 'default',
     id: 'favoriten',
-    title: 'Favoriten',
+    title: t('stream.rows.favorites'),
     href: '/library?favorite=1',
     items: sorted
       .filter((c) => c.favorite)
@@ -222,7 +235,7 @@ export function buildRows(
   rows.push({
     kind: 'games',
     id: 'spiele',
-    title: 'Deine Spiele',
+    title: t('stream.rows.games'),
     href: '/library',
     items: groups.map(gameTile),
   });
@@ -231,7 +244,7 @@ export function buildRows(
   rows.push({
     kind: 'collections',
     id: 'sammlungen',
-    title: 'Deine Sammlungen',
+    title: t('stream.rows.collections'),
     href: '/collections',
     items: library.collections.map((collection) => collectionTile(collection, byId)),
   });
@@ -239,7 +252,7 @@ export function buildRows(
   rows.push({
     kind: 'collections',
     id: 'automatisch',
-    title: 'Automatisch sortiert',
+    title: t('stream.rows.automatic'),
     href: '/collections',
     items: smartCollections(library.clips).map((collection) => ({
       ...collectionTile(collection, byId),
@@ -251,7 +264,7 @@ export function buildRows(
   return rows.filter((row) => row.items.length > 0);
 }
 
-/** „Mehr aus <Spiel>“ im Detaildialog. */
+/** "More from <game>" in the detail dialog. */
 export function moreFromGame(clips: StreamClip[], clip: StreamClip, limit = 3): StreamClip[] {
   if (!clip.gameKey) return [];
   return newestFirst(clips.filter((c) => c.gameKey === clip.gameKey && c.id !== clip.id)).slice(
@@ -260,7 +273,7 @@ export function moreFromGame(clips: StreamClip[], clip: StreamClip, limit = 3): 
   );
 }
 
-/** Nächster Clip im Player: zuerst älter im selben Spiel, sonst der nächste der ganzen Liste. */
+/** Next clip in the player: first an older one of the same game, otherwise the next in the whole list. */
 export function nextClipAfter(clips: StreamClip[], id: string): StreamClip | null {
   const sorted = newestFirst(clips.filter((c) => c.status === 'ready' || c.id === id));
   const index = sorted.findIndex((c) => c.id === id);

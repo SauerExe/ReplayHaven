@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { FolderPlus, Info, Layers, Play, Sparkles } from 'lucide-react';
+import { t } from '../i18n';
 import { countLabel, formatDuration } from './format';
 import { linkHandler, type Navigate } from './links';
 import { Picture } from './Picture';
@@ -21,12 +22,16 @@ export function ClipTile({
   const { clip, meta, isNew, progress } = item;
   const descriptionId = useId();
   const status =
-    clip.status === 'processing' ? 'Wird verarbeitet' : clip.status === 'error' ? 'Fehler' : '';
+    clip.status === 'processing'
+      ? t('stream.tile.processing')
+      : clip.status === 'error'
+        ? t('stream.tile.error')
+        : '';
   const description = [
     meta,
-    isNew && 'Neu',
+    isNew && t('stream.tile.new'),
     status,
-    clip.analyzing && 'KI analysiert den Clip',
+    clip.analyzing && t('stream.tile.analyzing'),
     !progress && formatDuration(clip.duration),
   ]
     .filter(Boolean)
@@ -42,7 +47,7 @@ export function ClipTile({
       >
         <span className="stream-tile-media">
           <Picture src={clip.thumbnail} className="stream-tile-img" sizes={CLIP_SIZES} />
-          {isNew && <span className="stream-badge">Neu</span>}
+          {isNew && <span className="stream-badge">{t('stream.tile.new')}</span>}
           {status && <span className="stream-badge stream-badge--status">{status}</span>}
           {progress ? (
             <span className="stream-progress">
@@ -54,7 +59,7 @@ export function ClipTile({
           {clip.analyzing && (
             <span className="stream-tile-analyzing">
               <Sparkles size={26} strokeWidth={2} aria-hidden="true" />
-              KI analysiert den Clip …
+              {t('stream.tile.analyzingLong')}
             </span>
           )}
           <span className="stream-tile-reveal">
@@ -73,12 +78,12 @@ export function ClipTile({
           {description}
         </span>
       </button>
-      {/* Nur für die Maus; per Tastatur und Touch führt „Abspielen“ im Detaildialog zum selben Ziel. */}
+      {/* Mouse only; with keyboard and touch, "Play" in the detail dialog leads to the same place. */}
       <button
         type="button"
         className="stream-tile-play"
         tabIndex={-1}
-        aria-label={`${clip.title} abspielen`}
+        aria-label={t('stream.tile.playTitle', { title: clip.title })}
         onClick={() => onPlay(clip.id)}
       >
         <Play size={variant === 'continue' ? 24 : 16} fill="currentColor" aria-hidden="true" />
@@ -119,9 +124,9 @@ export function ConnectFolderTile({ href, onNavigate }: { href: string; onNaviga
       <span className="stream-tile-media">
         <FolderPlus size={28} strokeWidth={2} aria-hidden="true" />
         <span>
-          Aufnahmeordner
+          {t('stream.tile.connectLine1')}
           <br />
-          verbinden
+          {t('stream.tile.connectLine2')}
         </span>
       </span>
     </a>
@@ -146,7 +151,7 @@ export function CollectionTile({
         {item.automatic && (
           <span className="stream-badge stream-badge--auto">
             <Sparkles size={12} strokeWidth={2.4} aria-hidden="true" />
-            Automatisch
+            {t('stream.tile.automatic')}
           </span>
         )}
         {first ? (

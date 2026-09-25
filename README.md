@@ -19,14 +19,12 @@
   <a href="#screenshots">Screenshots</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#faq">FAQ</a> ·
-  <a href="docs/START.md">Anleitung auf Deutsch</a>
+  <a href="docs/START.md">User guide</a>
 </p>
 
 ---
 
-Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.DVR.mp4`, a hundred times over. ReplayHaven turns that into **“Ace auf Inferno”** with a short description, tags and jump marks, and it does so on your own hardware: a small Windows client analyses each new recording with a local vision model, your own server keeps the original forever, and any browser in your home becomes the place to watch it again.
-
-> **Auf Deutsch:** ReplayHaven ist ein selbst gehostetes Archiv für Gaming-Clips. Ein Windows-Client benennt neue Aufnahmen mit einer lokalen KI (Ollama, Qwen3.5) und lädt sie auf deinen eigenen Server; dort findest du sie in einer Mediathek im Streaming-Stil wieder. Die Oberfläche ist deutsch. Die Schritt-für-Schritt-Anleitung mit Fehlerhilfe steht in **[docs/START.md](docs/START.md)**, der Serverbetrieb in **[docs/SERVER.md](docs/SERVER.md)**.
+Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.DVR.mp4`, a hundred times over. ReplayHaven turns that into **“Ace auf Inferno”** (“Ace on Inferno”; generated titles are German for now) with a short description, tags and jump marks, and it does so on your own hardware: a small Windows client analyses each new recording with a local vision model, your own server keeps the original forever, and any browser in your home becomes the place to watch it again.
 
 ## Features
 
@@ -76,7 +74,7 @@ Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.
 <p align="center"><img src="docs/images/app-mobile.jpg" alt="Web library on a phone" width="320"></p>
 </details>
 
-<sub>Screenshots use the built-in demo artwork and example texts. The interface is German.</sub>
+<sub>Screenshots use the built-in demo artwork and example texts. The interface is English; generated clip titles and tags are still German for now.</sub>
 
 ## How it works
 
@@ -132,16 +130,16 @@ docker compose up -d
 
 </details>
 
-Open the server address in a browser, go to **Einstellungen → KI & Server** and enter the access key. The **Geräte** page offers the Windows client for download.
+Open the server address in a browser, go to **Settings → AI & Server** and enter the access key. The **Devices** page offers the Windows client for download.
 
 ### 2. Gaming PC
 
-1. Install `ReplayHaven-Client-Setup.exe` from the [releases](https://github.com/SauerExe/ReplayHaven/releases) or from your server's **Geräte** page. The installer is not code-signed yet, so SmartScreen asks for confirmation. No release yet? Build it on Windows with `npm ci && npm run client:build`.
+1. Install `ReplayHaven-Client-Setup.exe` from the [releases](https://github.com/SauerExe/ReplayHaven/releases) or from your server's **Devices** page. The installer is not code-signed yet, so SmartScreen asks for confirmation. No release yet? Build it on Windows with `npm ci && npm run client:build`.
 2. Pick your recording folder (subfolders included), enter the server address and the access key.
-3. Install [Ollama](https://ollama.com/download/windows) and click **Modell laden** once. It downloads Qwen3.5 9B, about 6.6 GB.
-4. Click **Analyse & Upload starten**. New recordings are analysed once they are completely written and show up in the library a minute or two later.
+3. Install [Ollama](https://ollama.com/download/windows) and click **Load model** once. It downloads Qwen3.5 9B, about 6.6 GB.
+4. Click **Start analysis & upload**. New recordings are analysed once they are completely written and show up in the library a minute or two later.
 
-Pause the client while you play if you need the GPU. The full German guide with troubleshooting is [docs/START.md](docs/START.md).
+Pause the client while you play if you need the GPU. The full user guide with troubleshooting is [docs/START.md](docs/START.md).
 
 ## Game extras
 
@@ -152,12 +150,12 @@ These are optional and off by default. They add facts the frames alone cannot de
 | Fortnite          | Your kills and knocks with weapon class and distance, your elimination and victory | The match replays Fortnite writes to `%LOCALAPPDATA%\FortniteGame\Saved\Demos` |
 | Rainbow Six Siege | Map name and round results                                                         | Text recognition (PaddleOCR on ONNX Runtime) on the CPU, next to the GPU model |
 
-Command-line tools show what these sources contribute to your own clips before you rely on them, without AI and without uploading anything: `npm run fortnite`, `npm run r6`, `npm run audio`, `npm run laughs` and `npm run r6-replays`. The research notes and measurement plans behind them are in [docs](docs) (German).
+Command-line tools show what these sources contribute to your own clips before you rely on them, without AI and without uploading anything: `npm run fortnite`, `npm run r6`, `npm run audio`, `npm run laughs` and `npm run r6-replays`. The research notes and measurement plans behind them are in [docs](docs).
 
 ## Privacy
 
 - **The AI runs on your PC.** With the Windows client, frames go to Ollama on the same machine. Nothing is sent to an AI service.
-- **Clips go to your server only.** Apart from Ollama on the same PC, the client only talks to the server address you entered. The model download runs through Ollama when you click **Modell laden**.
+- **Clips go to your server only.** Apart from Ollama on the same PC, the client only talks to the server address you entered. The model download runs through Ollama when you click **Load model**.
 - **Game covers from Steam.** The server looks up game names on Steam to show covers and descriptions. Only the game name is sent. Without internet access the library simply shows no cover.
 - **Server-side AI is opt-in.** If you configure Gemini as the server's AI provider, clips or frames from them are sent to Google for analysis. It is off unless you set it.
 - **Replays stay local.** Fortnite replays list every player in a match. ReplayHaven takes only your own events from them; the other names are not used.
@@ -185,7 +183,7 @@ All server settings are environment variables, documented in [`.env.example`](.e
 | `REPLAYHAVEN_CLIENT_DOWNLOAD_URL` | Where the download button points when no installer is mounted in `./release`. Release images set this. |
 | `REPLAYHAVEN_AI_PROVIDER`         | Optional server-side analysis (`none`, `local`, `gemini`). Not needed with the Windows client.         |
 
-Operations, backups, reverse proxies and server-side AI are covered in [docs/SERVER.md](docs/SERVER.md) (German).
+Operations, backups, reverse proxies and server-side AI are covered in [docs/SERVER.md](docs/SERVER.md).
 
 </details>
 

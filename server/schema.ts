@@ -25,7 +25,7 @@ export function parseAnalysis(raw: string, duration: number): AnalysisResult {
   const result = analysisSchema.parse(JSON.parse(clean));
   if (result.highlights.some((h) => h.seconds > duration))
     throw new z.ZodError([
-      { code: 'custom', path: ['highlights'], message: 'KI-Zeitmarke liegt außerhalb des Videos.' },
+      { code: 'custom', path: ['highlights'], message: 'AI time mark lies outside the video.' },
     ]);
   return {
     ...result,
@@ -36,10 +36,10 @@ export function parseAnalysis(raw: string, duration: number): AnalysisResult {
 export const analysisJsonSchema = z.toJSONSchema(analysisSchema);
 
 /**
- * Tags, die die Analyse vergibt. Freitext-Tags hatten fast immer die Auflage eins, und frei aus
- * einer Liste gewählt klebte "Tod" an 20 von 45 Clips. Deshalb wählt das Modell keine Tags
- * mehr: sie folgen aus belegten Ereignissen (agent/events.ts). Beim Bearbeiten im Archiv bleiben
- * freie Tags erlaubt, siehe clipPatchSchema.
+ * Tags the analysis assigns. Free-text tags almost always occurred only once, and when picked
+ * freely from a list, "Tod" stuck to 20 of 45 clips. So the model no longer picks tags: they
+ * follow from confirmed events (agent/events.ts). Free tags stay allowed when editing in the
+ * archive, see clipPatchSchema.
  */
 export const CLIP_TAGS = [
   'Kill',
@@ -56,8 +56,8 @@ export const CLIP_TAGS = [
   'Menü',
 ] as const;
 /**
- * Antwortschema der Zusammenfassung. Spiel, Tags und Sicherheit bestimmt der Code; das Modell
- * schreibt nur, was sich nicht ableiten lässt. Die Längen binden die Ausgabe schon beim Erzeugen.
+ * Response schema of the summary. The code decides game, tags and confidence; the model only
+ * writes what cannot be derived. The lengths constrain the output during generation already.
  */
 export const summarySchema = z.object({
   title: z.string().max(80),
@@ -75,7 +75,7 @@ export const summarySchema = z.object({
 });
 export type SummaryResult = z.infer<typeof summarySchema>;
 export const summaryJsonSchema = z.toJSONSchema(summarySchema);
-/** Liest die Zusammenfassung. Ungültige Zeitmarken fallen weg, statt die Analyse zu verwerfen. */
+/** Reads the summary. Invalid time marks are dropped instead of discarding the analysis. */
 export function parseSummary(raw: string, duration: number): SummaryResult {
   const clean = raw
     .trim()
@@ -85,7 +85,7 @@ export function parseSummary(raw: string, duration: number): SummaryResult {
   const text = (value: unknown, max: number) =>
     typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : '';
   const title = text(data.title, 80);
-  if (!title) throw new z.ZodError([{ code: 'custom', path: ['title'], message: 'Kein Titel.' }]);
+  if (!title) throw new z.ZodError([{ code: 'custom', path: ['title'], message: 'No title.' }]);
   return {
     title,
     description: text(data.description, 700),
@@ -104,8 +104,8 @@ export function parseSummary(raw: string, duration: number): SummaryResult {
 }
 
 /**
- * Bildarten für die Vorsortierung. Nicht jedes Bild einer Aufnahme zeigt Spielgeschehen:
- * Ladebildschirme, Kaufmenüs und Wiederbelebungsansichten dürfen keinen Titel bestimmen.
+ * Frame kinds for pre-sorting. Not every frame of a recording shows gameplay: loading screens,
+ * buy menus and respawn views must not determine a title.
  */
 export const frameKinds = ['gameplay', 'result', 'menu', 'loading', 'respawn', 'other'] as const;
 export const frameObservationSchema = z.object({
@@ -120,10 +120,10 @@ export const frameBatchSchema = z.object({
 export type FrameObservation = z.infer<typeof frameObservationSchema>;
 export const frameBatchJsonSchema = z.toJSONSchema(frameBatchSchema);
 /**
- * Liest die Einordnung eines Bildpakets. Das Modell nummeriert die Bilder gelegentlich ab 1 oder
- * zählt über Pakete hinweg weiter (4–7 statt 0–3). Stimmt die Anzahl, gilt deshalb die
- * Reihenfolge; nur eine falsche Anzahl ist ein Fehler. Vorher brach an solchen Antworten die ganze
- * Analyse ab, im Vorher-Lauf vom 2026-09-23 bei 4 von 20 Clips (.docs/05-experimente.md, E17).
+ * Reads the classification of a frame batch. The model sometimes numbers frames from 1 or keeps
+ * counting across batches (4–7 instead of 0–3). So if the count is right, the order applies; only
+ * a wrong count is an error. Previously such answers aborted the whole analysis, in the baseline
+ * run of 2026-09-23 for 4 of 20 clips (.docs/05-experimente.md, E17).
  */
 export function parseFrameBatch(raw: string, expected: number) {
   const clean = raw
@@ -136,7 +136,7 @@ export function parseFrameBatch(raw: string, expected: number) {
       {
         code: 'custom',
         path: ['frames'],
-        message: 'Die KI hat Bilder doppelt oder gar nicht eingeordnet.',
+        message: 'The AI classified frames twice or not at all.',
       },
     ]);
   const indices = new Set(frames.map((f) => f.frame));
@@ -146,16 +146,16 @@ export function parseFrameBatch(raw: string, expected: number) {
     : frames.map((f, frame) => ({ ...f, frame }));
 }
 /**
- * Unbrauchbare Antwort statt Verbindungs- oder Abbruchfehler. Ein von Hand erzeugter ZodError
- * ist in zod 4 kein `instanceof Error` — die Prüfung darauf ließ die Wiederholung bei falscher
- * Bildanzahl nie greifen.
+ * Unusable answer, as opposed to a connection or abort error. A hand-built ZodError is not an
+ * `instanceof Error` in zod 4 — checking for that meant the retry on a wrong frame count never
+ * kicked in.
  */
 export function isParseError(error: unknown) {
   return error instanceof SyntaxError || error instanceof z.ZodError;
 }
 /**
- * Letzter Ausweg nach zwei unbrauchbaren Antworten: übernimmt, was sich einem Bild zuordnen
- * lässt, und füllt den Rest als unklar auf. Eine Lücke kostet ein Bild, nicht den ganzen Clip.
+ * Last resort after two unusable answers: keeps whatever can be assigned to a frame and fills
+ * the rest in as unclear. A gap costs one frame, not the whole clip.
  */
 export function salvageFrameBatch(raw: string, expected: number): FrameObservation[] {
   let listed: unknown[] = [];
@@ -168,13 +168,13 @@ export function salvageFrameBatch(raw: string, expected: number): FrameObservati
     );
     if (Array.isArray(data?.frames)) listed = data.frames;
   } catch {
-    // Keine lesbare Antwort: alle Bilder bleiben unklar.
+    // No readable answer: all frames stay unclear.
   }
   const valid = listed.flatMap((f) => {
     const parsed = frameObservationSchema.safeParse(f);
     return parsed.success ? [parsed.data] : [];
   });
-  // Bei genau passender Nummerierung gilt der Index, sonst die Reihenfolge.
+  // With exactly matching numbering the index applies, otherwise the order.
   const byIndex = new Map(valid.filter((f) => f.frame < expected).map((f) => [f.frame, f]));
   const usable = byIndex.size === valid.length ? byIndex : new Map(valid.map((f, i) => [i, f]));
   return Array.from({ length: expected }, (_, frame) => {

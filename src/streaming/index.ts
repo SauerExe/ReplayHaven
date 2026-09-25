@@ -1,12 +1,12 @@
 /*
- * Streaming-Oberfläche: Startseite, Bibliothek und Sammlungen mit Detaildialog und Player. Die
- * Routen stehen in App.tsx (Bibliothek und Sammlungen laden LibraryPage und CollectionsPage
- * nach), das Stylesheet bindet main.tsx ein.
+ * Streaming UI: home page, library and collections with detail dialog and player. The routes are in
+ * App.tsx (library and collections lazy-load LibraryPage and CollectionsPage), main.tsx includes
+ * the stylesheet.
  *
- * Details und Player hängen an `?clip=<id>` und `?play=<id>`, der Zurück-Button schließt sie.
- * Der Kopfbereich aus dem Entwurf ist `StreamingHeaderContainer` und kann den Header in Layout.tsx
- * ersetzen; hängt die Route außerhalb von <Layout />, blendet `<StreamingHomeContainer header />`
- * ihn selbst ein. Vorschau mit Beispieldaten: `npm run dev`, dann /streaming-preview.html.
+ * Details and player hang on `?clip=<id>` and `?play=<id>`; the back button closes them. The header
+ * from the design is `StreamingHeaderContainer` and can replace the header in Layout.tsx; if the
+ * route sits outside <Layout />, `<StreamingHomeContainer header />` shows it itself. Preview with
+ * sample data: `npm run dev`, then /streaming-preview.html.
  */
 export {
   ClipLayers,

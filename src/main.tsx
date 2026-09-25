@@ -11,12 +11,15 @@ import './auth.css';
 import { VaultProvider } from './data/store';
 import { AuthGate } from './components/AuthGate';
 import { App } from './App';
+import { LanguageBoundary } from './i18n';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthGate>
         <VaultProvider>
-          <App />
+          <LanguageBoundary>
+            <App />
+          </LanguageBoundary>
         </VaultProvider>
       </AuthGate>
     </BrowserRouter>

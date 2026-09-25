@@ -3,21 +3,15 @@ import { Link } from 'react-router-dom';
 import { Check, Clock3, RefreshCw, Sparkles, Play, AlertCircle } from 'lucide-react';
 import type { Clip } from '../domain/models';
 import { useVault } from '../data/store';
+import { useCanEdit } from './AuthGate';
 import { time } from '../data/repository';
-const statusText = {
-  not_configured: 'Noch kein KI-Ergebnis',
-  idle: 'Bereit für die Analyse',
-  queued: 'In der Warteschlange',
-  preparing: 'Aufnahme wird vorbereitet',
-  analyzing: 'KI schaut sich deinen Clip an',
-  ready: 'Dein Moment, zusammengefasst',
-  error: 'Analyse nicht abgeschlossen',
-  awaiting_client: 'Warte auf das Ergebnis vom PC',
-};
+import { t } from '../i18n';
 export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: number) => void }) {
   const { server, analyzeClip, patchClip, toast, refreshServer } = useVault();
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  // Plain accounts see the result but cannot apply it or start a new analysis.
+  const editable = useCanEdit(clip);
   const [description, setDescription] = useState(
     clip.description || clip.analysis?.result?.description || '',
   );
@@ -31,7 +25,7 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
     try {
       await analyzeClip(clip.id);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Analyse nicht möglich.');
+      toast(e instanceof Error ? e.message : t('app.analysis.failed'));
     } finally {
       setBusy(false);
     }
@@ -43,8 +37,8 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
           <Sparkles size={20} />
         </div>
         <div>
-          <span className="eyebrow">KI-ASSISTENT</span>
-          <h2>{statusText[status]}</h2>
+          <span className="eyebrow">{t('app.analysis.eyebrow')}</span>
+          <h2>{t(`app.analysis.status.${status}`)}</h2>
         </div>
         <span className={`analysis-status ${running ? 'working' : ''}`}>
           {running ? (
@@ -55,27 +49,31 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
             <AlertCircle size={14} />
           )}{' '}
           {status === 'ready'
-            ? 'KI-Vorschlag'
+            ? t('app.analysis.badge.suggestion')
             : running
-              ? 'In Arbeit'
+              ? t('app.analysis.badge.working')
               : status === 'error'
-                ? 'Fehler'
-                : 'Ausstehend'}
+                ? t('app.analysis.badge.error')
+                : t('app.analysis.badge.pending')}
         </span>
       </div>
       {result ? (
         <>
           <div className="analysis-suggestion">
-            <span className="muted">Titelvorschlag</span>
+            <span className="muted">{t('app.analysis.titleSuggestion')}</span>
             <h3>{result.title}</h3>
-            <button
-              className="text-button"
-              disabled={clip.title === result.title}
-              onClick={() => patchClip(clip.id, { title: result.title })}
-            >
-              <Check size={14} />
-              {clip.title === result.title ? 'Titel übernommen' : 'Titel übernehmen'}
-            </button>
+            {editable && (
+              <button
+                className="text-button"
+                disabled={clip.title === result.title}
+                onClick={() => patchClip(clip.id, { title: result.title })}
+              >
+                <Check size={14} />
+                {clip.title === result.title
+                  ? t('app.analysis.titleApplied')
+                  : t('app.analysis.applyTitle')}
+              </button>
+            )}
           </div>
           {editing ? (
             <form
@@ -85,7 +83,7 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
               }}
             >
               <label className="field">
-                Beschreibung bearbeiten
+                {t('app.analysis.editDescription')}
                 <textarea
                   maxLength={1800}
                   value={description}
@@ -94,29 +92,31 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
               </label>
               <div className="button-row">
                 <button className="button primary" type="submit">
-                  Speichern
+                  {t('common.save')}
                 </button>
                 <button
                   className="button secondary"
                   type="button"
                   onClick={() => setEditing(false)}
                 >
-                  Abbrechen
+                  {t('common.cancel')}
                 </button>
               </div>
             </form>
           ) : (
             <div className="analysis-description">
               <p>{clip.description || result.description}</p>
-              <button
-                className="text-button"
-                onClick={() => {
-                  setDescription(clip.description || result.description);
-                  setEditing(true);
-                }}
-              >
-                Beschreibung bearbeiten
-              </button>
+              {editable && (
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setDescription(clip.description || result.description);
+                    setEditing(true);
+                  }}
+                >
+                  {t('app.analysis.editDescription')}
+                </button>
+              )}
             </div>
           )}
           <div className="analysis-tags">
@@ -126,22 +126,24 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
                 {tag}
               </span>
             ))}
-            <button
-              className="text-button"
-              onClick={() =>
-                patchClip(clip.id, {
-                  // Der Ordnername ist die verlässlichere Quelle; die Schätzung füllt nur Lücken.
-                  gameName: clip.gameName || result.game,
-                  tags: [...new Set([...clip.tags, ...result.tags])].slice(0, 20),
-                })
-              }
-            >
-              Spiel & Tags übernehmen
-            </button>
+            {editable && (
+              <button
+                className="text-button"
+                onClick={() =>
+                  patchClip(clip.id, {
+                    // The folder name is the more reliable source; the AI's guess only fills gaps.
+                    gameName: clip.gameName || result.game,
+                    tags: [...new Set([...clip.tags, ...result.tags])].slice(0, 20),
+                  })
+                }
+              >
+                {t('app.analysis.applyGameTags')}
+              </button>
+            )}
           </div>
           {result.highlights.length > 0 && (
             <div className="analysis-moments">
-              <h3>Interessante Stellen</h3>
+              <h3>{t('app.analysis.moments')}</h3>
               {result.highlights.map((moment, i) => (
                 <button
                   className="moment"
@@ -161,18 +163,12 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
             </div>
           )}
           <p className="analysis-footnote">
-            KI-Vorschlag · Sicherheit:{' '}
-            {result.confidence === 'high'
-              ? 'hoch'
-              : result.confidence === 'medium'
-                ? 'mittel'
-                : 'gering'}{' '}
-            ·{' '}
-            {analysis?.input === 'frames'
-              ? 'Bildstichprobe, ohne Ton'
-              : analysis?.input === 'video_audio'
-                ? 'Video und Ton'
-                : 'Video, ohne Ton'}
+            {t('app.analysis.footnote', {
+              confidence: t(`app.analysis.confidence.${result.confidence}`),
+              input: t(
+                `app.analysis.input.${analysis?.input === 'frames' || analysis?.input === 'video_audio' ? analysis.input : 'video'}`,
+              ),
+            })}
             {result.uncertainty && ` · ${result.uncertainty}`}
           </p>
         </>
@@ -180,40 +176,42 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
         <p className="analysis-explanation">
           {analysis?.error ||
             (status === 'awaiting_client'
-              ? 'Dein Video ist gespeichert. Der Windows-Client überträgt das Analyseergebnis. Lass ihn dafür weiterlaufen; bei Verbindungsfehlern versucht er es erneut.'
+              ? t('app.analysis.explain.awaitingClient')
               : running
-                ? 'Dein Original ist gespeichert. Du kannst die Seite verlassen; die Verarbeitung läuft auf dem Server weiter.'
+                ? t('app.analysis.explain.running')
                 : server.configured
-                  ? 'Die KI schlägt einen Titel, eine Beschreibung, Tags und interessante Stellen vor.'
-                  : 'Aktiviere die lokale KI im Windows-Client, damit zukünftige Aufnahmen vor dem Upload analysiert werden. Browser-Uploads erhalten ohne zusätzliche Server-KI keinen automatischen Titel.')}
+                  ? t('app.analysis.explain.configured')
+                  : t('app.analysis.explain.notConfigured'))}
         </p>
       )}
       {analysis?.error && result && <p className="error small-text">{analysis.error}</p>}
       <div className="analysis-actions">
-        {server.configured && clip.status === 'ready' ? (
+        {!editable ? null : server.configured && clip.status === 'ready' ? (
           <button
             className="button secondary"
             disabled={running || busy || !server.connected}
             onClick={() => void analyze()}
           >
             <RefreshCw size={15} />
-            {result ? 'Erneut analysieren' : 'Clip analysieren'}
+            {result ? t('app.analysis.reanalyze') : t('app.analysis.analyze')}
           </button>
         ) : (
           <Link className="text-link" to="/devices">
             {analysis?.provider === 'client'
-              ? 'Lokal auf deinem Aufnahme-PC analysiert · Geräte öffnen'
-              : 'Windows-Client einrichten'}
+              ? t('app.analysis.analyzedOnPc')
+              : t('app.analysis.setupClient')}
           </Link>
         )}
         {(running || status === 'awaiting_client') && (
           <button className="text-button" onClick={() => void refreshServer()}>
-            Status aktualisieren
+            {t('app.analysis.refreshStatus')}
           </button>
         )}
         {server.provider === 'gemini' && (
           <span>
-            Analyse über Gemini{server.settings.includeAudio ? ' einschließlich Ton' : ''}
+            {server.settings.includeAudio
+              ? t('app.analysis.geminiAudio')
+              : t('app.analysis.gemini')}
           </span>
         )}
       </div>

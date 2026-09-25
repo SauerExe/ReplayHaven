@@ -13,7 +13,7 @@ concurrency:
 permissions:
   contents: read
 
-# ONNX Runtime (Texterkennung im Client) braucht nur die CPU-Dateien, keine CUDA-Pakete von NuGet.
+# ONNX Runtime (text recognition in the client) only needs the CPU files, no CUDA packages from NuGet.
 env:
   ONNXRUNTIME_NODE_INSTALL: skip
 
@@ -101,7 +101,7 @@ jobs:
       - run: npm run client:prepare
       - name: Package unpacked client
         run: npx electron-builder --config electron-builder.yml --win dir --x64
-      # Der Rauchtest macht zum Schluss ein Bildschirmfoto mit Playwright; dessen Browser fehlte.
+      # The smoke test ends with a Playwright screenshot, which needs its browser installed.
       - run: npx playwright install chromium
       - name: Smoke test the client
         run: node scripts/client-smoke.mjs

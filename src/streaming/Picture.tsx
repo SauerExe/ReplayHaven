@@ -3,7 +3,7 @@ import { Film } from 'lucide-react';
 
 const MEDIA = /^\/media\/([\w-]+)\.webp$/;
 
-/** Die Beispielbilder unter /media gibt es auch als -thumb; Kacheln brauchen keine 1600 Pixel. */
+/** The sample images under /media also exist as -thumb; tiles do not need 1600 pixels. */
 function srcSetFor(src: string) {
   const match = MEDIA.exec(src);
   if (!match || match[1].endsWith('-thumb')) return undefined;

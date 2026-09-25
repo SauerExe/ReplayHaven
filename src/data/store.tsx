@@ -2,9 +2,11 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type { ReactNode, Dispatch, SetStateAction } from 'react';
 import type { Clip, ServerGame, ServerInfo, UploadJob, VaultState } from '../domain/models';
 import { deleteClips, repository } from './repository';
-import { api, disconnectedServer, uploadToServer } from './api';
+import { api, ApiError, disconnectedServer, uploadToServer } from './api';
+import { useIsAdmin } from '../components/AuthGate';
 import { createId } from './id';
 import { sampleCollectionIds } from './seed';
+import { t } from '../i18n';
 type Store = {
   state: VaultState;
   setState: Dispatch<SetStateAction<VaultState>>;
@@ -14,7 +16,7 @@ type Store = {
   patchClip: (id: string, patch: Partial<Clip>) => Promise<boolean>;
   storageError: boolean;
   server: ServerInfo;
-  /** Spielinfos vom Server: Name, Beschreibung und Cover je Spielname. */
+  /** Game info from the server: name, description and cover per game name. */
   gameInfo: Record<string, ServerGame>;
   refreshServer: () => Promise<void>;
   connectServer: (token: string) => Promise<void>;
@@ -23,6 +25,8 @@ type Store = {
   removeClips: (ids: string[]) => Promise<void>;
 };
 const Context = createContext<Store | null>(null);
+/** Clip fields the server stores; everything else (duration, resolution) is local only. */
+const SERVER_FIELDS = ['title', 'description', 'gameName', 'tags', 'favorite', 'note'];
 export function VaultProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(repository.load);
   const [jobs, setJobs] = useState<UploadJob[]>([]);
@@ -34,6 +38,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   stateRef.current = state;
   const serverRef = useRef(server);
   serverRef.current = server;
+  const admin = useIsAdmin();
+  const adminRef = useRef(admin);
+  adminRef.current = admin;
   const inFlightPatches = useRef(new Set<string>());
   const patchChains = useRef(new Map<string, Promise<unknown>>());
   const refreshServer = useCallback(async () => {
@@ -41,7 +48,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const info = await api<ServerInfo>('/status');
       const clips = await api<Clip[]>('/clips');
       setServer(info);
-      // Spielinfos sind Beiwerk: ohne sie zeigt die Bibliothek weiterhin alles, nur ohne Cover.
+      // Game info is optional: without it the library still shows everything, just without covers.
       api<ServerGame[]>('/games')
         .then((list) =>
           setGameInfo(
@@ -62,11 +69,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           ...clips.map((c) =>
             inFlightPatches.current.has(c.id) ? s.clips.find((old) => old.id === c.id) || c : c,
           ),
-          // Sobald ein Server antwortet, haben Beispiel-Clips ausgedient: sie stehen sonst
-          // dauerhaft zwischen den eigenen Aufnahmen. Eigene Browser-Uploads (local) bleiben.
+          // Once a server answers, sample clips are no longer needed: otherwise they would sit
+          // between your own recordings forever. Your own browser uploads (local) stay.
           ...s.clips.filter((c) => !c.server && c.local),
         ],
-        // Dasselbe gilt für die Beispiel-Sammlungen, solange niemand eigene Clips hineinlegt.
+        // The same goes for the sample collections, as long as nobody put their own clips in.
         collections: s.collections.filter(
           (c) =>
             !sampleCollectionIds.has(c.id) ||
@@ -77,7 +84,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       setServer((s) => ({
         ...s,
         connected: false,
-        authRequired: error instanceof Error && error.message.includes('Zugangsschlüssel'),
+        // 401: the server wants a sign-in or its access key, whatever language it answers in.
+        authRequired: error instanceof ApiError && error.status === 401,
       }));
     }
   }, []);
@@ -124,16 +132,22 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, []);
   const patchClip = useCallback(
     (id: string, patch: Partial<Clip>) => {
+      const onServer = !!stateRef.current.clips.find((c) => c.id === id)?.server;
+      const synced = (key: string) => SERVER_FIELDS.includes(key);
+      // A plain account may not change server clips (the server answers 403); keep only the
+      // local-only fields such as the measured duration, instead of showing an error.
+      const local =
+        onServer && !adminRef.current
+          ? Object.fromEntries(Object.entries(patch).filter(([key]) => !synced(key)))
+          : patch;
       setState((s) => ({
         ...s,
-        clips: s.clips.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        clips: s.clips.map((c) => (c.id === id ? { ...c, ...local } : c)),
       }));
-      if (!stateRef.current.clips.find((c) => c.id === id)?.server) return Promise.resolve(true);
-      const allowed = Object.fromEntries(
-        Object.entries(patch).filter(([key]) =>
-          ['title', 'description', 'gameName', 'tags', 'favorite', 'note'].includes(key),
-        ),
-      );
+      if (!onServer) return Promise.resolve(true);
+      if (!adminRef.current)
+        return Promise.resolve(Object.keys(local).length === Object.keys(patch).length);
+      const allowed = Object.fromEntries(Object.entries(patch).filter(([key]) => synced(key)));
       if (!Object.keys(allowed).length) return Promise.resolve(true);
       inFlightPatches.current.add(id);
       const chain = (patchChains.current.get(id) || Promise.resolve())
@@ -169,15 +183,16 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   async function analyzeClip(id: string) {
     await api(`/clips/${id}/analyze`, { method: 'POST' });
     await refreshServer();
-    toast('KI-Analyse eingeplant');
+    toast(t('app.store.analysisQueued'));
   }
   async function updateAnalysisSettings(settings: ServerInfo['settings']) {
     await api('/settings/analysis', { method: 'PUT', body: JSON.stringify(settings) });
     await refreshServer();
-    toast('Analyse-Einstellungen gespeichert');
+    toast(t('app.store.analysisSettingsSaved'));
   }
   async function importFiles(files: File[], localOnly = false) {
-    if (serverRef.current.connected && !localOnly) {
+    // Plain accounts may not upload; their files stay local previews in this browser.
+    if (serverRef.current.connected && !localOnly && adminRef.current) {
       for (const file of files) {
         const id = createId();
         setJobs((j) => [
@@ -185,7 +200,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           { id, name: file.name, progress: 0, status: 'reading', server: true },
         ]);
         try {
-          if (file.size > 2 * 1024 ** 3) throw new Error('Die Datei ist größer als 2 GB.');
+          if (file.size > 2 * 1024 ** 3) throw new Error(t('app.store.tooLarge'));
           const clip = await uploadToServer(file, (progress) =>
             setJobs((j) => j.map((job) => (job.id === id ? { ...job, progress } : job))),
           );
@@ -203,7 +218,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
                 ? {
                     ...job,
                     status: 'error',
-                    error: error instanceof Error ? error.message : 'Upload fehlgeschlagen.',
+                    error: error instanceof Error ? error.message : t('app.api.uploadFailed'),
                   }
                 : job,
             ),
@@ -215,11 +230,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     for (const file of files) {
       const id = createId();
       const error = !/\.(mp4|webm|mov|m4v)$/i.test(file.name)
-        ? 'Dieses Format wird nicht unterstützt. Wähle MP4, WebM oder MOV.'
+        ? t('app.store.unsupportedFormat')
         : file.size > 2 * 1024 ** 3
-          ? 'Die Datei ist größer als 2 GB. Wähle eine kleinere Datei.'
+          ? t('app.store.tooLargeLocal')
           : file.size === 0
-            ? 'Die Datei ist leer. Wähle eine andere Videodatei.'
+            ? t('app.store.emptyFile')
             : undefined;
       setJobs((j) => [
         ...j,
@@ -265,8 +280,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
               ? {
                   ...job,
                   status: 'error',
-                  error:
-                    'Der Browser kann diese Datei nicht lesen. Versuche eine MP4-Datei mit H.264.',
+                  error: t('app.store.unreadable'),
                 }
               : job,
           ),

@@ -12,11 +12,13 @@ import {
 } from 'lucide-react';
 import { games } from '../data/seed';
 import { useVault } from '../data/store';
+import { useCanEdit } from '../components/AuthGate';
 import { bytes } from '../data/repository';
 import { ClipMenu, useActions } from '../components/Actions';
 import { ClipCard, EmptyState, Section } from '../components/Cards';
 import { Brand } from '../components/Layout';
 import { AnalysisPanel } from '../components/AnalysisPanel';
+import { locale, t } from '../i18n';
 const Player = lazy(() => import('../components/Player'));
 export default function ClipDetail() {
   const { id } = useParams();
@@ -25,15 +27,17 @@ export default function ClipDetail() {
   const action = useActions();
   const clip = state.clips.find((c) => c.id === id);
   const game = games.find((g) => g.id === clip?.gameId);
+  // Plain accounts may watch server clips but not change them.
+  const editable = useCanEdit(clip);
   if (!clip)
     return (
       <div className="page">
         <EmptyState
-          title="Clip nicht gefunden"
-          description="Der Clip wurde entfernt oder ist eine lokale Vorschau aus einer früheren Sitzung."
+          title={t('pages.clip.notFound.title')}
+          description={t('pages.clip.notFound.text')}
         >
           <Link to="/library" className="button primary">
-            Zur Bibliothek
+            {t('pages.clip.toLibrary')}
           </Link>
         </EmptyState>
       </div>
@@ -48,7 +52,7 @@ export default function ClipDetail() {
     <div className="page clip-page">
       <Link className="back-link" to="/library">
         <ArrowLeft size={17} />
-        Zur Bibliothek
+        {t('pages.clip.toLibrary')}
       </Link>
       <Suspense fallback={<div className="player-skeleton" />}>
         <Player key={clip.id} clip={clip} seekTo={seekTo} />
@@ -56,20 +60,22 @@ export default function ClipDetail() {
       <div className="clip-detail-heading">
         <div>
           <span className="eyebrow" style={{ color: game?.color }}>
-            {game?.name || clip.gameName || 'DEINE AUFNAHME'}
+            {game?.name || clip.gameName || t('pages.clip.yourRecording')}
           </span>
           <div className="editable-title">
             <h1>{clip.title}</h1>
-            <button
-              className="icon-button"
-              aria-label="Titel bearbeiten"
-              onClick={() => action({ kind: 'rename', id: clip.id })}
-            >
-              <Pencil size={17} />
-            </button>
+            {editable && (
+              <button
+                className="icon-button"
+                aria-label={t('pages.clip.editTitle')}
+                onClick={() => action({ kind: 'rename', id: clip.id })}
+              >
+                <Pencil size={17} />
+              </button>
+            )}
           </div>
           <p>
-            {new Date(clip.recordedAt).toLocaleDateString('de-DE', {
+            {new Date(clip.recordedAt).toLocaleDateString(locale(), {
               day: 'numeric',
               month: 'long',
               year: 'numeric',
@@ -79,24 +85,26 @@ export default function ClipDetail() {
           </p>
         </div>
         <div className="button-row">
-          <button
-            className={`button secondary ${clip.favorite ? 'is-favorite' : ''}`}
-            aria-pressed={clip.favorite}
-            onClick={() => patchClip(clip.id, { favorite: !clip.favorite })}
-          >
-            <Heart size={17} fill={clip.favorite ? 'currentColor' : 'none'} />
-            {clip.favorite ? 'Favorit' : 'Favorisieren'}
-          </button>
+          {editable && (
+            <button
+              className={`button secondary ${clip.favorite ? 'is-favorite' : ''}`}
+              aria-pressed={clip.favorite}
+              onClick={() => patchClip(clip.id, { favorite: !clip.favorite })}
+            >
+              <Heart size={17} fill={clip.favorite ? 'currentColor' : 'none'} />
+              {clip.favorite ? t('pages.clip.favorite') : t('pages.clip.addFavorite')}
+            </button>
+          )}
           <button
             className="button secondary"
             onClick={() => action({ kind: 'add', ids: [clip.id] })}
           >
             <FolderPlus size={17} />
-            <span>Zur Sammlung</span>
+            <span>{t('pages.clip.addToCollection')}</span>
           </button>
           <button
             className="icon-button bordered"
-            aria-label="Clip teilen"
+            aria-label={t('pages.clip.share')}
             onClick={() => action({ kind: 'share', id: clip.id })}
           >
             <Share2 size={18} />
@@ -105,80 +113,84 @@ export default function ClipDetail() {
         </div>
       </div>
       <div className="clip-tags">
-        {clip.tags.map((t) => (
-          <Link to={`/library?tag=${encodeURIComponent(t)}`} className="tag" key={t}>
-            {t}
+        {clip.tags.map((tag) => (
+          <Link to={`/library?tag=${encodeURIComponent(tag)}`} className="tag" key={tag}>
+            {tag}
           </Link>
         ))}
-        <button className="text-button" onClick={() => action({ kind: 'tags', id: clip.id })}>
-          <Plus size={14} />
-          Tags bearbeiten
-        </button>
+        {editable && (
+          <button className="text-button" onClick={() => action({ kind: 'tags', id: clip.id })}>
+            <Plus size={14} />
+            {t('pages.clip.editTags')}
+          </button>
+        )}
       </div>
       <div className="clip-information">
         <label className="field note-field">
-          Deine Notiz
+          {t('pages.clip.note')}
           <textarea
-            aria-label="Notiz zum Clip"
+            aria-label={t('pages.clip.noteLabel')}
             maxLength={2000}
-            placeholder="Was diesen Moment besonders macht …"
+            placeholder={t('pages.clip.notePlaceholder')}
             value={clip.note}
+            readOnly={!editable}
             onChange={(e) => patchClip(clip.id, { note: e.target.value })}
           />
-          <small>Wird automatisch gespeichert</small>
+          {editable && <small>{t('pages.clip.noteSaved')}</small>}
         </label>
         <div className="source-information">
           {clip.local ? (
-            <p>Nur in diesem Browser verfügbar – noch nicht auf dem Server gespeichert.</p>
+            <p>{t('pages.clip.localOnly')}</p>
           ) : clip.server ? (
             <>
-              <span className="eyebrow">DEIN ORIGINAL</span>
+              <span className="eyebrow">{t('pages.clip.original')}</span>
               <p>{clip.originalName}</p>
-              <small>Auf deinem Server archiviert · {clip.deviceName}</small>
+              <small>{t('pages.clip.archivedOn', { device: clip.deviceName ?? '' })}</small>
               <a href={`/api/clips/${clip.id}/download`} download>
-                Original herunterladen
+                {t('pages.clip.downloadOriginal')}
               </a>
             </>
           ) : (
             <>
-              <span className="eyebrow">VIDEOQUELLE</span>
+              <span className="eyebrow">{t('pages.clip.videoSource')}</span>
               <p>{clip.sourceTitle}</p>
               <a href={clip.sourcePage} target="_blank" rel="noreferrer">
-                Offizielles Video auf Steam <ExternalLink size={13} />
+                {t('pages.clip.steamVideo')} <ExternalLink size={13} />
               </a>
-              <small>
-                Beispiel-Card mit echtem, extern eingebundenem Spielvideo. Der Kartentitel
-                beschreibt nicht den Trailer.
-              </small>
+              <small>{t('pages.clip.sampleNote')}</small>
             </>
           )}
           <details>
             <summary>
-              Technische Informationen <ChevronDown size={15} />
+              {t('pages.clip.technical')} <ChevronDown size={15} />
             </summary>
             <dl>
               <div>
-                <dt>Quelle</dt>
+                <dt>{t('pages.clip.source')}</dt>
                 <dd>
                   {clip.local
-                    ? 'Lokale Datei'
+                    ? t('pages.clip.sourceLocal')
                     : clip.server
-                      ? 'Dein Archiv-Server'
-                      : 'Steam CDN · HLS'}
+                      ? t('pages.clip.sourceServer')
+                      : t('pages.clip.sourceSteam')}
                 </dd>
               </div>
               <div>
-                <dt>Dateigröße</dt>
-                <dd>{clip.size ? bytes(clip.size) : 'Externer Stream'}</dd>
+                <dt>{t('pages.clip.fileSize')}</dt>
+                <dd>{clip.size ? bytes(clip.size) : t('pages.clip.externalStream')}</dd>
               </div>
               <div>
-                <dt>Auflösung</dt>
+                <dt>{t('pages.clip.resolution')}</dt>
                 <dd>{clip.resolution}</dd>
               </div>
               <div>
-                <dt>Ursprungsgerät</dt>
+                <dt>{t('pages.clip.device')}</dt>
                 <dd>
-                  {clip.local ? 'Dieser Browser' : clip.server ? clip.deviceName : 'Externes Video'}
+                  {clip.local
+                    ? t('pages.clip.thisBrowser')
+                    : clip.server
+                      ? clip.deviceName
+                      : t('pages.clip.externalVideo')}
                 </dd>
               </div>
             </dl>
@@ -195,7 +207,9 @@ export default function ClipDetail() {
       />
       {related.length > 0 && (
         <Section
-          title={`Mehr aus ${clip.gameName || game?.name || 'deinen Aufnahmen'}`}
+          title={t('pages.clip.moreFrom', {
+            game: clip.gameName || game?.name || t('pages.clip.moreFromYours'),
+          })}
           link={`/library?game=${encodeURIComponent(clip.server && clip.gameName ? `name:${clip.gameName}` : clip.gameId)}`}
         >
           {related.map((c) => (
@@ -215,29 +229,27 @@ export function SharePage() {
     <div className="share-page">
       <header>
         <Brand linked={false} />
-        <span className="demo-label">Lokale Freigabevorschau</span>
+        <span className="demo-label">{t('pages.share.label')}</span>
       </header>
       {clip ? (
         <main>
-          <p className="share-warning">
-            Vorschau in diesem Browser · Kein öffentlicher Freigabelink
-          </p>
+          <p className="share-warning">{t('pages.share.warning')}</p>
           <Suspense fallback={<div className="player-skeleton" />}>
             <Player key={clip.id} clip={clip} shared />
           </Suspense>
           <span className="eyebrow">
-            {games.find((g) => g.id === clip.gameId)?.name || 'LOKALE AUFNAHME'}
+            {games.find((g) => g.id === clip.gameId)?.name || t('pages.share.localRecording')}
           </span>
           <h1>{clip.title}</h1>
-          <p>Ein Moment, den man teilen möchte.</p>
+          <p>{t('pages.share.tagline')}</p>
         </main>
       ) : (
         <EmptyState
-          title="Freigabe nicht verfügbar"
-          description="Dieser Link ist ungültig. Lokale Vorschauen funktionieren nur im ursprünglichen Browser."
+          title={t('pages.share.unavailable.title')}
+          description={t('pages.share.unavailable.text')}
         />
       )}
-      <footer>ReplayHaven · Ein guter Moment bleibt.</footer>
+      <footer>{t('pages.share.footer')}</footer>
     </div>
   );
 }

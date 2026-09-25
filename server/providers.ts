@@ -44,9 +44,7 @@ export function createProvider(config: ServerConfig, media: MediaProcessor): Ana
             file = await ai.files.get({ name: file.name! });
           }
           if (file.state !== 'ACTIVE' || !file.uri)
-            throw new Error(
-              'Das Analysevideo wurde vom KI-Anbieter nicht rechtzeitig verarbeitet.',
-            );
+            throw new Error('The AI provider did not process the analysis video in time.');
           const response = await ai.models.generateContent({
             model: config.model,
             contents: [
@@ -74,7 +72,7 @@ export function createProvider(config: ServerConfig, media: MediaProcessor): Ana
       }
       if (config.provider === 'local') {
         const frames = await media.frames(input.original, input.directory, input.duration);
-        if (!frames.length) throw new Error('Keine Bilder für die Analyse verfügbar.');
+        if (!frames.length) throw new Error('No frames available for the analysis.');
         const content: unknown[] = [{ type: 'text', text: promptFor(input, true) }];
         for (const frame of frames)
           content.push(
@@ -98,12 +96,12 @@ export function createProvider(config: ServerConfig, media: MediaProcessor): Ana
         });
         if (!response.ok)
           throw new Error(
-            `Lokale KI antwortet mit HTTP ${response.status}. Prüfe Modell, Kontextgröße und Verbindung.`,
+            `Local AI responded with HTTP ${response.status}. Check the model, context size and connection.`,
           );
         const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
         return parseAnalysis(data.choices?.[0]?.message?.content || '', input.duration);
       }
-      throw new Error('Noch kein KI-Anbieter eingerichtet.');
+      throw new Error('No AI provider set up yet.');
     },
   };
 }

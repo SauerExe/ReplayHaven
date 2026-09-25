@@ -1,14 +1,14 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 
 /**
- * Radix gibt den Fokus beim Schließen nur an einen Dialog.Trigger zurück. Details und Player öffnen
- * ohne Trigger (per Kachel oder URL), also merken wir uns das fokussierte Element selbst.
- * Rückgabe gehört an onCloseAutoFocus von Dialog.Content.
+ * Radix only returns focus to a Dialog.Trigger on close. Details and player open without a trigger
+ * (via tile or URL), so we remember the focused element ourselves. Pass the result to
+ * onCloseAutoFocus of Dialog.Content.
  */
 export function useReturnFocus(open: boolean) {
   const target = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    // Läuft vor dem Einhängen ins Portal, der Fokus liegt also noch auf dem Auslöser.
+    // Runs before mounting into the portal, so focus is still on the opener.
     if (open && document.activeElement instanceof HTMLElement)
       target.current = document.activeElement;
   }, [open]);

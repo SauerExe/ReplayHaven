@@ -6,25 +6,25 @@ import { localToUtc } from './fortnite';
 import type { ClipWindow } from './fortnite';
 
 /**
- * R6-Ereignisse aus den Match-Replays, die Rainbow Six Siege mit „Match Replay“ je Runde als
- * .rec-Datei schreibt (docs/R6-REPLAYS.md). Die Dateien liest der Fork Gipson62/r6-dissect als
- * eigenes Programm; hier stehen nur Auswahl und Deutung. Noch nicht Teil der Analyse: Erst muss
- * das Messwerkzeug (npm run r6-replays) zeigen, dass Kills, Runden und Zeiten stimmen.
+ * R6 events from the match replays that Rainbow Six Siege writes per round as a .rec file with
+ * "Match Replay" (docs/R6-REPLAYS.md). The fork Gipson62/r6-dissect reads the files as a separate
+ * program; this module only selects and interprets. Not yet part of the analysis: the measurement
+ * tool (npm run r6-replays) must first show that kills, rounds and times are correct.
  */
 
-/** Gepinnter Quellstand des Parsers. Der Fork hat keine Releases. */
+/** Pinned source revision of the parser. The fork has no releases. */
 export const DISSECT = {
   repository: 'https://github.com/Gipson62/r6-dissect.git',
   commit: 'e360e2bea96fb5d2ae05f62b47357af3d8f7fbf7',
-  /** Neueste Season mit eigenen Schwellen in diesem Stand; neuere liest er auf dem neuesten Pfad. */
+  /** Newest season with its own thresholds in this revision; newer ones are read on the newest path. */
   newestSeason: 'Y11S2',
 };
 
-/** Zwei eigene Kills mit höchstens so viel Rundenuhr dazwischen bilden eine Serie, wie bei Fortnite. */
+/** Two own kills with at most this much round clock between them form a streak, as in Fortnite. */
 const SERIES_GAP = 12;
-/** Auswahl, Vorbereitung, Aktionsphase, Entschärfer und Rundenende passen in diese Zeit. */
+/** Selection, preparation, action phase, defuser and round end fit into this time. */
 const MAX_ROUND_MS = 10 * 60000;
-/** So weit darf der Beginn laut Kopf von der Anlagezeit der Datei abweichen. */
+/** How far the start in the header may deviate from the file's creation time. */
 const HEADER_TOLERANCE_MS = 3 * 60000;
 
 interface DissectPlayer {
@@ -46,7 +46,7 @@ interface DissectUpdate {
   timeInSeconds?: number;
   headshot?: boolean;
 }
-/** Das Nötigste aus der JSON-Ausgabe von r6-dissect für eine Runde. */
+/** The essentials of r6-dissect's JSON output for one round. */
 export interface DissectRound {
   gameVersion?: string;
   codeVersion?: number;
@@ -63,7 +63,7 @@ export interface DissectRound {
   stats?: { username?: string; kills?: number }[];
 }
 
-/** Liest die JSON-Ausgabe. IDs sind 64-Bit-Zahlen; als JS-Zahl verlören sie Stellen. */
+/** Parses the JSON output. IDs are 64-bit numbers; as JS numbers they would lose digits. */
 export function parseDissect(text: string): DissectRound {
   return JSON.parse(text, (key, value, context?: { source?: string }) =>
     (key === 'id' || key === 'recordingPlayerID') && typeof value === 'number' && context?.source
@@ -73,9 +73,8 @@ export function parseDissect(text: string): DissectRound {
 }
 
 /**
- * Der aufnehmende Spieler. Die Profil-ID gehört zum Ubisoft-Konto und stimmte in den
- * Beispielrunden von r6-dissect auch dort, wo die Spieler-ID der Runde keinen Treffer hatte.
- * Zuschauer-Aufnahmen haben keinen.
+ * The recording player. The profile ID belongs to the Ubisoft account and matched in r6-dissect's
+ * sample rounds even where the round's player ID found nothing. Spectator recordings have none.
  */
 export function recorder(round: DissectRound): DissectPlayer | undefined {
   const players = round.players ?? [];
@@ -90,17 +89,17 @@ export function recorder(round: DissectRound): DissectPlayer | undefined {
   );
 }
 
-/** Siegbedingungen, wie r6-dissect sie nennt. */
+/** Win conditions as r6-dissect names them. */
 export const CONDITIONS: Record<string, string> = {
-  KilledOpponents: 'Gegner ausgeschaltet',
-  DefusedBomb: 'Bombe entschärft',
-  DisabledDefuser: 'Entschärfer deaktiviert',
-  Time: 'Zeit abgelaufen',
-  SecuredArea: 'Bereich gesichert',
-  ExtractedHostage: 'Geisel befreit',
+  KilledOpponents: 'opponents eliminated',
+  DefusedBomb: 'bomb defused',
+  DisabledDefuser: 'defuser disabled',
+  Time: 'time ran out',
+  SecuredArea: 'area secured',
+  ExtractedHostage: 'hostage extracted',
 };
 
-/** Ob die Season neuer ist, als der gepinnte Parserstand kennt, etwa "Y11S3" gegenüber "Y11S2". */
+/** Whether the season is newer than the pinned parser revision knows, e.g. "Y11S3" vs "Y11S2". */
 export function newerSeason(season: string | undefined, known = DISSECT.newestSeason) {
   const parse = (text?: string) =>
     /^Y(\d+)S(\d+)/i
@@ -113,61 +112,61 @@ export function newerSeason(season: string | undefined, known = DISSECT.newestSe
 }
 
 export interface OwnKill {
-  /** Rundenuhr in Sekunden, wie im HUD; sie zählt herunter. */
+  /** Round clock in seconds, as in the HUD; it counts down. */
   clock: number;
   headshot: boolean;
-  /** Nach dem Legen des Entschärfers. Welche Uhr r6-dissect dann führt, ist ungeklärt. */
+  /** After the defuser was planted. Which clock r6-dissect keeps then is unclear. */
   afterPlant: boolean;
 }
 
 export interface RoundFile {
   path: string;
-  /** Änderungs- und Anlagezeit der Datei in Millisekunden. */
+  /** Modification and creation time of the file in milliseconds. */
   mtime: number;
   birthtime?: number;
 }
 
 export interface OwnRound {
   file: string;
-  /** Rundennummer ab 1, wie im Spiel. */
+  /** Round number from 1, as in the game. */
   number: number;
   map?: string;
   mode?: string;
   matchType?: string;
   season?: string;
-  /** Rundenfenster in UTC-Millisekunden, falls es sich bestimmen ließ. */
+  /** Round window in UTC milliseconds, if it could be determined. */
   start?: number;
   end?: number;
-  /** Woher das Rundenende stammt. */
+  /** Where the round end comes from. */
   endFrom?: 'file' | 'next-round';
   side?: 'attack' | 'defense';
   operator?: string;
   won?: boolean;
-  /** Siegbedingung der Runde, gleich wer gewonnen hat. */
+  /** Win condition of the round, whoever won. */
   condition?: string;
   kills: OwnKill[];
-  /** Eigene Niederschläge (DBNO), Rundenuhr. */
+  /** Own knockdowns (DBNO), round clock. */
   knocks: number[];
-  /** Rundenuhr beim eigenen Tod. */
+  /** Round clock at the player's own death. */
   death?: number;
-  /** Gegner am Leben, als man selbst als Letzter des Teams übrig war, bei gewonnener Runde. */
+  /** Opponents alive when the player was the last of the team left, in a won round. */
   clutch?: number;
-  /** Längen der eigenen Serien mit mindestens zwei Kills. */
+  /** Lengths of the player's own streaks with at least two kills. */
   series: number[];
   ace: boolean;
-  /** Warum die Runde keinen eigenen Spieler hat. */
+  /** Why the round has no own player. */
   problem?: string;
-  /** Plausibilitätsprüfungen, die nicht aufgehen. */
+  /** Plausibility checks that do not add up. */
   warnings: string[];
 }
 
-/** Längen der Serien: eigene Kills mit höchstens SERIES_GAP Sekunden Rundenuhr Abstand. */
+/** Streak lengths: own kills at most SERIES_GAP seconds of round clock apart. */
 export function series(kills: readonly OwnKill[], gap = SERIES_GAP) {
   const out: number[] = [];
   let run = 0;
   let last: OwnKill | undefined;
   for (const kill of kills) {
-    // Die Uhr zählt herunter; springt sie hoch oder wechselt sie mit dem Entschärfer, reißt die Serie.
+    // The clock counts down; if it jumps up or switches with the defuser, the streak breaks.
     const close =
       last &&
       last.afterPlant === kill.afterPlant &&
@@ -185,8 +184,8 @@ export function series(kills: readonly OwnKill[], gap = SERIES_GAP) {
 }
 
 /**
- * Beginn der Runde in UTC. Der Kopf trägt ein "Z", doch ob das Spiel wirklich UTC schreibt, ist
- * ungeprüft. Entschieden wird deshalb an der Anlagezeit der Datei, sonst an ihrer Änderungszeit.
+ * Start of the round in UTC. The header carries a "Z", but whether the game really writes UTC is
+ * unverified. So the file's creation time decides, otherwise its modification time.
  */
 export function roundStart(
   timestamp: string | undefined,
@@ -205,7 +204,7 @@ export function roundStart(
   return candidates.find((c) => file.mtime - c >= 0 && file.mtime - c <= MAX_ROUND_MS);
 }
 
-/** Wertet eine Runde für den aufnehmenden Spieler aus. Fremde Namen verlassen diese Funktion nicht. */
+/** Evaluates a round for the recording player. Other players' names never leave this function. */
 export function ownRound(
   round: DissectRound,
   file: RoundFile,
@@ -217,9 +216,9 @@ export function ownRound(
   const start = roundStart(round.timestamp, file, toUtc);
   const warnings: string[] = [];
   if (newerSeason(season))
-    warnings.push(`Season ${season} ist neuer als der Parserstand (${DISSECT.newestSeason})`);
+    warnings.push(`Season ${season} is newer than the parser revision (${DISSECT.newestSeason})`);
   const winner = teams.findIndex((t) => t.won);
-  if (teams.filter((t) => t.won).length !== 1) warnings.push('Rundenausgang unklar');
+  if (teams.filter((t) => t.won).length !== 1) warnings.push('round result unclear');
   const base: OwnRound = {
     file: basename(file.path),
     number: (round.roundNumber ?? 0) + 1,
@@ -246,8 +245,8 @@ export function ownRound(
     return {
       ...base,
       problem: players.length
-        ? 'kein eigener Spieler (Zuschauer-Aufnahme oder unbekanntes Konto)'
-        : 'keine Spieler in der Datei',
+        ? 'no own player (spectator recording or unknown account)'
+        : 'no players in the file',
     };
   const names = players.map((p) => p.username).filter((n): n is string => !!n);
   const known = new Set<string | undefined>(names);
@@ -260,17 +259,17 @@ export function ownRound(
   let lastStanding: number | undefined;
   let planted = false;
   let strange = false;
-  // Die Reihenfolge der Meldungen ist die zeitliche; nach der Uhr sortieren ginge nicht, weil
-  // Vorbereitung und Aktionsphase jeweils von vorn herunterzählen.
+  // The order of the messages is chronological; sorting by clock would not work because
+  // preparation and action phase each count down from the start.
   for (const update of round.matchFeedback ?? []) {
     const type = update.type?.name;
     const clock = update.timeInSeconds;
     if (type === 'DefuserPlantComplete') planted = true;
-    // Ohne brauchbare Uhr zählt der Kill trotzdem für Lebende und Tote, nur ohne Zeit.
+    // Without a usable clock, the kill still counts for alive and dead players, just without a time.
     const timed = typeof clock === 'number' && clock >= 0 && clock <= 3600;
     if (!timed && (type === 'Kill' || type === 'DBNO')) strange = true;
     if (type === 'Kill' && (!known.has(update.username) || !known.has(update.target)))
-      warnings.push('Kill mit unbekanntem Spieler');
+      warnings.push('kill with unknown player');
     if (timed && type === 'Kill' && update.username === me.username)
       kills.push({ clock, headshot: update.headshot === true, afterPlant: planted });
     if (timed && type === 'DBNO' && update.username === me.username) knocks.push(clock);
@@ -287,10 +286,10 @@ export function ownRound(
     if (lastStanding === undefined && mates.length === 1 && mates[0].username === me.username)
       lastStanding = opponents.filter((p) => alive.has(p.username)).length || undefined;
   }
-  if (strange) warnings.push('Rundenuhr unplausibel');
+  if (strange) warnings.push('round clock implausible');
   const counted = round.stats?.find((s) => s.username === me.username)?.kills;
   if (counted !== undefined && counted !== kills.length)
-    warnings.push(`Kills laut Killfeed ${kills.length}, laut Statistik ${counted}`);
+    warnings.push(`kills per killfeed ${kills.length}, per stats ${counted}`);
   const won = winner >= 0 ? winner === team : undefined;
   const role = teams[team]?.role;
   return {
@@ -313,8 +312,8 @@ export function ownRound(
 }
 
 /**
- * Fehlt einer Runde das Ende (Datei später geschrieben als die Runde dauern kann), gilt der
- * Beginn der nächsten Runde desselben Matches.
+ * If a round lacks its end (file written later than the round can last), the start of the next
+ * round of the same match counts.
  */
 export function closeRounds(rounds: OwnRound[]): OwnRound[] {
   const sorted = [...rounds].sort((a, b) => a.number - b.number);
@@ -329,15 +328,15 @@ export function closeRounds(rounds: OwnRound[]): OwnRound[] {
 
 export interface RoundChoice {
   round?: OwnRound;
-  /** Überlappung mit dem Clip in Sekunden. */
+  /** Overlap with the clip in seconds. */
   overlap: number;
   candidates: { file: string; number: number; overlap: number }[];
   reason?: string;
 }
 
 /**
- * Die Runde eines Clips über die Uhrzeit. Lieber keine als eine falsche: Liegen zwei Runden
- * nennenswert im Clip, bleibt es offen.
+ * The round of a clip by time of day. Better none than a wrong one: if two rounds overlap the
+ * clip noticeably, it stays open.
  */
 export function roundForClip(clip: ClipWindow, rounds: readonly OwnRound[]): RoundChoice {
   const length = clip.end - clip.start;
@@ -355,9 +354,9 @@ export function roundForClip(clip: ClipWindow, rounds: readonly OwnRound[]): Rou
     overlap: Math.round(c.overlap / 100) / 10,
   }));
   if (!candidates.length)
-    return { overlap: 0, candidates: listed, reason: 'keine Runde im Clipfenster' };
+    return { overlap: 0, candidates: listed, reason: 'no round in the clip window' };
   if (candidates[1] && candidates[1].overlap > length * 0.3)
-    return { overlap: 0, candidates: listed, reason: 'mehrere Runden im Clip' };
+    return { overlap: 0, candidates: listed, reason: 'several rounds in the clip' };
   return { round: candidates[0].round, overlap: listed[0].overlap, candidates: listed };
 }
 
@@ -367,7 +366,7 @@ export interface MatchFolder {
   rounds: string[];
 }
 
-/** Match-Ordner mit ihren Runden; ein Ordner, der selbst .rec-Dateien enthält, gilt als ein Match. */
+/** Match folders with their rounds; a folder that itself contains .rec files counts as one match. */
 export async function matchFolders(root: string): Promise<MatchFolder[]> {
   const entries = await readdir(root, { withFileTypes: true });
   const recs = (list: string[]) => list.filter((name) => /\.rec$/i.test(name)).sort();
@@ -386,7 +385,7 @@ export async function matchFolders(root: string): Promise<MatchFolder[]> {
   return out;
 }
 
-/** Wo das Spiel die Match-Replays üblicherweise ablegt: im Installationsordner (Ubisoft Connect, Steam). */
+/** Where the game usually stores match replays: in the install folder (Ubisoft Connect, Steam). */
 export function defaultReplayFolders(env: NodeJS.ProcessEnv = process.env) {
   const programs = env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
   return [
@@ -402,14 +401,14 @@ export function defaultReplayFolders(env: NodeJS.ProcessEnv = process.env) {
   ];
 }
 
-/** Ordner für Hilfsprogramme, neben den Modellen von npm run laughs. */
+/** Folder for helper programs, next to the models from npm run laughs. */
 export function toolFolder(env: NodeJS.ProcessEnv = process.env) {
   return env.LOCALAPPDATA
     ? join(env.LOCALAPPDATA, 'ReplayHaven', 'tools')
     : join(homedir(), '.cache', 'replayhaven', 'tools');
 }
 
-/** Das gebaute Programm; der Name trägt den Quellstand, ein neuer Stand baut neu. */
+/** The built program; its name carries the source revision, so a new revision rebuilds. */
 export function dissectFile(folder = toolFolder(), platform: NodeJS.Platform = process.platform) {
   return join(
     folder,
@@ -417,7 +416,7 @@ export function dissectFile(folder = toolFolder(), platform: NodeJS.Platform = p
   );
 }
 
-/** Startet ein Programm ohne Shell und liefert seine Ausgabe; wirft mit dem Ende von stderr. */
+/** Runs a program without a shell and returns its output; throws with the tail of stderr. */
 export function execute(
   command: string,
   args: string[],
@@ -441,7 +440,7 @@ export function execute(
       if (code === 0) return resolve(Buffer.concat(out).toString('utf8'));
       const tail = err.trim().split(/\r?\n/).slice(-3).join(' | ');
       reject(
-        new Error(`${basename(command)} endete mit ${code ?? signal}${tail ? `: ${tail}` : ''}`),
+        new Error(`${basename(command)} exited with ${code ?? signal}${tail ? `: ${tail}` : ''}`),
       );
     });
   });
@@ -450,14 +449,14 @@ export function execute(
 const missing = (error: unknown) => (error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT';
 
 /**
- * Baut r6-dissect aus dem gepinnten Quellstand. Git prüft den Stand über den Commit-Hash, Go
- * die Abhängigkeiten über go.sum. Braucht Go und Git; unter Windows etwa per
+ * Builds r6-dissect from the pinned source revision. Git verifies the revision via the commit
+ * hash, Go the dependencies via go.sum. Needs Go and Git; on Windows e.g. via
  * "winget install GoLang.Go".
  */
 export async function buildDissect(target = dissectFile(), log: (line: string) => void = () => {}) {
   for (const [tool, hint] of [
-    ['go', 'Go fehlt. Unter Windows: winget install GoLang.Go, danach ein neues Terminal öffnen.'],
-    ['git', 'Git fehlt. Unter Windows: winget install Git.Git, danach ein neues Terminal öffnen.'],
+    ['go', 'Go is missing. On Windows: winget install GoLang.Go, then open a new terminal.'],
+    ['git', 'Git is missing. On Windows: winget install Git.Git, then open a new terminal.'],
   ] as const) {
     try {
       await execute(tool, ['version']);
@@ -467,7 +466,7 @@ export async function buildDissect(target = dissectFile(), log: (line: string) =
   }
   const work = await mkdtemp(join(tmpdir(), 'r6-dissect-'));
   try {
-    log(`Lade Quellstand ${DISSECT.commit.slice(0, 7)} von ${DISSECT.repository} …`);
+    log(`Fetching source revision ${DISSECT.commit.slice(0, 7)} from ${DISSECT.repository} …`);
     await execute('git', ['init', '-q', work]);
     await execute('git', [
       '-C',
@@ -481,8 +480,8 @@ export async function buildDissect(target = dissectFile(), log: (line: string) =
     ]);
     await execute('git', ['-C', work, 'checkout', '-q', '--detach', 'FETCH_HEAD']);
     const head = (await execute('git', ['-C', work, 'rev-parse', 'HEAD'])).trim();
-    if (head !== DISSECT.commit) throw new Error(`Unerwarteter Quellstand ${head}.`);
-    log('Baue r6-dissect mit Go …');
+    if (head !== DISSECT.commit) throw new Error(`Unexpected source revision ${head}.`);
+    log('Building r6-dissect with Go …');
     await mkdir(dirname(target), { recursive: true });
     const part = `${target}.part`;
     await execute('go', ['build', '-trimpath', '-ldflags=-s -w', '-o', part, '.'], {
@@ -497,15 +496,15 @@ export async function buildDissect(target = dissectFile(), log: (line: string) =
   }
 }
 
-/** Liest eine Runde mit r6-dissect. Eine Runde braucht hier 2 bis 6 Sekunden. */
+/** Reads a round with r6-dissect. A round takes 2 to 6 seconds here. */
 export async function readRound(program: string, file: string) {
   return parseDissect(await execute(program, [file], { timeout: 3 * 60000 }));
 }
 
 /**
- * Wo der Client die Matches zu gespeicherten Clips aufbewahrt. Das Spiel behält nur die jüngsten
- * Matches (am 2026-09-25 hier 30, zusammen 940 MB) und löscht ältere; ohne Kopie wären die Runden
- * zu älteren Clips verloren, bevor die Auswertung sie nutzen kann.
+ * Where the client keeps the matches of saved clips. The game keeps only the most recent matches
+ * (30 here on 2026-09-25, 940 MB in total) and deletes older ones; without a copy, the rounds of
+ * older clips would be lost before the analysis can use them.
  */
 export function replayArchive(env: NodeJS.ProcessEnv = process.env) {
   return env.LOCALAPPDATA
@@ -513,20 +512,20 @@ export function replayArchive(env: NodeJS.ProcessEnv = process.env) {
     : join(homedir(), '.cache', 'replayhaven', 'r6-replays');
 }
 
-/** Beginn eines Matches laut Ordnername ("Match-2026-07-12_20-41-13-36588"), in Ortszeit. */
+/** Start of a match from its folder name ("Match-2026-07-12_20-41-13-36588"), in local time. */
 export function matchStarted(name: string) {
   const m = /^Match-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/.exec(name);
   return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : undefined;
 }
 
-/** So lange nach der letzten Runde kann ein Clip noch gespeichert werden (Endbildschirm). */
+/** How long after the last round a clip can still be saved (end screen). */
 const AFTER_MATCH_MS = 10 * 60000;
 
 /**
- * Sichert das Match, in dem ein Clip gespeichert wurde: vom Start laut Ordnername bis kurz nach
- * der letzten geschriebenen Runde. Schon kopierte Runden bleiben, neue kommen dazu. Liefert den
- * Zielordner und ob das Match womöglich noch läuft (letzte Runde jünger als fünf Minuten); dann
- * lohnt ein späterer zweiter Aufruf.
+ * Backs up the match in which a clip was saved: from the start in the folder name until shortly
+ * after the last written round. Rounds already copied stay, new ones are added. Returns the target
+ * folder and whether the match may still be running (last round younger than five minutes); then
+ * a second call later is worthwhile.
  */
 export async function keepMatchForClip(
   savedAt: number,
@@ -534,8 +533,8 @@ export async function keepMatchForClip(
   archive = replayArchive(),
   now = Date.now(),
 ): Promise<{ target: string; running: boolean } | undefined> {
-  // Das jüngste Match, das vor dem Clip begann: Das vorige kann noch im Nachlauf liegen
-  // (Clip 20:45, Match von 20:25 endete 20:38, das nächste begann 20:41; Test vom 2026-09-25).
+  // The most recent match that began before the clip: the previous one may still be in its
+  // grace period (clip 20:45, match from 20:25 ended 20:38, the next began 20:41; test on 2026-09-25).
   let best: { match: MatchFolder; start: number; last: number } | undefined;
   for (const root of roots) {
     let matches: MatchFolder[];
@@ -559,7 +558,7 @@ export async function keepMatchForClip(
   for (const round of best.match.rounds) {
     const copy = join(target, basename(round));
     const [from, to] = await Promise.all([stat(round), stat(copy).catch(() => undefined)]);
-    // Eine Runde, die beim letzten Mal noch geschrieben wurde, wird ersetzt.
+    // A round that was still being written last time is replaced.
     if (!to || to.size !== from.size) await cp(round, copy, { force: true });
   }
   return { target, running: now - best.last < 5 * 60000 };

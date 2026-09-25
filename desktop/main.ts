@@ -42,36 +42,38 @@ const configSchema = z.object({
   server: z.string().url().max(500),
   token: z.string().max(1000).default(''),
   game: z.string().max(100),
-  // Ohne eigenen Namen kann die KI Kills und Punktestände der falschen Seite zuordnen. Je Spiel
-  // ein eigener Name; ein Eintrag ohne Spiel gilt überall (agent/players.ts).
+  // Without your own name the AI may attribute kills and scores to the wrong side. One name per
+  // game; an entry without a game applies everywhere (agent/players.ts).
   playerNames: playerNamesSchema.default([]),
   includeExisting: z.boolean(),
   analyze: z.boolean(),
-  /** 0: ganzer Clip, ein Bild alle FRAME_SPACING Sekunden. */
+  /** 0: whole clip, one frame every FRAME_SPACING seconds. */
   frames: z.union([z.literal(24), z.literal(48), z.literal(0)]),
-  // Kills, Waffe und Entfernung aus den Fortnite-Replays (agent/fortnite.ts). Aus, bis gemessen.
+  // Kills, weapon and distance from the Fortnite replays (agent/fortnite.ts). Off until measured.
   fortniteReplays: z.boolean().default(false),
-  // Eigene Epic-Konto-IDs; leer: Der Client erkennt das Konto aus den Replays selbst.
+  // Your own Epic account IDs; empty: the client detects the account from the replays itself.
   epicAccounts: z.array(z.string()).max(10).default([]),
-  // Karte und Rundenausgang in R6 per Texterkennung (agent/r6.ts), etwa eine Minute CPU je Clip;
-  // in Valorant der Killfeed (agent/valorant.ts), sofern ein eigener Name eingetragen ist.
+  // Map and round result in R6 via text recognition (agent/r6.ts), about a minute of CPU per clip;
+  // in Valorant the killfeed (agent/valorant.ts), provided a player name is entered.
   r6Texts: z.boolean().default(false),
-  // Voice-Chat mitschreiben (agent/parakeet.ts): Parakeet auf der CPU, Modelle einmalig ~670 MB.
+  // Transcribe voice chat (agent/parakeet.ts): Parakeet on the CPU, models ~670 MB once.
   speech: z.boolean().default(false),
-  // Solange ein Spiel im Vollbild läuft, warten Analyse und Upload (agent/gaming.ts).
+  // While a game runs full screen, analysis and upload wait (agent/gaming.ts).
   pauseWhileGaming: z.boolean().default(true),
-  // Das R6-Match zu jedem R6-Clip sichern (agent/r6-replays.ts), rund 30 MB je Match.
+  // Keep the R6 match for every R6 clip (agent/r6-replays.ts), about 30 MB per match.
   keepR6Replays: z.boolean().default(true),
-  // Einrichtung abgeschlossen: danach zeigt das Fenster die Übersicht statt des Assistenten.
+  // Setup completed: afterwards the window shows the overview instead of the wizard.
   onboarded: z.boolean().default(false),
-  // Beim Öffnen des Clients gleich weiterarbeiten, statt auf „Starten“ zu warten.
+  // Resume work right away when the client opens instead of waiting for "Start".
   autoStart: z.boolean().default(true),
-  // Mit Windows starten, im Infobereich.
+  // Start with Windows, in the notification area.
   openAtLogin: z.boolean().default(false),
-  // Windows-Mitteilung, wenn ein Clip archiviert ist (nie während eines Spiels).
+  // Windows notification when a clip is archived (never during a game).
   notify: z.boolean().default(true),
-  // Feste Kennung dieses PCs für die Kopplung mit dem Server.
+  // Fixed ID of this PC for pairing with the server.
   deviceId: z.string().uuid().optional(),
+  // Language of the client window (desktop/renderer/i18n.js). Main-process messages stay English.
+  language: z.enum(['en', 'de']).default('en'),
 });
 type ClientConfig = z.infer<typeof configSchema>;
 let config: ClientConfig = {
@@ -93,9 +95,10 @@ let config: ClientConfig = {
   autoStart: true,
   openAtLogin: false,
   notify: true,
+  language: 'en',
 };
-// Ein eigenes Profil (Einstellungen, Warteschlange, Einzelinstanz) für Tests neben einem
-// laufenden Client; der Vorschau-Modus zeigt Beispieldaten und startet nichts.
+// A separate profile (settings, queue, single instance) for tests next to a running client;
+// preview mode shows sample data and starts nothing.
 if (process.env.REPLAYHAVEN_PROFILE)
   app.setPath('userData', resolve(process.env.REPLAYHAVEN_PROFILE));
 const PREVIEW = process.env.REPLAYHAVEN_PREVIEW || '';
@@ -107,19 +110,19 @@ let loop: ReturnType<typeof setInterval> | undefined;
 let working = false;
 let starting = false;
 let paused = true;
-/** Das Spiel im Vordergrund, solange eins läuft; leer sonst. */
+/** The game in the foreground while one is running; empty otherwise. */
 let gaming = '';
 let watch: GameWatch | undefined;
-/** Ob Warteschlange und KI gerade warten: von Hand pausiert oder beim Spielen. */
+/** Whether queue and AI are waiting right now: paused by hand or while gaming. */
 const waiting = () => paused || !!gaming;
 let aborter = new AbortController();
 let downloadAbort: AbortController | undefined;
-/** Zuletzt im Dialog gewählter Ordner, auch wenn er noch nicht gespeichert ist. */
+/** Folder last chosen in the dialog, even if it is not saved yet. */
 let pickedFolder = '';
 let status = {
   running: false,
   paused: true,
-  message: 'Wähle deinen Aufnahmeordner und verbinde deinen Archiv-Server.',
+  message: 'Choose your recordings folder and connect your archive server.',
   queued: 0,
   uploaded: 0,
   ollama: false,
@@ -131,14 +134,14 @@ let status = {
   recent: [] as ArchivedClip[],
   pairing: null as Pairing | null,
 };
-/** Stand einer Kopplung: Der PC wartet, bis jemand in der Web-Oberfläche freigibt. */
+/** State of a pairing: the PC waits until someone approves it in the web interface. */
 type Pairing = {
   state: 'waiting' | 'approved' | 'denied' | 'expired' | 'error';
   server: string;
   code: string;
   message: string;
 };
-/** Die Aufnahme in Arbeit mit Schritt, Fortschritt und Vorschaubild für das Fenster. */
+/** The recording in progress with step, progress and thumbnail for the window. */
 type Activity = ActiveClip & {
   step: 'prepare' | 'view' | 'summary' | 'upload';
   current: number;
@@ -156,7 +159,7 @@ function emit(patch: Partial<typeof status> = {}) {
   window?.webContents.send('vault:status', status);
   updateShell();
 }
-/** Taskleisten-Fortschritt, Tray-Hinweis und Tray-Menü folgen dem Status. */
+/** Taskbar progress, tray tooltip and tray menu follow the status. */
 let trayState = '';
 function updateShell() {
   if (!window || window.isDestroyed()) return;
@@ -172,36 +175,36 @@ function updateShell() {
           : 0.97;
   window.setProgressBar(fraction, { mode: waiting() && status.running ? 'paused' : 'normal' });
   if (!tray) return;
-  const state = !status.running ? 'aus' : gaming ? 'spiel' : paused ? 'pause' : 'läuft';
+  const state = !status.running ? 'off' : gaming ? 'gaming' : paused ? 'paused' : 'running';
   tray.setToolTip(
     `ReplayHaven · ${
-      state === 'aus'
-        ? 'nicht gestartet'
-        : state === 'spiel'
-          ? `wartet, ${gaming} läuft`
-          : state === 'pause'
-            ? 'pausiert'
+      state === 'off'
+        ? 'not started'
+        : state === 'gaming'
+          ? `waiting, ${gaming} is running`
+          : state === 'paused'
+            ? 'paused'
             : a
-              ? `analysiert ${a.name}`
-              : 'bereit'
-    }${status.queue.length ? ` · ${status.queue.length} in der Warteschlange` : ''}`,
+              ? `analyzing ${a.name}`
+              : 'ready'
+    }${status.queue.length ? ` · ${status.queue.length} in the queue` : ''}`,
   );
   if (state === trayState) return;
   trayState = state;
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'ReplayHaven öffnen', click: () => showWindow() },
-      state === 'läuft' || state === 'spiel'
-        ? { label: 'Pausieren', click: pause }
+      { label: 'Open ReplayHaven', click: () => showWindow() },
+      state === 'running' || state === 'gaming'
+        ? { label: 'Pause', click: pause }
         : {
-            label: status.running ? 'Fortsetzen' : 'Starten',
+            label: status.running ? 'Resume' : 'Start',
             enabled: config.onboarded,
             click: () => void start().catch((e: Error) => emit({ message: e.message })),
           },
-      { label: 'Archiv im Browser öffnen', click: () => void openArchive() },
+      { label: 'Open archive in browser', click: () => void openArchive() },
       { type: 'separator' },
       {
-        label: 'Beenden',
+        label: 'Quit',
         click: () => {
           quitting = true;
           app.quit();
@@ -217,7 +220,7 @@ function showWindow() {
 function openArchive(path = '') {
   return shell.openExternal(`${validateServer(config.server)}${path}`);
 }
-/** Ein kleines Standbild aus dem Clip, als data-URL für das Fenster; leer, wenn es scheitert. */
+/** A small still image from the clip, as a data URL for the window; empty if that fails. */
 function thumbnail(path: string, seconds = 3): Promise<string> {
   return new Promise((done) =>
     execFile(
@@ -244,14 +247,14 @@ function thumbnail(path: string, seconds = 3): Promise<string> {
       { encoding: 'buffer', maxBuffer: 5e6, windowsHide: true, timeout: 15000 },
       (error, out) => {
         if (!error && out.length) return done(`data:image/jpeg;base64,${out.toString('base64')}`);
-        // Kürzere Clips haben bei drei Sekunden kein Bild mehr.
+        // Shorter clips have no frame left at three seconds.
         if (seconds > 0) return void thumbnail(path, 0).then(done);
         done('');
       },
     ),
   );
 }
-/** Übernimmt Warteschlange und aktuelle Aufnahme vom Watcher. */
+/** Takes over the queue and the current recording from the watcher. */
 function showQueue(queue: QueueEntry[], active: ActiveClip | undefined) {
   const previous = status.active;
   const next: Activity | null = active
@@ -270,16 +273,19 @@ function showQueue(queue: QueueEntry[], active: ActiveClip | undefined) {
         emit({ active: { ...status.active, thumbnail: image } });
     });
 }
-/** Liest aus den Meldungen der Analyse, wie weit sie ist. */
+/**
+ * Reads from the analysis messages (agent/ollama.ts) how far it is. The messages used to be
+ * German and are English now; both wordings are recognized.
+ */
 function showProgress(message: string) {
   const a = status.active;
   if (!a) return emit({ message });
-  const view = /Abschnitt (\d+) von (\d+)/.exec(message);
+  const view = /(?:Abschnitt|section|part|batch) (\d+) (?:von|of) (\d+)/i.exec(message);
   const step = view
     ? 'view'
-    : /zusammengefasst|überarbeitet/.test(message)
+    : /zusammengefasst|überarbeitet|summari[sz]|writing (?:the )?title|revising/i.test(message)
       ? 'summary'
-      : /vorbereitet/.test(message)
+      : /vorbereitet|preparing|prepared/i.test(message)
         ? 'prepare'
         : a.step;
   emit({
@@ -303,7 +309,7 @@ function validateServer(value: string) {
     url.search ||
     url.hash
   )
-    throw new Error('Verwende eine Serveradresse ohne eingebettete Zugangsdaten.');
+    throw new Error('Use a server address without embedded credentials.');
   return value.replace(/\/$/, '');
 }
 async function saveConfig(value: unknown) {
@@ -315,24 +321,33 @@ async function saveConfig(value: unknown) {
   );
   if (input.epicAccounts.some((a) => !/^[0-9a-f]{32}$/.test(a)))
     throw new Error(
-      'Eine Epic-Konto-ID hat 32 Zeichen aus 0–9 und a–f. Du findest sie auf epicgames.com in deinen Kontoeinstellungen.',
+      'An Epic account ID has 32 characters from 0–9 and a–f. You can find it on epicgames.com in your account settings.',
     );
-  if (working)
-    throw new Error('Pausiere den Client und warte, bis der laufende Schritt beendet ist.');
-  if (status.running && !paused)
-    throw new Error('Pausiere den Client, bevor du Einstellungen änderst.');
   if (input.token === '') input.token = config.token;
+  // Switching only the language is allowed at any time, even while the client is running.
+  const keys = Object.keys(configSchema.shape) as (keyof ClientConfig)[];
+  if (
+    keys.every(
+      (key) => key === 'language' || JSON.stringify(input[key]) === JSON.stringify(config[key]),
+    )
+  ) {
+    config = { ...config, language: input.language };
+    await persist();
+    return publicConfig();
+  }
+  if (working) throw new Error('Pause the client and wait until the current step has finished.');
+  if (status.running && !paused) throw new Error('Pause the client before changing settings.');
   if (input.token && !safeStorage.isEncryptionAvailable())
-    throw new Error('Windows kann den Zugangsschlüssel gerade nicht verschlüsselt speichern.');
+    throw new Error('Windows cannot store the access key encrypted right now.');
   config = input;
   if (app.isPackaged && !PREVIEW)
     app.setLoginItemSettings({ openAtLogin: config.openAtLogin, args: ['--hidden'] });
   if (PREVIEW) {
-    emit({ message: 'Vorschau: Einstellungen übernommen, nicht gespeichert.' });
+    emit({ message: 'Preview: settings applied, not saved.' });
     return publicConfig();
   }
   await persist();
-  emit({ message: 'Einstellungen gespeichert. Bereit zum Starten.' });
+  emit({ message: 'Settings saved. Ready to start.' });
   return publicConfig();
 }
 async function persist() {
@@ -347,12 +362,12 @@ async function persist() {
   );
 }
 /**
- * Koppelt diesen PC mit einem Server: Er fragt an, zeigt den Code und wartet, bis jemand in
- * der Web-Oberfläche freigibt; dann speichert er seinen eigenen Zugang (server/auth-routes.ts).
+ * Pairs this PC with a server: it sends a request, shows the code and waits until someone
+ * approves it in the web interface; then it stores its own access (server/auth-routes.ts).
  */
 let pairingAbort: AbortController | undefined;
 async function startPairing(address: string) {
-  // Ohne Schema: Rechnernamen, IPs und Adressen mit Port meist per http, Domains per https.
+  // Without a scheme: host names, IPs and addresses with a port usually via http, domains via https.
   const local = /^(?:localhost|\d+\.\d+\.\d+\.\d+|[^./:]+(?::\d+)?$|[^/]+:\d+)/.test(address);
   const server = validateServer(
     address.includes('://')
@@ -360,7 +375,7 @@ async function startPairing(address: string) {
       : `${local && !address.endsWith(':443') ? 'http' : 'https'}://${address}`,
   );
   if (working || (status.running && !paused))
-    throw new Error('Pausiere den Client, bevor du ihn neu koppelst.');
+    throw new Error('Pause the client before pairing it again.');
   pairingAbort?.abort();
   const abort = new AbortController();
   pairingAbort = abort;
@@ -377,11 +392,11 @@ async function startPairing(address: string) {
       signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10000)]),
     });
   } catch {
-    throw new Error('Keine Antwort. Prüfe die Adresse und ob der Server läuft.');
+    throw new Error('No response. Check the address and whether the server is running.');
   }
   if (response.status === 404)
     throw new Error(
-      'Dieser Server kennt die Kopplung noch nicht. Aktualisiere ihn oder verbinde mit dem Zugangsschlüssel.',
+      'This server does not support pairing yet. Update it or connect with the access key.',
     );
   const body = (await response.json().catch(() => ({}))) as {
     id?: string;
@@ -390,10 +405,10 @@ async function startPairing(address: string) {
     error?: string;
   };
   if (!response.ok || !body.id || !body.secret || !body.code)
-    throw new Error(body.error || `Der Server antwortet mit HTTP ${response.status}.`);
+    throw new Error(body.error || `The server responds with HTTP ${response.status}.`);
   const show = (state: Pairing['state'], message: string) =>
     emit({ pairing: { state, server, code: body.code!, message } });
-  show('waiting', 'Wartet auf Freigabe in der Web-Oberfläche …');
+  show('waiting', 'Waiting for approval in the web interface …');
   void (async () => {
     const until = Date.now() + 10 * 60000;
     while (!abort.signal.aborted && Date.now() < until) {
@@ -410,31 +425,30 @@ async function startPairing(address: string) {
         if (result.status === 'approved' && result.token) {
           config = { ...config, server, token: result.token };
           await persist();
-          return show('approved', `Gekoppelt mit ${new URL(server).host}.`);
+          return show('approved', `Paired with ${new URL(server).host}.`);
         }
-        if (result.status === 'denied') return show('denied', 'Die Kopplung wurde abgelehnt.');
+        if (result.status === 'denied') return show('denied', 'The pairing was denied.');
         if (result.status === 'expired')
-          return show('expired', 'Die Anfrage ist abgelaufen. Starte die Kopplung neu.');
+          return show('expired', 'The request has expired. Start pairing again.');
       } catch {
-        // Kurz nicht erreichbar: weiter fragen, bis die Anfrage abläuft.
+        // Briefly unreachable: keep asking until the request expires.
       }
     }
-    if (!abort.signal.aborted)
-      show('expired', 'Die Anfrage ist abgelaufen. Starte die Kopplung neu.');
+    if (!abort.signal.aborted) show('expired', 'The request has expired. Start pairing again.');
   })();
   return { code: body.code, server };
 }
-/** Mitgelieferte Dateien neben dem App-Archiv: FFmpeg, ONNX Runtime, Texterkennungsmodelle. */
+/** Bundled files next to the app archive: FFmpeg, ONNX Runtime, text recognition models. */
 function resource(name: string) {
   return app.isPackaged ? join(process.resourcesPath, name) : resolve('desktop-bundle', name);
 }
 const ocrModels = () => ({
   det: join(resource('ocr'), 'ch_PP-OCRv4_det_infer.onnx'),
-  // Lesen mit PP-OCRv5 lateinisch (agent/ocr-models.json), vom Build geladen und geprüft.
+  // Reading with PP-OCRv5 Latin (agent/ocr-models.json), downloaded and verified by the build.
   rec: join(resource('ocr'), LATIN_REC.file!),
   keys: join(resource('ocr'), LATIN_KEYS.file!),
 });
-/** Die Texterkennung läuft in einem eigenen Thread und bleibt über Starts hinweg geladen. */
+/** Text recognition runs in its own thread and stays loaded across starts. */
 let texts: WorkerTexts | undefined;
 function textsWorker() {
   const binaries = resource('binaries');
@@ -449,7 +463,7 @@ function textsWorker() {
   });
   return texts;
 }
-/** Beendet den Worker der Texterkennung, ohne ihn mitten in einem Bild abzubrechen. */
+/** Ends the text recognition worker without interrupting it in the middle of a frame. */
 let textsClosing: Promise<void> | undefined;
 function closeTexts() {
   const closing = texts;
@@ -463,18 +477,18 @@ function closeTexts() {
   return textsClosing;
 }
 /**
- * Lädt die Texterkennung einmal zur Probe: vor dem Start mit R6-Option und im Rauchtest des
- * fertigen Clients. Gibt nichts zurück, wenn sie bereit ist, sonst einen Hinweis zum Beheben.
+ * Loads text recognition once as a trial: before starting with the R6 option and in the smoke
+ * test of the built client. Returns nothing when it is ready, otherwise a hint on how to fix it.
  */
 async function textsProblem() {
   const error = await textsWorker().problem();
   if (!error) return undefined;
-  const message = error.message.trim() || 'unbekannt';
+  const message = error.message.trim() || 'unknown';
   return missingLibrary(error)
-    ? `Die R6-Texterkennung braucht die „Microsoft Visual C++ Redistributable“ (x64) in einer aktuellen Fassung. Installiere sie von Microsoft oder schalte die Option aus. (${message})`
-    : `Die R6-Texterkennung lässt sich nicht laden: ${message}`;
+    ? `R6 text recognition needs a current version of the "Microsoft Visual C++ Redistributable" (x64). Install it from Microsoft or turn the option off. (${message})`
+    : `R6 text recognition cannot be loaded: ${message}`;
 }
-/** Die Spracherkennung läuft in einem eigenen Prozess und behält ihre Modelle über Starts. */
+/** Speech recognition runs in its own process and keeps its models across starts. */
 let speech: SpeechProcess | undefined;
 function speechProcess() {
   const binaries = resource('binaries');
@@ -500,7 +514,7 @@ function media() {
     ffprobe: join(binaries, 'ffprobe.exe'),
   });
 }
-/** R6-Clips, deren Match beim Sichern womöglich noch lief; sie werden später vervollständigt. */
+/** R6 clips whose match may still have been running when saved; they are completed later. */
 const runningMatches = new Set<number>();
 let lastMatchSync = 0;
 async function keepR6Match(savedAt: number) {
@@ -509,9 +523,9 @@ async function keepR6Match(savedAt: number) {
     if (kept?.running) runningMatches.add(savedAt);
     else runningMatches.delete(savedAt);
   } catch (error) {
-    // Das Sichern ist eine Zugabe; der Clip ist hochgeladen.
+    // Keeping the match is a bonus; the clip is uploaded.
     runningMatches.delete(savedAt);
-    console.error('R6-Match nicht gesichert:', error instanceof Error ? error.message : error);
+    console.error('R6 match not kept:', error instanceof Error ? error.message : error);
   }
 }
 let lastScan = 0;
@@ -521,8 +535,8 @@ async function tick() {
     for (const savedAt of runningMatches) await keepR6Match(savedAt);
   }
   if (working || !agent) return;
-  // Beim Spielen oder in der Pause genügt ein Blick alle 30 Sekunden: Neue Clips kommen in die
-  // Warteschlange, ohne im Spiel Platte und Leitung alle 3 Sekunden zu beschäftigen.
+  // While gaming or paused, a look every 30 seconds is enough: new clips enter the queue
+  // without keeping disk and connection busy every 3 seconds during the game.
   if (waiting() && Date.now() - lastScan < 30_000) return;
   lastScan = Date.now();
   working = true;
@@ -535,7 +549,7 @@ async function tick() {
       message:
         error instanceof Error
           ? error.message
-          : 'Server oder Ordner nicht erreichbar. Nächster Versuch folgt automatisch.',
+          : 'Server or folder not reachable. The next attempt follows automatically.',
     });
   } finally {
     working = false;
@@ -544,10 +558,10 @@ async function tick() {
 async function start() {
   if (PREVIEW) {
     paused = false;
-    return emit({ running: true, message: 'Vorschau: läuft.' });
+    return emit({ running: true, message: 'Preview: running.' });
   }
-  // Die Prüfungen vor dem Start dauern; ein zweiter Klick startete sonst eine zweite Verarbeitung.
-  if (starting) throw new Error('Der Start läuft bereits.');
+  // The checks before starting take a while; a second click would otherwise start a second run.
+  if (starting) throw new Error('Already starting.');
   starting = true;
   try {
     await launch();
@@ -556,36 +570,36 @@ async function start() {
   }
 }
 async function launch() {
-  if (!config.folder) throw new Error('Wähle zuerst deinen NVIDIA-Aufnahmeordner.');
-  if (working) throw new Error('Der laufende Schritt wird noch beendet.');
+  if (!config.folder) throw new Error('Choose your NVIDIA recording folder first.');
+  if (working) throw new Error('The current step is still finishing.');
   const response = await fetch(`${config.server}/api/status`, {
     headers: config.token ? { Authorization: `Bearer ${config.token}` } : {},
     signal: AbortSignal.timeout(10000),
   });
-  if (!response.ok) throw new Error('Server nicht erreichbar oder Zugangsschlüssel falsch.');
+  if (!response.ok) throw new Error('Server not reachable or access key wrong.');
   if (config.analyze) {
     const ai = await checkOllama();
-    if (!ai.installed) throw new Error('Installiere zuerst Ollama und lade das lokale Modell.');
-    // Sonst liefe die Option still ins Leere: Jeder Clip käme ohne Karte zurück.
+    if (!ai.installed) throw new Error('Install Ollama and download the local model first.');
+    // Otherwise the option would silently do nothing: every clip would come back without a map.
     const problem = config.r6Texts ? await textsProblem() : undefined;
     if (problem) throw new Error(problem);
-    // Beim ersten Mal lädt das die Sprachmodelle; ohne sie liefe die Option still ins Leere.
+    // The first time, this downloads the speech models; without them the option would do nothing.
     if (config.speech)
       await speechProcess()
         .prepare((file) =>
           emit({
-            message: `Sprachmodell wird geladen (${file}, zusammen rund ${Math.round(SPEECH_BYTES / 1e6)} MB) …`,
+            message: `Downloading speech model (${file}, about ${Math.round(SPEECH_BYTES / 1e6)} MB in total) …`,
           }),
         )
         .catch((error: unknown) => {
           throw new Error(
-            `Die Spracherkennung lässt sich nicht laden: ${error instanceof Error ? error.message : String(error)}`,
+            `Speech recognition cannot be loaded: ${error instanceof Error ? error.message : String(error)}`,
           );
         });
   }
   aborter = new AbortController();
   paused = false;
-  // Der Vordergrund wird immer beobachtet: Er nennt auch das Spiel von Clips aus "Desktop".
+  // The foreground is always watched: it also names the game of clips from "Desktop".
   watchGames();
   const processor = media();
   const replays =
@@ -593,7 +607,7 @@ async function launch() {
       ? new FortniteReplays({ folder: defaultDemosFolder(), accounts: config.epicAccounts })
       : undefined;
   const reading = config.analyze && config.r6Texts ? textsWorker() : undefined;
-  // Ohne die Option gibt der Worker seine Modelle frei.
+  // Without the option the worker frees its models.
   if (!reading) void closeTexts();
   const listening = config.analyze && config.speech ? speechProcess() : undefined;
   if (!listening) closeSpeech();
@@ -654,7 +668,7 @@ async function launch() {
       emit({ recent: agent?.recent ?? [] });
       if (clip && config.notify && !gaming && Notification.isSupported()) {
         const note = new Notification({
-          title: 'Clip archiviert',
+          title: 'Clip archived',
           body: `${clip.title ?? clip.name} · ${clip.game}`,
           icon: join(__dirname, 'icon.png'),
           silent: true,
@@ -670,7 +684,7 @@ async function launch() {
   loop = setInterval(() => void tick(), 3000);
   emit({
     running: true,
-    message: 'Bereit. Neue Aufnahmen werden nach 10 Sekunden ohne Änderungen verarbeitet.',
+    message: 'Ready. New recordings are processed after 10 seconds without changes.',
   });
   void tick();
 }
@@ -681,8 +695,8 @@ function watchGames() {
     emit({
       gaming,
       message: game
-        ? `Spiel läuft (${gaming}). Analyse und Upload warten, bis du eine Minute nicht mehr spielst.`
-        : 'Kein Spiel mehr im Vordergrund. Die Warteschlange läuft weiter.',
+        ? `Game running (${gaming}). Analysis and upload wait until you have stopped playing for a minute.`
+        : 'No game in the foreground anymore. The queue continues.',
     });
     if (!game) void tick();
   });
@@ -695,12 +709,11 @@ function stopWatchingGames() {
 }
 function pause() {
   paused = true;
-  if (PREVIEW) return emit({ message: 'Vorschau: pausiert.' });
+  if (PREVIEW) return emit({ message: 'Preview: paused.' });
   stopWatchingGames();
   aborter.abort();
   emit({
-    message:
-      'Pausiert. Neue Clips bleiben in der Warteschlange; laufende KI-Anfragen werden abgebrochen.',
+    message: 'Paused. New clips stay in the queue; running AI requests are cancelled.',
   });
 }
 async function createWindow() {
@@ -736,8 +749,8 @@ async function createWindow() {
   tray.on('double-click', () => showWindow());
 }
 /**
- * Beispieldaten für Oberflächentests (REPLAYHAVEN_PREVIEW=1, "wizard" für den Assistenten).
- * Startet weder Watcher noch KI, fasst keinen Ordner und keinen Server an.
+ * Sample data for UI tests (REPLAYHAVEN_PREVIEW=1, "wizard" for the setup wizard).
+ * Starts neither watcher nor AI and touches no folder and no server.
  */
 function startPreview() {
   const now = Date.now();
@@ -747,7 +760,7 @@ function startPreview() {
     minutes: number,
     extra: Partial<QueueEntry> = {},
   ): QueueEntry => ({
-    path: `C:/Vorschau/${game}/${name}`,
+    path: `C:/Preview/${game}/${name}`,
     name,
     game,
     size: 180e6 + minutes * 3e6,
@@ -756,7 +769,7 @@ function startPreview() {
     ...extra,
   });
   if (PREVIEW === 'wizard') config.onboarded = false;
-  else config = { ...config, onboarded: true, folder: 'C:/Vorschau', token: 'vorschau' };
+  else config = { ...config, onboarded: true, folder: 'C:/Preview', token: 'preview' };
   const queue = [
     clip(
       "Tom Clancy's Rainbow Six Siege 2026.09.25 - 21.14.02.03.DVR.mp4",
@@ -766,7 +779,7 @@ function startPreview() {
     clip('Valorant 2026.09.25 - 21.20.44.01.DVR.mp4', 'Valorant', 6),
     clip('Fortnite 2026.09.25 - 21.31.09.02.DVR.mp4', 'Fortnite', 2, {
       state: 'deferred',
-      note: 'Das Match läuft noch; das Replay kommt danach.',
+      note: 'The match is still running; the replay comes afterwards.',
     }),
     clip('Desktop 2026.09.25 - 21.33.50.01.DVR.mp4', 'Desktop', 1, { state: 'settling' }),
   ];
@@ -774,36 +787,36 @@ function startPreview() {
     {
       name: 'a.mp4',
       game: "Tom Clancy's Rainbow Six Siege",
-      title: 'Dreifach-Kill auf Oregon',
+      title: 'Triple kill on Oregon',
       tags: ['Kill', 'Multikill', 'Headshot'],
-      clipId: 'vorschau-1',
+      clipId: 'preview-1',
       at: now - 4 * 60000,
       seconds: 71,
     },
     {
       name: 'b.mp4',
       game: 'Valorant',
-      title: 'Zwei Kopfschüsse, dann getötet',
-      tags: ['Kill', 'Multikill', 'Headshot', 'Tod'],
-      clipId: 'vorschau-2',
+      title: 'Two headshots, then killed',
+      tags: ['Kill', 'Multikill', 'Headshot', 'Death'],
+      clipId: 'preview-2',
       at: now - 19 * 60000,
       seconds: 80,
     },
     {
       name: 'c.mp4',
       game: 'Fortnite',
-      title: 'Wer ist Obi-Wan Kenobi?',
+      title: 'Who is Obi-Wan Kenobi?',
       tags: [],
-      clipId: 'vorschau-3',
+      clipId: 'preview-3',
       at: now - 3600_000,
       seconds: 96,
     },
     {
       name: 'd.mp4',
       game: 'Chained Together',
-      title: 'Entschuldigung für den Falschschuss',
+      title: 'Sorry for the friendly fire',
       tags: [],
-      clipId: 'vorschau-4',
+      clipId: 'preview-4',
       at: now - 26 * 3600_000,
       seconds: 74,
     },
@@ -817,7 +830,7 @@ function startPreview() {
     queued: queue.length + 1,
     queue,
     recent,
-    message: 'Lokale KI sichtet Abschnitt 7 von 11 …',
+    message: 'Local AI is reviewing section 7 of 11 …',
     active: {
       ...clip(
         "Tom Clancy's Rainbow Six Siege 2026.09.25 - 21.02.17.02.DVR.mp4",
@@ -858,19 +871,19 @@ else {
       }
       const handle = (name: string, fn: (value: unknown) => unknown) =>
         ipcMain.handle(name, async (event, value) => {
-          if (event.sender !== window.webContents) throw new Error('Ungültiger Aufrufer.');
+          if (event.sender !== window.webContents) throw new Error('Invalid caller.');
           try {
             return { ok: true, value: await fn(value) };
           } catch (error) {
             return {
               ok: false,
-              error: error instanceof Error ? error.message : 'Aktion fehlgeschlagen.',
+              error: error instanceof Error ? error.message : 'Action failed.',
             };
           }
         });
-      // Der Rauchtest prüft, ob ONNX Runtime und die Modelle im fertigen Client laden.
+      // The smoke test checks whether ONNX Runtime and the models load in the built client.
       const texts = process.env.REPLAYHAVEN_SMOKE
-        ? textsProblem().then((problem) => problem ?? 'bereit')
+        ? textsProblem().then((problem) => problem ?? 'ready')
         : undefined;
       handle('vault:load', async () => ({
         config: publicConfig(),
@@ -881,13 +894,13 @@ else {
       handle('vault:folder', async () => {
         const result = await dialog.showOpenDialog(window, {
           properties: ['openDirectory'],
-          title: 'NVIDIA-Aufnahmeordner auswählen',
+          title: 'Choose NVIDIA recordings folder',
         });
         if (result.canceled) return null;
         pickedFolder = result.filePaths[0];
         return pickedFolder;
       });
-      // Nur Ordner, die der Nutzer selbst gewählt hat — keine Pfade aus dem Fenster.
+      // Only folders the user chose personally — no paths from the window.
       handle('vault:games', async () => {
         const folder = pickedFolder || config.folder;
         return folder ? await recordedGames(folder).catch(() => []) : [];
@@ -900,14 +913,14 @@ else {
           ollama: true,
           model: result.installed,
           message: result.installed
-            ? 'Lokales KI-Modell ist bereit.'
-            : 'Ollama läuft. Lade jetzt das Modell.',
+            ? 'Local AI model is ready.'
+            : 'Ollama is running. Now download the model.',
         });
         return result;
       });
       handle('vault:download', async () => {
-        if (status.downloading) throw new Error('Der Modell-Download läuft bereits.');
-        if (working) throw new Error('Pausiere zuerst die Verarbeitung.');
+        if (status.downloading) throw new Error('The model download is already running.');
+        if (working) throw new Error('Pause processing first.');
         downloadAbort = new AbortController();
         emit({ downloading: true });
         try {
@@ -915,7 +928,7 @@ else {
           emit({
             model: true,
             ollama: true,
-            message: 'Lokales Modell installiert. Du kannst jetzt starten.',
+            message: 'Local model installed. You can start now.',
           });
         } finally {
           emit({ downloading: false });
@@ -927,15 +940,14 @@ else {
       );
       handle('vault:archive', () => openArchive());
       handle('vault:open-clip', (id) => {
-        if (typeof id !== 'string' || !/^[\w-]{1,80}$/.test(id))
-          throw new Error('Ungültiger Clip.');
+        if (typeof id !== 'string' || !/^[\w-]{1,80}$/.test(id)) throw new Error('Invalid clip.');
         return openArchive(`/clips/${id}`);
       });
-      // Nur Aufnahmen, die der Client selbst anzeigt — keine beliebigen Pfade aus dem Fenster.
+      // Only recordings the client shows itself — no arbitrary paths from the window.
       handle('vault:reveal', (path) => {
         const known = [...status.queue.map((e) => e.path), status.active?.path];
         if (typeof path !== 'string' || !known.includes(path))
-          throw new Error('Unbekannte Aufnahme.');
+          throw new Error('Unknown recording.');
         shell.showItemInFolder(path);
       });
       handle('vault:test-server', async (value) => {
@@ -950,11 +962,11 @@ else {
             signal: AbortSignal.timeout(8000),
           });
         } catch {
-          throw new Error('Keine Antwort. Prüfe Adresse und Port und ob der Server läuft.');
+          throw new Error('No response. Check address and port and whether the server is running.');
         }
         if (response.status === 401 || response.status === 403)
-          throw new Error('Der Server antwortet, lehnt den Zugangsschlüssel aber ab.');
-        if (!response.ok) throw new Error(`Der Server antwortet mit HTTP ${response.status}.`);
+          throw new Error('The server responds but rejects the access key.');
+        if (!response.ok) throw new Error(`The server responds with HTTP ${response.status}.`);
         const clips = await fetch(`${url}/api/clips`, {
           headers,
           signal: AbortSignal.timeout(8000),
@@ -982,14 +994,14 @@ else {
       });
       handle('vault:pair-start', (value) => {
         if (typeof value !== 'string' || !value.trim())
-          throw new Error('Gib die Serveradresse ein.');
+          throw new Error('Enter the server address.');
         return startPairing(value.trim());
       });
       handle('vault:pair-cancel', () => {
         pairingAbort?.abort();
         emit({ pairing: null });
       });
-      // Öffnet die Geräteseite des Servers, auf dem die Freigabe wartet.
+      // Opens the devices page of the server where the approval is waiting.
       handle('vault:open-devices', () => {
         const server = status.pairing?.server ?? config.server;
         return shell.openExternal(`${validateServer(server)}/devices`);
@@ -998,13 +1010,13 @@ else {
         if (app.isPackaged)
           app.setLoginItemSettings({ openAtLogin: value === true, args: ['--hidden'] });
       });
-      // Die Vorschau setzt ihre Daten, bevor das Fenster sie abfragt.
+      // The preview sets its data before the window asks for it.
       if (PREVIEW) startPreview();
       await createWindow();
       if (PREVIEW) emit();
       else if (config.onboarded && config.autoStart)
         void start().catch((error: Error) =>
-          emit({ message: `Automatischer Start nicht möglich: ${error.message}` }),
+          emit({ message: `Automatic start not possible: ${error.message}` }),
         );
     })
     .catch((error) => {
@@ -1018,8 +1030,8 @@ else {
     aborter.abort();
     downloadAbort?.abort();
     if (loop) clearInterval(loop);
-    // Mitten in einem Bild beendet, risse ONNX Runtime den ganzen Prozess mit: erst den Worker
-    // anhalten lassen, dann beenden.
+    // Ended in the middle of a frame, ONNX Runtime would take the whole process down: let the
+    // worker stop first, then quit.
     closeSpeech();
     const closing = closeTexts();
     if (closing) {

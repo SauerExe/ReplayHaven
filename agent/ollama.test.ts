@@ -8,7 +8,7 @@ import { mkdtemp, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 afterEach(() => vi.unstubAllGlobals());
-// Bilder liegen verschraenkt in eigenen Nachrichten, je Bild eine mit seinem Zeitpunkt.
+// Frames are interleaved in their own messages, one per frame with its timestamp.
 const imagesOf = (body: { messages: { images?: string[] }[] }) =>
   body.messages.flatMap((m) => m.images ?? []);
 it('restricts analysis to local Ollama', () => {
@@ -41,8 +41,8 @@ it('sends sequential small image batches followed by a text summary, validates r
       uncertainty: 'Bildstichprobe',
       highlights: [{ seconds: 15, title: 'Stelle', description: '' }],
     };
-    // Die Sichtung der Bildpakete antwortet nach dem Bildschema, erst die Zusammenfassung
-    // nach dem Analyseschema. Die Attrappe unterscheidet beides am mitgesendeten Format.
+    // The frame batch review answers with the frame schema, only the summary with the
+    // analysis schema. The fake tells them apart by the format sent along.
     const batch = (count: number) => ({
       frames: Array.from({ length: count }, (_, frame) => ({
         frame,
@@ -78,18 +78,18 @@ it('sends sequential small image batches followed by a text summary, validates r
       isPaused: () => false,
     });
     const output = await analyzer.analyze('test-only.mp4', 'Spiel');
-    // Zwei Sichtungspakete zu vier Bildern, dann die Zusammenfassung mit genau einem
-    // Belegbild in voller Auflösung, zuletzt das Entladen des Modells.
+    // Two review batches of four frames, then the summary with exactly one evidence
+    // frame at full resolution, finally unloading the model.
     expect(requests.map((r) => imagesOf(r).length)).toEqual([4, 4, 1, 0]);
     expect(requests.map((r) => r.keep_alive)).toEqual([60, 60, 60, 0]);
-    // Tags wählt das Modell nicht mehr; ohne gelesene Meldung gibt es keine.
+    // The model no longer picks tags; without a message that was read there are none.
     expect(requests[2].format.properties).not.toHaveProperty('tags');
     expect(output.result.tags).toEqual([]);
     expect(output.result.game).toBe('Spiel');
     expect(output.result.confidence).toBe('medium');
     expect(await readdir(root)).toHaveLength(0);
     const paused = new LocalAnalyzer({ ...analyzer.options, isPaused: () => true });
-    await expect(paused.chat('test')).rejects.toThrow('pausiert');
+    await expect(paused.chat('test')).rejects.toThrow('paused');
   } finally {
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
       await rm(root, { recursive: true, force: true });
@@ -108,8 +108,8 @@ it('never focuses a loading screen and names the player only when known', async 
       hasAudio: true,
       audio: [],
     });
-    // Erste vier Bilder Ladebildschirm, danach Spielgeschehen — wie bei einem echten
-    // NVIDIA-Automatikclip (.docs/README.md, Testmaterial FN-15).
+    // First four frames are a loading screen, then gameplay, as in a real
+    // NVIDIA automatic clip (.docs/README.md, test material FN-15).
     vi.spyOn(media, 'frames').mockResolvedValue(
       Array.from({ length: 8 }, (_, i) => ({ seconds: i * 2, base64: `bild-${i}` })),
     );
@@ -152,8 +152,8 @@ it('never focuses a loading screen and names the player only when known', async 
       isPaused: () => false,
     };
     await new LocalAnalyzer(options).analyze('test-only.mp4', 'Fortnite');
-    // Das Ladebild bei Sekunde 0 darf den Beleg nicht stellen, obwohl es im Schlussfenster
-    // eines 15-Sekunden-Clips liegen könnte.
+    // The loading screen at second 0 must not provide the evidence, even though it could lie
+    // in the final window of a 15-second clip.
     expect(focusSeconds[0]).toBeGreaterThanOrEqual(8);
     expect(prompts.at(-1)).toContain('Spielername ist unbekannt');
     expect(prompts.at(-1)).toContain('Bildschirm des Nutzers');
@@ -226,7 +226,7 @@ it('names only the player names that belong to the clip game', async () => {
       ],
     });
     await analyzer.analyze('Fortnite/clip.mp4', 'Fortnite');
-    // Mit genau einem Namen bleibt der Satz wie bisher.
+    // With exactly one name the sentence stays as before.
     expect(prompts.at(-1)).toContain('Er spielt als "SpielerEins"');
     expect(prompts.at(-1)).not.toContain('SpielerZwei');
     expect(traces.at(-1)?.playerNames).toEqual(['SpielerEins']);
@@ -239,7 +239,7 @@ it('names only the player names that belong to the clip game', async () => {
     expect(prompts.at(-1)).toContain('Spielername ist unbekannt');
     expect(traces.at(-1)?.playerNames).toEqual([]);
 
-    // Der frühere Einzelname gilt weiter, in jedem Spiel.
+    // The former single name still applies, in every game.
     await new LocalAnalyzer({ ...analyzer.options, playerName: 'SpielerVier' }).analyze(
       'Valorant/clip.mp4',
       'VALORANT',
@@ -253,7 +253,7 @@ it('names only the player names that belong to the clip game', async () => {
 
 it.each([
   ['Gegner in der Halle ausgeschaltet', 'Gegner in der Halle ausgeschaltet'],
-  // Besteht auch die zweite Fassung nicht, trägt das belegte Ereignis den Titel.
+  // If the second version fails too, the proven event carries the title.
   ['Tod am Ende', 'Gegner ausgeschaltet'],
 ])(
   'survives misnumbered batches, tags what the screen proves, and corrects a contradicting title (%s)',
@@ -285,7 +285,7 @@ it.each([
           const images = imagesOf(body);
           if (body.format?.properties?.frames) {
             const offset = Number(images[0].split('-')[1]);
-            // Wie im Vorher-Lauf beobachtet: das Modell zählt über Pakete hinweg weiter.
+            // As observed in the before run: the model keeps counting across batches.
             return Response.json({
               message: {
                 content: JSON.stringify({
@@ -342,8 +342,8 @@ it.each([
 );
 
 it('retries a batch with the wrong number of frames and keeps what it can', async () => {
-  // Im Nachher-Lauf vom 2026-09-23 kam dieser Fehler als ZodError, der in zod 4 kein
-  // instanceof Error ist — die Wiederholung griff deshalb nie (.docs/05-experimente.md, E17).
+  // In the after run of 2026-09-23 this error arrived as a ZodError, which in zod 4 is not
+  // an instanceof Error, so the retry never kicked in (.docs/05-experimente.md, E17).
   const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
   try {
     const media = new MediaProcessor({});
@@ -370,7 +370,7 @@ it('retries a batch with the wrong number of frames and keeps what it can', asyn
         const images = imagesOf(body);
         const offset = Number(images[0].split('-')[1]);
         batchCalls.push(offset);
-        // Das erste Paket kommt zweimal mit einem Bild zu wenig zurück.
+        // The first batch comes back twice with one frame missing.
         const listed = offset === 0 ? images.slice(0, 3) : images;
         return Response.json({
           message: {
@@ -511,7 +511,7 @@ it.each(['pause', 'abort', 'invalid-json', 'http-error', 'summary-error', 'unloa
             return Response.json({ message: { content: '', thinking: 'Not JSON' } });
           if (failure === 'unload-error' || (failure === 'summary-error' && inferenceCalls === 3))
             throw originalError;
-          // Sichtungsaufrufe tragen das Bildschema, die Zusammenfassung das Analyseschema.
+          // Review calls carry the frame schema, the summary carries the analysis schema.
           const classifying = !!request.format?.properties?.frames;
           return Response.json({
             message: {
@@ -546,8 +546,8 @@ it.each(['pause', 'abort', 'invalid-json', 'http-error', 'summary-error', 'unloa
       else if (failure === 'invalid-json')
         await expect(analysis).rejects.toBeInstanceOf(SyntaxError);
       else await expect(analysis).rejects.toBe(originalError);
-      // Unlesbare Antworten werden einmal wiederholt. Gehen danach mehr als ein Viertel der
-      // Bilder verloren, bricht die Analyse ab, statt ein Ergebnis aus Lücken zu liefern.
+      // Unreadable answers are retried once. If more than a quarter of the frames are then
+      // lost, the analysis stops instead of returning a result made of gaps.
       expect(inferenceCalls).toBe(
         failure === 'summary-error' ? 3 : failure === 'invalid-json' ? 2 : 1,
       );
@@ -608,7 +608,7 @@ it('takes kills from the replay, asks for the detail and waits while the match r
         const images = imagesOf(body);
         if (body.format?.properties?.frames) {
           const offset = Number(images[0].split('-')[1]);
-          // Die Meldung eines beobachteten Mitspielers: Das Replay weiß es besser.
+          // A spectated teammate's message: the replay knows better.
           return Response.json({
             message: {
               content: JSON.stringify({
@@ -667,7 +667,7 @@ it('takes kills from the replay, asks for the detail and waits while the match r
       'Du hast zwei Gegner kurz nacheinander mit der Schrotflinte ausgeschaltet',
     );
     expect(summaries[0].messages[0].content).toContain('Spielereignis aus dem Fortnite-Replay');
-    // "Kill im Turm" lässt die Serie weg und bekommt eine Rückfrage.
+    // "Kill im Turm" leaves out the streak and gets a follow-up question.
     expect(summaries[1].messages.at(-1)?.content).toContain('lässt das Besondere am Ereignis weg');
     expect(output.result).toMatchObject({
       title: 'Doppel-Kill im Turm',
@@ -681,7 +681,7 @@ it('takes kills from the replay, asks for the detail and waits while the match r
     expect(trace?.events.filter((e) => e.source === 'screen')).toEqual([]);
     expect(trace?.replay).toMatchObject({ status: 'ok', file: 'UnsavedReplay-3.replay' });
 
-    // Läuft das Match noch, wartet der Clip, ohne Bilder oder Modell zu bemühen.
+    // While the match is still running, the clip waits without touching frames or the model.
     lookup = { status: 'wait', events: [], trace: { status: 'wait' } };
     frames.mockClear();
     const calls = vi.mocked(fetch).mock.calls.length;
@@ -691,14 +691,14 @@ it('takes kills from the replay, asks for the detail and waits while the match r
     expect(frames).not.toHaveBeenCalled();
     expect(vi.mocked(fetch).mock.calls.length).toBe(calls);
 
-    // Ein unlesbares Replay kostet nur die Replay-Ereignisse.
-    replays.mockRejectedValueOnce(new Error('Datei gesperrt'));
+    // An unreadable replay only costs the replay events.
+    replays.mockRejectedValueOnce(new Error('File locked'));
     frames.mockClear();
     await analyzer.analyze('Fortnite 2026.09.24 - 21.10.00.07.DVR.mp4', 'Fortnite');
     expect(frames).toHaveBeenCalled();
     expect(trace?.replay).toEqual({
       status: 'none',
-      reason: 'Replay nicht lesbar: Datei gesperrt',
+      reason: 'Replay not readable: File locked',
     });
   } finally {
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
@@ -885,7 +885,7 @@ it('stops the text recognition when the analysis fails', async () => {
     hasAudio: true,
     audio: [],
   });
-  vi.spyOn(media, 'frames').mockRejectedValue(new Error('Keine Bilder'));
+  vi.spyOn(media, 'frames').mockRejectedValue(new Error('No frames'));
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => Response.json({ done: true })),
@@ -908,7 +908,7 @@ it('stops the text recognition when the analysis fails', async () => {
       isPaused: () => false,
       texts,
     }).analyze('R6/clip.mp4', 'R6'),
-  ).rejects.toThrow('Keine Bilder');
+  ).rejects.toThrow('No frames');
   expect(stopped?.aborted).toBe(true);
 });
 

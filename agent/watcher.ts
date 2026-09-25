@@ -10,23 +10,23 @@ export interface ClientAnalysis {
   duration: number;
   model: string;
 }
-/** Eine Aufnahme, die noch nicht im Archiv ist, so wie das Client-Fenster sie zeigt. */
+/** A recording not yet in the archive, as the client window shows it. */
 export interface QueueEntry {
   path: string;
   name: string;
   game: string;
   size: number;
   savedAt: number;
-  /** settling: wird noch geschrieben; retry: neuer Versuch nach einem Fehler; deferred: wartet bewusst. */
+  /** settling: still being written; retry: new attempt after an error; deferred: waits on purpose. */
   state: 'waiting' | 'settling' | 'retry' | 'deferred';
   note?: string;
 }
-/** Die Aufnahme, an der gerade gearbeitet wird. */
+/** The recording currently being worked on. */
 export interface ActiveClip extends Omit<QueueEntry, 'state' | 'note'> {
   stage: 'analyzing' | 'uploading';
   since: number;
 }
-/** Eine zuletzt archivierte Aufnahme mit dem Titel, den die KI ihr gab. */
+/** A recently archived recording with the title the AI gave it. */
 export interface ArchivedClip {
   name: string;
   game: string;
@@ -34,7 +34,7 @@ export interface ArchivedClip {
   tags?: string[];
   clipId: string;
   at: number;
-  /** Bearbeitungsdauer von Analyse und Upload. */
+  /** Time spent on analysis and upload. */
   seconds: number;
 }
 export interface WatchOptions {
@@ -50,22 +50,22 @@ export interface WatchOptions {
   isPaused?: () => boolean;
   onStatus?: (message: string) => void;
   onQueued?: (count: number) => void;
-  /** Bei jeder Änderung an Warteschlange oder aktueller Aufnahme. */
+  /** On every change to the queue or the current recording. */
   onQueue?: (queue: QueueEntry[], active: ActiveClip | undefined) => void;
   /**
-   * Das Spiel eines Clips, den die NVIDIA App ohne Spiel ablegte ("Desktop", "Base Profile"),
-   * etwa aus dem Fenster, das beim Speichern vorne war (agent/gaming.ts). Leer: Ordnername.
+   * The game of a clip the NVIDIA App filed without one ("Desktop", "Base Profile"), for example
+   * from the window in front when it was saved (agent/gaming.ts). Empty: folder name.
    */
   gameFor?: (path: string, savedAt: number) => string | undefined;
-  /** Nach jedem bestätigten Upload, etwa um das R6-Match zum Clip zu sichern. */
+  /** After every confirmed upload, for example to keep the R6 match for the clip. */
   onUploaded?: (path: string, game: string, savedAt: number) => void;
   signal?: AbortSignal;
 }
-/** Ordner, unter denen die NVIDIA App Aufnahmen ohne erkanntes Spiel ablegt. */
+/** Folders where the NVIDIA App files recordings without a detected game. */
 const NO_GAME_FOLDERS = /^(?:desktop|base profile)$/i;
 /**
- * Die Aufnahme soll später verarbeitet werden, ohne dass etwas schiefging — etwa, weil ihr
- * Fortnite-Match noch läuft und das Replay erst danach feststeht.
+ * The recording should be processed later without anything having gone wrong — for example
+ * because its Fortnite match is still running and the replay is only final afterwards.
  */
 export class DeferredError extends Error {}
 type Receipt = { fingerprint: string; clipId?: string };
@@ -73,7 +73,7 @@ type AgentState = {
   id: string;
   receipts: Record<string, Receipt>;
   uploaded: number;
-  /** Die jüngsten Uploads, neueste zuerst, höchstens 30. */
+  /** The latest uploads, newest first, at most 30. */
   recent?: ArchivedClip[];
 };
 export async function listVideos(folder: string): Promise<string[]> {
@@ -87,24 +87,23 @@ export async function listVideos(folder: string): Promise<string[]> {
   return output;
 }
 /**
- * Spielname für die Bibliothek: eigene Angabe, sonst der Ordnername. Die Schätzung der KI ist
- * bewusst keine Quelle mehr. Im Durchlauf über die echte Sammlung am 2026-09-22 war sie in
- * jedem einzelnen Fall falsch und lieferte "Sieg", "Kettenverbunden", "Multiplayer", "Steam",
- * "Runde 3/5 Abstimmungsergebnisse" und sogar das Tag "Kein Ereignis" als Spielnamen.
- * Aufnahmen aus NVIDIAs Auffangprofilen heißen dadurch "Desktop" — unschön, aber ehrlich und
- * im Archiv mit einem Klick zu ändern.
+ * Game name for the library: the configured name, otherwise the folder name. The AI's guess is
+ * deliberately no longer a source. In the run over the real collection on 2026-09-22 it was
+ * wrong in every single case and returned "Sieg", "Kettenverbunden", "Multiplayer", "Steam",
+ * "Runde 3/5 Abstimmungsergebnisse" and even the tag "Kein Ereignis" as game names.
+ * Recordings from NVIDIA's catch-all profiles are therefore called "Desktop" — not pretty, but
+ * honest and changed with one click in the archive.
  *
- * Mehrfache Leerzeichen werden zusammengezogen: NVIDIA legt Ordner wie
- * "Call of Duty  Black Ops 7" an, die sonst als eigenes Spiel neben der einfachen Schreibweise
- * stehen.
+ * Repeated spaces are collapsed: NVIDIA creates folders like "Call of Duty  Black Ops 7",
+ * which would otherwise show up as a separate game next to the normal spelling.
  */
 export function gameLabel(configured: string, path: string) {
   const name = configured.trim() || basename(dirname(path));
   return name.replace(/\s+/g, ' ').trim();
 }
 /**
- * Die Spiele der vorhandenen Aufnahmen, so benannt, wie die Analyse sie sieht: nach dem Ordner
- * des Clips. Der Client schlägt sie für die Spielernamen vor, damit Eintrag und Ordner passen.
+ * The games of existing recordings, named the way the analysis sees them: after the clip's
+ * folder. The client suggests them for player names so the entry matches the folder.
  */
 export async function recordedGames(folder: string): Promise<string[]> {
   const games = new Set((await listVideos(folder)).map((path) => gameLabel('', path)));
@@ -114,7 +113,7 @@ export class FolderUploader {
   state: AgentState = { id: randomUUID(), receipts: {}, uploaded: 0 };
   private observed = new Map<string, { fingerprint: string; since: number }>();
   private retryAt = new Map<string, number>();
-  /** Dauerhaft abgelehnte Aufnahmen samt Grund — je Fingerabdruck, damit ein Ersatz erneut zählt. */
+  /** Permanently rejected recordings with reason — per fingerprint, so a replacement counts again. */
   readonly rejected = new Map<string, { fingerprint: string; reason: string }>();
   error = '';
   queue: QueueEntry[] = [];
@@ -150,16 +149,14 @@ export class FolderUploader {
   }
   async initialize() {
     const folderStat = await stat(this.options.folder);
-    if (!folderStat.isDirectory()) throw new Error('Aufnahmeordner nicht gefunden.');
+    if (!folderStat.isDirectory()) throw new Error('Recording folder not found.');
     let existing = false;
     try {
       this.state = JSON.parse(await readFile(this.options.statePath, 'utf8'));
       existing = true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
-        throw new Error(
-          'Der Agent-Zustand ist beschädigt. Bewahre die Datei auf und verwende einen neuen Zustandspfad.',
-        );
+        throw new Error('The agent state is corrupted. Keep the file and use a new state path.');
     }
     if (!existing && !this.options.includeExisting) {
       for (const path of await listVideos(this.options.folder)) {
@@ -182,7 +179,7 @@ export class FolderUploader {
   }
   async scan(now = Date.now()) {
     const files = await listVideos(this.options.folder);
-    // Erst alle offenen Aufnahmen, dann die Arbeit: So zeigt das Fenster die ganze Schlange.
+    // Collect all pending recordings first, then work: this way the window shows the whole queue.
     const pending: { path: string; before: Stats }[] = [];
     for (const path of files) {
       const before = await stat(path);
@@ -197,8 +194,8 @@ export class FolderUploader {
     this.options.onQueued?.(queued);
     for (const { path, before } of pending) {
       const fingerprint = `${before.size}:${before.mtimeMs}`;
-      // Auch in der Pause (etwa beim Spielen) wird beobachtet, ob die Datei fertig geschrieben ist:
-      // Danach geht es ohne weitere Wartezeit los.
+      // Even while paused (for example while gaming) we watch whether the file is fully written,
+      // so work starts right away afterwards.
       const observed = this.observed.get(path);
       if (!observed || observed.fingerprint !== fingerprint) {
         this.observed.set(path, { fingerprint, since: now });
@@ -209,19 +206,19 @@ export class FolderUploader {
         continue;
       const started = Date.now();
       try {
-        // Größe, Länge und Lesbarkeit sind Eigenschaften der Datei, keine vorübergehende
-        // Störung. Sie hier gesondert zu behandeln verhindert eine Dauerschleife im
-        // Minutentakt, deren Meldung jeden echten Fehler überschreibt.
+        // Size, length and readability are properties of the file, not a temporary glitch.
+        // Handling them separately here prevents an endless once-a-minute loop whose message
+        // overwrites every real error.
         try {
-          if (before.size > 2 * 1024 ** 3) throw new Error('Eine Aufnahme ist größer als 2 GB.');
+          if (before.size > 2 * 1024 ** 3) throw new Error('The recording is larger than 2 GB.');
           await this.options.probe?.(path);
         } catch (error) {
-          const reason = error instanceof Error ? error.message : 'Aufnahme nicht verwertbar.';
+          const reason = error instanceof Error ? error.message : 'Recording not usable.';
           this.rejected.set(path, { fingerprint, reason });
           this.observed.delete(path);
           this.queue = this.queue.filter((e) => e.path !== path);
           queued--;
-          this.options.onStatus?.(`Übersprungen: ${basename(path)} — ${reason}`);
+          this.options.onStatus?.(`Skipped: ${basename(path)} — ${reason}`);
           continue;
         }
         const folder = this.options.game || basename(dirname(path));
@@ -259,7 +256,7 @@ export class FolderUploader {
         if (this.options.isPaused?.() || this.options.signal?.aborted) continue;
         const checked = await stat(path);
         if (`${checked.size}:${checked.mtimeMs}` !== fingerprint)
-          throw new Error('Die Datei wurde verändert und wird erneut geprüft.');
+          throw new Error('The file changed and will be checked again.');
         this.options.onStatus?.(`Upload: ${basename(path)}`);
         this.active = { ...this.active, stage: 'uploading' };
         this.emitQueue();
@@ -284,7 +281,7 @@ export class FolderUploader {
             ...(this.options.signal ? [this.options.signal] : []),
           ]),
         });
-        if (!response.ok) throw new Error(`Upload fehlgeschlagen (HTTP ${response.status}).`);
+        if (!response.ok) throw new Error(`Upload failed (HTTP ${response.status}).`);
         const result = (await response.json()) as { clip: { id: string } };
         if (analysis) {
           const saved = await fetch(
@@ -297,16 +294,12 @@ export class FolderUploader {
             },
           );
           if (!saved.ok)
-            throw new Error(
-              'Video gespeichert, KI-Ergebnis noch nicht bestätigt. Übertragung wird erneut versucht.',
-            );
+            throw new Error('Video saved, AI result not confirmed yet. Retrying the transfer.');
           await rmCache(cachePath);
         }
         const after = await stat(path);
         if (`${after.size}:${after.mtimeMs}` !== fingerprint)
-          throw new Error(
-            'Die Aufnahme wurde während des Uploads verändert. Sie wird erneut geprüft.',
-          );
+          throw new Error('The recording changed during the upload. It will be checked again.');
         this.state.receipts[path] = { fingerprint, clipId: result.clip.id };
         this.state.uploaded++;
         this.state.recent = [
@@ -327,14 +320,14 @@ export class FolderUploader {
         this.observed.delete(path);
         this.retryAt.delete(path);
         this.error = '';
-        console.log(`Archiviert: ${basename(path)}`);
+        console.log(`Archived: ${basename(path)}`);
         queued--;
         this.options.onQueued?.(queued);
-        this.options.onStatus?.(`Archiviert: ${basename(path)}`);
+        this.options.onStatus?.(`Archived: ${basename(path)}`);
         this.options.onUploaded?.(path, game, before.mtimeMs);
       } catch (error) {
         const deferred = error instanceof DeferredError;
-        const message = error instanceof Error ? error.message : 'Upload nicht möglich.';
+        const message = error instanceof Error ? error.message : 'Upload not possible.';
         const state = deferred ? ('deferred' as const) : ('retry' as const);
         this.retryAt.set(path, now + 60000);
         this.notes.set(path, { state, note: message });
@@ -369,7 +362,7 @@ export class FolderUploader {
       }),
       signal: AbortSignal.timeout(10000),
     }).then((r) => {
-      if (!r.ok) throw new Error('Server-Verbindung fehlgeschlagen.');
+      if (!r.ok) throw new Error('Server connection failed.');
     });
   }
 }

@@ -9,7 +9,7 @@ import type { GameMetadataStatus } from '../src/domain/models';
 const HOUR = 3600000;
 const DAY = 24 * HOUR;
 
-/** Netzfehler und fehlende Cover früher erneut versuchen als einen eindeutigen Nichttreffer. */
+/** Retry network errors and missing covers sooner than a definite miss. */
 export function needsLookup(existing: StoredGame | undefined, now = Date.now()) {
   if (!existing) return true;
   const age = now - Date.parse(existing.checkedAt);
@@ -24,7 +24,7 @@ export function needsLookup(existing: StoredGame | undefined, now = Date.now()) 
 
 export class GameLibrary {
   private running = new Set<string>();
-  /** Anfragen laufen nacheinander: der Dienst ist fremd und soll nicht geflutet werden. */
+  /** Requests run one after another: the service is third-party and must not be flooded. */
   private queue: Promise<void> = Promise.resolve();
   private readonly abort = new AbortController();
   private stopped = false;
@@ -32,7 +32,7 @@ export class GameLibrary {
     private readonly db: VaultDatabase,
     private readonly coverDir: string,
     private readonly enabled: boolean,
-    /** Zweite Quelle für Spiele ohne Steam-Eintrag; fehlt, solange IGDB nicht eingerichtet ist. */
+    /** Second source for games without a Steam entry; absent until IGDB is set up. */
     private readonly igdb?: Igdb,
   ) {}
 
@@ -60,7 +60,7 @@ export class GameLibrary {
     };
   }
 
-  /** Liefert true, wenn ein neuer Auftrag hinzugefügt wurde; wartet nicht auf das Netz. */
+  /** Returns true when a new job was queued; does not wait for the network. */
   schedule(label: string, force = false) {
     if (!this.enabled || this.stopped) return false;
     const key = gameKey(label);
@@ -72,16 +72,16 @@ export class GameLibrary {
         if (!this.stopped) return this.resolve(key, label);
       })
       .catch(() => {
-        // Auch ein Speicherfehler darf spätere Aufträge nicht blockieren.
-        console.warn('Spielinfos konnten nicht gespeichert werden.');
+        // Even a storage error must not block later jobs.
+        console.warn('Could not save game info.');
       })
       .finally(() => this.running.delete(key));
     return true;
   }
 
   /**
-   * Holt Spielinfos für alles nach, was schon im Archiv liegt. Ohne diesen Schritt bekämen nur
-   * künftige Aufnahmen ein Cover, und ein gewachsenes Archiv bliebe für immer leer.
+   * Fetches game info for everything already in the archive. Without this step only future
+   * recordings would get a cover, and an existing archive would stay empty forever.
    */
   backfill(labels = this.labels(), force = false) {
     let queued = 0;
@@ -123,7 +123,7 @@ export class GameLibrary {
         entry.status = cover ? 'ready' : 'error';
       }
     } catch {
-      // Bereits gespeicherte Infos bleiben auch bei einem vorübergehenden Fehler verfügbar.
+      // Info already stored stays available even after a temporary error.
       entry.status = 'error';
     }
     if (!this.stopped) {
@@ -132,7 +132,7 @@ export class GameLibrary {
     }
   }
 
-  /** Cover lokal und atomar speichern; Querformat als Rückfall fürs fehlende Poster. */
+  /** Store the cover locally and atomically; landscape image as fallback for a missing poster. */
   private async cache(key: string, urls: string[]) {
     const file = `${createHash('sha256').update(key).digest('hex')}.jpg`;
     const temporary = join(this.coverDir, `${file}.tmp`);
@@ -160,7 +160,7 @@ export class GameLibrary {
             const { done, value } = await reader.read();
             if (done) break;
             size += value.length;
-            if (size > limit) throw new Error('Cover zu groß.');
+            if (size > limit) throw new Error('Cover too large.');
             chunks.push(value);
           }
         } finally {
@@ -175,7 +175,7 @@ export class GameLibrary {
         await rename(temporary, join(this.coverDir, file));
         return file;
       } catch {
-        // Der nächste Bildpfad kann verfügbar sein, auch wenn das Bibliothekscover fehlt.
+        // The next image URL may be available even if the library cover is missing.
       } finally {
         await rm(temporary, { force: true }).catch(() => {});
       }

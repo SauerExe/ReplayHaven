@@ -1,4 +1,4 @@
-/* Gemeinsame Grundlage der README-Grafiken; gerendert von scripts/readme-images.mjs. */
+/* Shared base for the README graphics; rendered by scripts/readme-images.mjs. */
 @font-face {
   font-family: 'RH Archivo';
   src: url('/src/streaming/fonts/archivo-latin-wdth-normal.woff2') format('woff2');

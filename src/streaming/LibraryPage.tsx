@@ -18,6 +18,8 @@ import {
   X,
 } from 'lucide-react';
 import { useActions } from '../components/Actions';
+import { useIsAdmin } from '../components/AuthGate';
+import { t } from '../i18n';
 import { useVault } from '../data/store';
 import { ClipMenu } from './ClipMenu';
 import { ClipLayers, useClipLayers, useMinuteClock, useStreamLibrary } from './connected';
@@ -60,7 +62,7 @@ function FilterSelect({
   );
 }
 
-/** Spielinfos wie in „Deine Spiele“, dazu Genre, Erscheinungsdatum und Beschreibung von Steam. */
+/** Game info as in "Your games", plus genre, release date and description from Steam. */
 function GameSpotlight({
   summary,
   onPlay,
@@ -74,7 +76,7 @@ function GameSpotlight({
   const { game } = summary;
   const facts = [
     game.genre,
-    game.released && `Erschienen ${game.released}`,
+    game.released && t('library.spotlight.released', { date: game.released }),
     countLabel(summary.count),
     formatTotal(summary.duration),
   ].filter(Boolean);
@@ -88,10 +90,10 @@ function GameSpotlight({
         src={summary.cover}
         className="stream-spotlight-cover"
         sizes="(max-width: 600px) 96px, 168px"
-        alt={`Cover von ${game.name}`}
+        alt={t('library.spotlight.cover', { game: game.name })}
       />
       <div className="stream-spotlight-body">
-        <p className="stream-eyebrow">Spiel</p>
+        <p className="stream-eyebrow">{t('library.spotlight.eyebrow')}</p>
         <h2 id={titleId} className="stream-spotlight-title">
           {game.name}
         </h2>
@@ -115,7 +117,7 @@ function GameSpotlight({
             onClick={onPlay}
           >
             <Play size={20} fill="currentColor" strokeWidth={0} aria-hidden="true" />
-            Neuesten Clip abspielen
+            {t('library.spotlight.play')}
           </button>
           {game.source && (
             <a
@@ -124,13 +126,13 @@ function GameSpotlight({
               target="_blank"
               rel="noreferrer"
             >
-              {steam ? 'Auf Steam ansehen' : 'Spielseite öffnen'}
+              {steam ? t('library.spotlight.steam') : t('library.spotlight.source')}
               <ArrowUpRight size={18} strokeWidth={2.4} aria-hidden="true" />
             </a>
           )}
           <button type="button" className="stream-text-button" onClick={onClear}>
             <X size={16} strokeWidth={2.4} aria-hidden="true" />
-            Alle Spiele zeigen
+            {t('library.spotlight.clear')}
           </button>
         </div>
       </div>
@@ -142,6 +144,8 @@ export default function StreamingLibraryPage() {
   const { state, patchClip } = useVault();
   const action = useActions();
   const navigate = useNavigate();
+  // Plain accounts only watch: upload, favorites, tags, renaming and deleting are hidden.
+  const admin = useIsAdmin();
   const [params, setParams] = useSearchParams();
   const now = useMinuteClock();
   const library = useStreamLibrary();
@@ -188,7 +192,7 @@ export default function StreamingLibraryPage() {
     if (clip) void patchClip(id, { favorite: !clip.favorite });
   }
 
-  // Im gewählten Spiel stünde überall derselbe Name; dann zählen Datum und Tags.
+  // Within one game every tile would show the same name; show date and tags instead.
   const metaFor = (clip: (typeof clips)[number]) =>
     filters.game
       ? [formatWhen(clip.recordedAt, now), ...clip.tags.slice(0, 2)].filter(Boolean).join(' · ')
@@ -198,11 +202,12 @@ export default function StreamingLibraryPage() {
     <div className="stream stream-page stream-library">
       <header className="stream-page-head">
         <div className="stream-page-intro">
-          <p className="stream-eyebrow">Dein persönliches Archiv</p>
+          <p className="stream-eyebrow">{t('library.eyebrow')}</p>
           <h1 className="stream-page-title">
-            Bibliothek<span className="stream-count">{state.clips.length}</span>
+            {t('library.title')}
+            <span className="stream-count">{state.clips.length}</span>
           </h1>
-          <p className="stream-page-lead">Jeder Clip ein Moment, der bleibt.</p>
+          <p className="stream-page-lead">{t('library.lead')}</p>
         </div>
         <div className="stream-page-actions">
           <button
@@ -219,21 +224,23 @@ export default function StreamingLibraryPage() {
             ) : (
               <Check size={17} strokeWidth={2.4} aria-hidden="true" />
             )}
-            <span>{selecting ? 'Beenden' : 'Auswählen'}</span>
+            <span>{selecting ? t('library.select.stop') : t('library.select.start')}</span>
           </button>
-          <button
-            type="button"
-            className="stream-action stream-action--primary"
-            onClick={() => action({ kind: 'upload' })}
-          >
-            <Upload size={17} strokeWidth={2.4} aria-hidden="true" />
-            <span>Clip hochladen</span>
-          </button>
+          {admin && (
+            <button
+              type="button"
+              className="stream-action stream-action--primary"
+              onClick={() => action({ kind: 'upload' })}
+            >
+              <Upload size={17} strokeWidth={2.4} aria-hidden="true" />
+              <span>{t('library.upload')}</span>
+            </button>
+          )}
         </div>
       </header>
 
       {shelf.length > 0 && (
-        <div className="stream-shelf" role="group" aria-label="Nach Spiel filtern">
+        <div className="stream-shelf" role="group" aria-label={t('library.shelf.label')}>
           <ul className="stream-shelf-track" ref={shelfPager.trackRef}>
             <li>
               <button
@@ -245,7 +252,7 @@ export default function StreamingLibraryPage() {
                 <span className="stream-shelf-media">
                   <LayoutGrid size={30} strokeWidth={1.8} aria-hidden="true" />
                 </span>
-                <span className="stream-shelf-name">Alle Spiele</span>
+                <span className="stream-shelf-name">{t('library.shelf.all')}</span>
                 <span className="stream-shelf-count">{countLabel(state.clips.length)}</span>
               </button>
             </li>
@@ -270,12 +277,12 @@ export default function StreamingLibraryPage() {
               </li>
             ))}
           </ul>
-          {/* Wie in den Reihen der Startseite: die Knöpfe sind per Tab erreichbar, die Pfeile Mauskomfort. */}
+          {/* As in the home rows: the buttons are reachable by Tab, the arrows are a mouse convenience. */}
           <button
             type="button"
             className="stream-row-arrow stream-row-arrow--prev stream-shelf-arrow"
             tabIndex={-1}
-            aria-label="Spiele: zurück"
+            aria-label={t('library.shelf.prev')}
             data-visible={shelfPager.edges.start}
             onClick={() => shelfPager.page(-1)}
           >
@@ -285,7 +292,7 @@ export default function StreamingLibraryPage() {
             type="button"
             className="stream-row-arrow stream-row-arrow--next stream-shelf-arrow"
             tabIndex={-1}
-            aria-label="Spiele: weiter"
+            aria-label={t('library.shelf.next')}
             data-visible={shelfPager.edges.end}
             onClick={() => shelfPager.page(1)}
           >
@@ -306,8 +313,8 @@ export default function StreamingLibraryPage() {
         <label className="stream-search-field">
           <Search size={19} strokeWidth={2.2} aria-hidden="true" />
           <input
-            aria-label="Bibliothek durchsuchen"
-            placeholder="Clips, Spiele oder Tags suchen …"
+            aria-label={t('library.search.label')}
+            placeholder={t('library.search.placeholder')}
             value={params.get('q') || ''}
             onChange={(event) => set('q', event.target.value)}
           />
@@ -315,7 +322,7 @@ export default function StreamingLibraryPage() {
             <button
               type="button"
               className="stream-search-clear"
-              aria-label="Suche löschen"
+              aria-label={t('library.search.clear')}
               onClick={() => set('q', '')}
             >
               <X size={16} strokeWidth={2.4} aria-hidden="true" />
@@ -329,7 +336,7 @@ export default function StreamingLibraryPage() {
           onClick={() => setFiltersOpen((open) => !open)}
         >
           <SlidersHorizontal size={17} strokeWidth={2.4} aria-hidden="true" />
-          Filter
+          {t('library.filters.toggle')}
           {extraFilters > 0 && <span className="stream-action-count">{extraFilters}</span>}
         </button>
         <div className="stream-filters" data-open={filtersOpen}>
@@ -345,40 +352,43 @@ export default function StreamingLibraryPage() {
               fill={filters.favorite ? 'currentColor' : 'none'}
               aria-hidden="true"
             />
-            Favoriten
+            {t('library.filters.favorites')}
           </button>
           <FilterSelect
-            label="Zeitraum filtern"
+            label={t('library.filters.period')}
             value={filters.period}
             onChange={(value) => set('period', value)}
             options={[
-              ['', 'Jederzeit'],
-              ['1', 'Letzte 24 Stunden'],
-              ['7', 'Letzte 7 Tage'],
-              ['30', 'Letzte 30 Tage'],
+              ['', t('library.filters.period.any')],
+              ['1', t('library.filters.period.day')],
+              ['7', t('library.filters.period.week')],
+              ['30', t('library.filters.period.month')],
             ]}
           />
           <FilterSelect
-            label="Tag filtern"
+            label={t('library.filters.tag')}
             value={filters.tag}
             onChange={(value) => set('tag', value)}
-            options={[['', 'Alle Tags'], ...tags.map((tag): [string, string] => [tag, tag])]}
+            options={[
+              ['', t('library.filters.tag.all')],
+              ...tags.map((tag): [string, string] => [tag, tag]),
+            ]}
           />
           <FilterSelect
-            label="Status filtern"
+            label={t('library.filters.status')}
             value={filters.status}
             onChange={(value) => set('status', value)}
             options={[
-              ['', 'Jeder Status'],
-              ['ready', 'Bereit'],
-              ['processing', 'Verarbeitung'],
-              ['error', 'Fehler'],
+              ['', t('library.filters.status.all')],
+              ['ready', t('library.filters.status.ready')],
+              ['processing', t('library.filters.status.processing')],
+              ['error', t('library.filters.status.error')],
             ]}
           />
           {active && (
             <button type="button" className="stream-text-button" onClick={reset}>
               <X size={16} strokeWidth={2.4} aria-hidden="true" />
-              Zurücksetzen
+              {t('library.filters.reset')}
             </button>
           )}
         </div>
@@ -386,19 +396,20 @@ export default function StreamingLibraryPage() {
 
       <div className="stream-results">
         <p className="stream-results-count" aria-live="polite">
-          {countLabel(clips.length)}
-          {active ? ' gefunden' : ''}
+          {active
+            ? t('library.results.found', { count: countLabel(clips.length) })
+            : countLabel(clips.length)}
         </p>
         <FilterSelect
-          label="Clips sortieren"
+          label={t('library.sort.label')}
           value={filters.sort || 'newest'}
           onChange={(value) => set('sort', value === 'newest' ? '' : value)}
           options={[
-            ['newest', 'Neueste zuerst'],
-            ['oldest', 'Älteste zuerst'],
-            ['title', 'Titel A–Z'],
-            ['duration', 'Längste zuerst'],
-            ['size', 'Größte zuerst'],
+            ['newest', t('library.sort.newest')],
+            ['oldest', t('library.sort.oldest')],
+            ['title', t('library.sort.title')],
+            ['duration', t('library.sort.duration')],
+            ['size', t('library.sort.size')],
           ]}
         />
       </div>
@@ -413,7 +424,7 @@ export default function StreamingLibraryPage() {
                 isNew={isNew(clip.recordedAt, now)}
                 onOpen={(id) => layers.open('clip', id)}
                 onPlay={(id) => layers.open('play', id)}
-                onToggleFavorite={toggleFavorite}
+                onToggleFavorite={admin ? toggleFavorite : undefined}
                 selecting={selecting}
                 selected={selectedIds.includes(clip.id)}
                 onSelect={(id) =>
@@ -426,13 +437,21 @@ export default function StreamingLibraryPage() {
                     clip={clip}
                     onPlay={(id) => layers.open('play', id)}
                     onAddToCollection={(id, opener) => action({ kind: 'add', ids: [id] }, opener)}
-                    onRename={(id, opener) => action({ kind: 'rename', id }, opener)}
-                    onEditTags={(id, opener) => action({ kind: 'tags', id }, opener)}
+                    onRename={
+                      admin ? (id, opener) => action({ kind: 'rename', id }, opener) : undefined
+                    }
+                    onEditTags={
+                      admin ? (id, opener) => action({ kind: 'tags', id }, opener) : undefined
+                    }
                     onShare={(id, opener) => action({ kind: 'share', id }, opener)}
                     download
                     pageHref={`/clips/${encodeURIComponent(clip.id)}`}
                     onNavigate={navigate}
-                    onDelete={(id, opener) => action({ kind: 'delete', ids: [id] }, opener)}
+                    onDelete={
+                      admin
+                        ? (id, opener) => action({ kind: 'delete', ids: [id] }, opener)
+                        : undefined
+                    }
                   />
                 }
               />
@@ -444,19 +463,17 @@ export default function StreamingLibraryPage() {
           <span className="stream-empty-icon">
             <Film size={34} strokeWidth={1.5} aria-hidden="true" />
           </span>
-          <h2>{active ? 'Keine Treffer' : 'Noch keine Clips'}</h2>
-          <p>
-            {active
-              ? 'Versuche einen anderen Suchbegriff oder setze die Filter zurück.'
-              : 'Lade deine erste Aufnahme in deinen Vault.'}
-          </p>
-          <button
-            type="button"
-            className="stream-button stream-button--secondary stream-button--compact"
-            onClick={() => (active ? reset() : action({ kind: 'upload' }))}
-          >
-            {active ? 'Filter zurücksetzen' : 'Clip hinzufügen'}
-          </button>
+          <h2>{active ? t('library.empty.noMatches') : t('library.empty.noClips')}</h2>
+          <p>{active ? t('library.empty.noMatchesText') : t('library.empty.noClipsText')}</p>
+          {(active || admin) && (
+            <button
+              type="button"
+              className="stream-button stream-button--secondary stream-button--compact"
+              onClick={() => (active ? reset() : action({ kind: 'upload' }))}
+            >
+              {active ? t('library.empty.resetFilters') : t('library.empty.addClip')}
+            </button>
+          )}
         </div>
       )}
 
@@ -469,42 +486,48 @@ export default function StreamingLibraryPage() {
               setSelected(selectedIds.length === clips.length ? [] : clips.map((c) => c.id))
             }
           >
-            {selectedIds.length === clips.length ? 'Alle abwählen' : 'Alle auswählen'}
+            {selectedIds.length === clips.length
+              ? t('library.bulk.deselectAll')
+              : t('library.bulk.selectAll')}
           </button>
           <span className="stream-bulk-count" aria-live="polite">
             {selectedIds.length}
-            <span className="stream-bulk-label"> ausgewählt</span>
+            <span className="stream-bulk-label"> {t('library.bulk.selected')}</span>
           </span>
+          {admin && (
+            <button
+              type="button"
+              className="stream-round"
+              disabled={!selectedIds.length}
+              aria-label={t('library.bulk.favorite')}
+              title={t('library.bulk.favorite')}
+              onClick={() => selectedIds.forEach((id) => void patchClip(id, { favorite: true }))}
+            >
+              <Heart size={19} strokeWidth={2.2} aria-hidden="true" />
+            </button>
+          )}
           <button
             type="button"
             className="stream-round"
             disabled={!selectedIds.length}
-            aria-label="Auswahl favorisieren"
-            title="Auswahl favorisieren"
-            onClick={() => selectedIds.forEach((id) => void patchClip(id, { favorite: true }))}
-          >
-            <Heart size={19} strokeWidth={2.2} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="stream-round"
-            disabled={!selectedIds.length}
-            aria-label="Auswahl zu Sammlung hinzufügen"
-            title="Auswahl zu Sammlung hinzufügen"
+            aria-label={t('library.bulk.addToCollection')}
+            title={t('library.bulk.addToCollection')}
             onClick={() => action({ kind: 'add', ids: selectedIds })}
           >
             <FolderPlus size={19} strokeWidth={2.2} aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            className="stream-round stream-round--danger"
-            disabled={!selectedIds.length}
-            aria-label="Auswahl löschen"
-            title="Auswahl löschen"
-            onClick={() => action({ kind: 'delete', ids: selectedIds })}
-          >
-            <Trash2 size={19} strokeWidth={2.2} aria-hidden="true" />
-          </button>
+          {admin && (
+            <button
+              type="button"
+              className="stream-round stream-round--danger"
+              disabled={!selectedIds.length}
+              aria-label={t('library.bulk.delete')}
+              title={t('library.bulk.delete')}
+              onClick={() => action({ kind: 'delete', ids: selectedIds })}
+            >
+              <Trash2 size={19} strokeWidth={2.2} aria-hidden="true" />
+            </button>
+          )}
         </div>
       )}
 

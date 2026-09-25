@@ -1,20 +1,20 @@
 import { expect, it } from 'vitest';
 import { namesFor, sameGame, savedPlayerNames, tidyPlayerNames } from './players';
 
-// Ordnernamen, wie die NVIDIA App sie anlegt; die Spielernamen sind Platzhalter.
+// Folder names as the NVIDIA App creates them; the player names are placeholders.
 const R6 = "Tom Clancy's Rainbow Six Siege";
 const list = [
-  { name: 'SpielerEins', game: 'Fortnite' },
-  { name: 'SpielerZwei', game: R6 },
-  { name: 'SpielerDrei', game: 'R6' },
-  { name: 'SpielerVier', game: '' },
+  { name: 'PlayerOne', game: 'Fortnite' },
+  { name: 'PlayerTwo', game: R6 },
+  { name: 'PlayerThree', game: 'R6' },
+  { name: 'PlayerFour', game: '' },
 ];
 
 it('names only the names for the clip game, then those for every game', () => {
-  expect(namesFor(list, 'Fortnite')).toEqual(['SpielerEins', 'SpielerVier']);
-  expect(namesFor(list, R6)).toEqual(['SpielerZwei', 'SpielerDrei', 'SpielerVier']);
-  expect(namesFor(list, 'VALORANT')).toEqual(['SpielerVier']);
-  expect(namesFor(list, 'Desktop')).toEqual(['SpielerVier']);
+  expect(namesFor(list, 'Fortnite')).toEqual(['PlayerOne', 'PlayerFour']);
+  expect(namesFor(list, R6)).toEqual(['PlayerTwo', 'PlayerThree', 'PlayerFour']);
+  expect(namesFor(list, 'VALORANT')).toEqual(['PlayerFour']);
+  expect(namesFor(list, 'Desktop')).toEqual(['PlayerFour']);
   expect(namesFor([], 'Fortnite')).toEqual([]);
 });
 
@@ -28,7 +28,7 @@ it.each([
   ['CoD', 'Call of Duty Black Ops 7', true],
   ['CS2', 'Counter-strike 2', true],
   ['Valorant', 'VALORANT', true],
-  // Ganze Wörter, nicht Buchstabenfolgen.
+  // Whole words, not letter sequences.
   ['Rust', 'Trust No One', false],
   ['2', 'Counter-strike 2', false],
   ['Fortnite', R6, false],
@@ -40,36 +40,34 @@ it.each([
 it('drops empty, invalid and repeated entries and keeps the order', () => {
   expect(
     tidyPlayerNames([
-      { name: '  Spieler   Eins ', game: 'Fortnite' },
-      { name: 'spieler eins', game: 'FORTNITE' },
+      { name: '  Player   One ', game: 'Fortnite' },
+      { name: 'player one', game: 'FORTNITE' },
       { name: '', game: 'Fortnite' },
       { name: 'x'.repeat(61) },
-      'SpielerZwei',
-      { name: 'SpielerZwei' },
-      { name: 'SpielerZwei', game: 'R6' },
-      { name: 'SpielerZwei', game: 'Rainbow Six' },
+      'PlayerTwo',
+      { name: 'PlayerTwo' },
+      { name: 'PlayerTwo', game: 'R6' },
+      { name: 'PlayerTwo', game: 'Rainbow Six' },
     ]),
   ).toEqual([
-    { name: 'Spieler Eins', game: 'Fortnite' },
-    { name: 'SpielerZwei', game: '' },
-    { name: 'SpielerZwei', game: 'R6' },
+    { name: 'Player One', game: 'Fortnite' },
+    { name: 'PlayerTwo', game: '' },
+    { name: 'PlayerTwo', game: 'R6' },
   ]);
   expect(
-    tidyPlayerNames(Array.from({ length: 30 }, (_, i) => ({ name: `Spieler${i}` }))),
+    tidyPlayerNames(Array.from({ length: 30 }, (_, i) => ({ name: `Player${i}` }))),
   ).toHaveLength(20);
 });
 
 it('carries the single name of earlier settings over as a name for every game', () => {
-  expect(savedPlayerNames({ playerName: 'SpielerEins' })).toEqual([
-    { name: 'SpielerEins', game: '' },
-  ]);
+  expect(savedPlayerNames({ playerName: 'PlayerOne' })).toEqual([{ name: 'PlayerOne', game: '' }]);
   expect(savedPlayerNames({ playerName: '' })).toEqual([]);
   expect(savedPlayerNames({})).toEqual([]);
-  // Sobald es die Liste gibt, gilt nur sie.
+  // Once the list exists, only it counts.
   expect(
     savedPlayerNames({
-      playerName: 'SpielerAlt',
-      playerNames: [{ name: 'SpielerEins', game: 'Fortnite' }],
+      playerName: 'PlayerOld',
+      playerNames: [{ name: 'PlayerOne', game: 'Fortnite' }],
     }),
-  ).toEqual([{ name: 'SpielerEins', game: 'Fortnite' }]);
+  ).toEqual([{ name: 'PlayerOne', game: 'Fortnite' }]);
 });

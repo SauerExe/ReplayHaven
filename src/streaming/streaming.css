@@ -1,10 +1,10 @@
 /*
- * Streaming-Oberfläche. Alles hängt an .stream und stream-Klassen, damit die übrigen Seiten
- * unverändert bleiben; Dialoge und Player tragen .stream selbst, weil sie im Portal liegen.
+ * Streaming UI. Everything hooks into .stream and stream-* classes so the other pages stay
+ * unaffected; dialogs and the player carry .stream themselves because they live in the portal.
  */
 
-/* Archivo (SIL Open Font License 1.1, siehe fonts/OFL.txt): @fontsource-variable/archivo 5.3.0,
-   Datei archivo-latin-wdth-normal.woff2 mit den Achsen Breite 62–125 % und Stärke 100–900. */
+/* Archivo (SIL Open Font License 1.1, see fonts/OFL.txt): @fontsource-variable/archivo 5.3.0,
+   file archivo-latin-wdth-normal.woff2 with axes width 62–125% and weight 100–900. */
 @font-face {
   font-family: 'ReplayHaven Archivo';
   font-style: normal;
@@ -43,7 +43,7 @@
   --stream-tile-w: clamp(168px, 11.54vw + 82px, 300px);
   --stream-game-w: clamp(112px, 12.8vw, 220px);
   --stream-collection-w: clamp(240px, 22.1vw, 380px);
-  /* Vergrößerung bei Hover und Fokus; reduzierte Bewegung setzt sie auf 1. */
+  /* Scale-up on hover and focus; reduced motion resets it to 1. */
   --stream-lift: 1.06;
   --stream-pop: 1.12;
   --stream-marker-pop: 1.5;
@@ -112,7 +112,7 @@
   color: #5d5d6e;
 }
 
-/* Kopfbereich */
+/* Header */
 .stream-header {
   position: fixed;
   inset: 0 0 auto;
@@ -225,7 +225,7 @@
 .stream-search-input::placeholder {
   color: var(--stream-muted);
 }
-/* Eigenes Schließen-Symbol daneben; das blaue Kreuz des Browsers wäre doppelt. */
+/* Custom close icon next to it; the browser's blue cross would be redundant. */
 .stream-search-input::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
@@ -269,7 +269,7 @@
   display: none;
 }
 
-/* Startseite */
+/* Home page */
 .stream-home {
   min-height: 100vh;
   background: var(--stream-bg);
@@ -354,8 +354,8 @@
   line-height: 1.2;
   letter-spacing: 0.04em;
 }
-/* Keine Zeilenbegrenzung: bei Zeilenhöhe 0,9 ragen Umlaute der versteckten Zeile sonst ins Bild.
-   Lange Titel werden stattdessen kleiner gesetzt (data-size aus titleSize). */
+/* No line clamp: at line-height 0.9, umlauts on the hidden line would otherwise poke into
+   view. Long titles are sized down instead (data-size from titleSize). */
 .stream-hero-title,
 .stream-detail-title {
   font-family: var(--stream-display);
@@ -449,7 +449,7 @@
   color: var(--stream-accent);
 }
 
-/* Schaltflächen */
+/* Buttons */
 .stream-button {
   height: 56px;
   padding: 0 30px 0 24px;
@@ -517,7 +517,7 @@
   background: rgba(11, 11, 15, 0.35);
 }
 
-/* Reihen */
+/* Rows */
 .stream-rows {
   position: relative;
   z-index: 1;
@@ -567,7 +567,7 @@
 .stream-row-viewport {
   position: relative;
 }
-/* Innenabstand oben und unten, damit vergrößerte Kacheln und ihr Schatten nicht abgeschnitten werden. */
+/* Top and bottom padding so scaled-up tiles and their shadow don't get clipped. */
 .stream-row-track {
   display: flex;
   gap: 12px;
@@ -626,7 +626,7 @@
   transform: scale(var(--stream-pop));
 }
 
-/* Kacheln */
+/* Tiles */
 .stream-tile {
   position: relative;
   display: flex;
@@ -676,7 +676,7 @@
   object-fit: cover;
 }
 .stream-tile-text {
-  /* Positioniert, damit der Schatten der vergrößerten Vorschau nicht über dem Titel liegt. */
+  /* Positioned so the scaled-up preview's shadow doesn't sit on top of the title. */
   position: relative;
   min-width: 0;
   padding: 0 2px;
@@ -975,7 +975,7 @@
   color: var(--stream-accent);
 }
 
-/* Detaildialog */
+/* Detail dialog */
 .stream-detail-overlay {
   position: fixed;
   inset: 0;
@@ -1017,8 +1017,8 @@
   position: relative;
   isolation: isolate;
   aspect-ratio: 16 / 9;
-  /* Sonst macht aspect-ratio aus der Mindesthöhe eine Mindestbreite (300 px hoch = 533 px breit),
-     und auf dem Handy rutscht der Schließen-Button aus dem Bild. */
+  /* Otherwise aspect-ratio turns the min-height into a min-width (300px tall = 533px wide),
+     and on phones the close button slides off the edge. */
   max-width: 100%;
   min-height: 360px;
   padding: 88px 48px 48px;
@@ -1417,7 +1417,7 @@
 .stream-next-mark:hover {
   background: rgba(255, 255, 255, 0.22);
 }
-/* Die Tooltips der Marker liegen genau dort, wo die Schaltfläche sitzt. */
+/* The markers' tooltips sit exactly where the button is. */
 .stream-player-bottom:has(.stream-marker:is(:hover, :focus-visible)) .stream-next-mark {
   opacity: 0;
   pointer-events: none;
@@ -1476,7 +1476,7 @@
 .stream .stream-seek-input:disabled {
   cursor: default;
 }
-/* Der Regler selbst ist unsichtbar; der Fokusring gehört an die sichtbare Leiste. */
+/* The slider itself is invisible; the focus ring belongs on the visible bar. */
 .stream-seek:has(.stream-seek-input:focus-visible) .stream-seek-track {
   outline: 2px solid var(--stream-accent);
   outline-offset: 7px;
@@ -1587,7 +1587,7 @@
   padding-bottom: 12px;
   transform: translateX(-50%);
 }
-/* Wie bei Netflix: ein schmaler dunkler Kasten über dem Symbol, der Regler senkrecht. */
+/* Like Netflix: a narrow dark box above the icon, with a vertical slider. */
 .stream-volume-panel {
   display: flex;
   justify-content: center;
@@ -1599,7 +1599,7 @@
 }
 .stream-volume-input {
   appearance: none;
-  /* Senkrechter Regler, unten leise, oben laut. */
+  /* Vertical slider, quiet at the bottom, loud at the top. */
   writing-mode: vertical-lr;
   direction: rtl;
   width: 28px;
@@ -1671,7 +1671,7 @@
   color: var(--stream-muted);
 }
 
-/* Mittlere Breiten */
+/* Mid-range widths */
 @media (max-width: 1100px) {
   .stream-header {
     gap: 28px;
@@ -1732,7 +1732,7 @@
   }
 }
 
-/* Unterhalb von 760 px passt die Navigation nicht mehr in den Kopf: Tab-Leiste wie im mobilen Entwurf. */
+/* Below 760px the nav no longer fits in the header: tab bar like in the mobile design. */
 @media (max-width: 760px) {
   .stream-nav {
     display: none;
@@ -1767,13 +1767,13 @@
     color: var(--stream-accent);
   }
 
-  /* Platz nur für die eigene Tab-Leiste; im Layout der App bringt dessen Leiste ihren Abstand mit. */
+  /* Space only for our own tab bar; in the app layout, its bar already brings its own spacing. */
   .stream-tabbar ~ .stream-home {
     padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
 }
 
-/* Mobil nach Mobile.dc.html */
+/* Mobile, following Mobile.dc.html */
 @media (max-width: 600px) {
   .stream {
     --stream-header-h: 64px;
@@ -2071,7 +2071,7 @@
   }
 }
 
-/* Seiten im App-Rahmen: Bibliothek und Sammlungen. Der feste Kopf des Layouts ist 86 px hoch. */
+/* Pages inside the app frame: library and collections. The layout's fixed header is 86px tall. */
 .stream-page {
   min-height: 100vh;
   padding: 124px var(--stream-gutter) 96px;
@@ -2124,7 +2124,7 @@
   gap: 10px;
 }
 
-/* Kleine Schaltflächen und Auswahllisten */
+/* Small buttons and select lists */
 .stream-action {
   height: 42px;
   padding: 0 16px;
@@ -2243,13 +2243,13 @@
   color: #fff;
 }
 
-/* Spieleleiste: dieselben Cover und Zahlen wie „Deine Spiele“ auf der Startseite */
+/* Games shelf: same covers and counts as "Your Games" on the home page */
 .stream-shelf {
   --shelf-item-w: clamp(96px, 8.2vw, 136px);
   position: relative;
   margin: 0 calc(-1 * var(--stream-gutter)) 24px;
 }
-/* Die Pfeile decken genau die Cover ab: Innenabstand oben plus Höhe im Format 2:3. */
+/* The arrows exactly cover the covers: top padding plus a 2:3-ratio height. */
 .stream-shelf-arrow {
   top: 10px;
   height: calc(var(--shelf-item-w) * 1.5);
@@ -2342,7 +2342,7 @@
   }
 }
 
-/* Gewähltes Spiel: Cover, Genre, Erscheinungsdatum und Beschreibung von Steam */
+/* Selected game: cover, genre, release date and description from Steam */
 .stream-spotlight {
   position: relative;
   isolation: isolate;
@@ -2379,7 +2379,7 @@
 .stream-spotlight-backdrop .stream-picture-fallback {
   display: none;
 }
-/* Feste Höhe: als Rasterelement nähme das Bild sonst die Höhe der Textspalte an. */
+/* Fixed height: as a grid item, the image would otherwise take the text column's height. */
 .stream-spotlight-cover {
   width: 168px;
   height: 252px;
@@ -2438,7 +2438,7 @@
   gap: 12px;
 }
 
-/* Suche und Filter */
+/* Search and filters */
 .stream-toolbar {
   margin-bottom: 18px;
   display: flex;
@@ -2474,7 +2474,7 @@
   font-size: 15px;
   outline: none;
 }
-/* Den Fokus zeigt der Rahmen des Felds (:focus-within); ein zweiter Ring am Input doppelt ihn. */
+/* The field's border shows focus (:focus-within); a second ring on the input would duplicate it. */
 .stream-search-field input:focus-visible {
   outline: none;
 }
@@ -2516,13 +2516,13 @@
   color: var(--stream-dim);
 }
 
-/* Raster aus Clip-Kacheln */
+/* Grid of clip tiles */
 .stream-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 248px), 1fr));
   gap: 30px 16px;
 }
-/* Die Kachel ist ihr eigener Container: 100cqw ist ihre Breite, wie --stream-tile-w in den Reihen. */
+/* The tile is its own container: 100cqw is its width, like --stream-tile-w in the rows. */
 .stream-tile--clip.stream-tile--grid {
   width: 100%;
   container-type: inline-size;
@@ -2652,7 +2652,7 @@
   text-transform: uppercase;
 }
 
-/* Auswahlleiste */
+/* Selection bar */
 .stream-bulk {
   position: fixed;
   left: 50%;
@@ -2695,7 +2695,7 @@
   color: var(--stream-danger);
 }
 
-/* Aktionsmenü zu einem Clip */
+/* Action menu for a clip */
 .stream-menu {
   z-index: 75;
   min-width: 220px;
@@ -2746,7 +2746,7 @@
   background: var(--stream-line);
 }
 
-/* Sammlungen */
+/* Collections */
 .stream-collection-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
@@ -2946,7 +2946,7 @@
   font-size: 14px;
   color: var(--stream-muted);
 }
-/* Automatische Sammlungen: dezent markiert, damit klar ist, dass sie niemand von Hand pflegt. */
+/* Automatic collections: subtly marked so it's clear no one curates them by hand. */
 .stream-badge--auto {
   display: inline-flex;
   align-items: center;
@@ -3080,7 +3080,7 @@
     border-radius: 16px;
     transform: none;
   }
-  /* Für Screenreader bleibt „2 ausgewählt“, sichtbar nur die Zahl: sonst passt die Leiste nicht. */
+  /* Screen readers still get "2 selected"; visually only the number, else the bar doesn't fit. */
   .stream-bulk-label {
     position: absolute;
     width: 1px;
@@ -3116,8 +3116,8 @@
   }
 }
 
-/* Nur für streaming-preview.html: zeigt, was ein Klick in der App auslösen würde. Die Regel steht
-   hier und nicht in preview.tsx, weil Tailwind CSS-Dateien nicht nach Klassennamen durchsucht. */
+/* Only for streaming-preview.html: shows what a click in the app would trigger. The rule lives
+   here, not in preview.tsx, because Tailwind doesn't scan CSS files for class names. */
 .stream-preview-notice {
   position: fixed;
   left: 50%;
@@ -3140,7 +3140,7 @@
   }
 }
 
-/* Reduzierte Bewegung: ohne Vergrößerung, Übergänge und Animationen. */
+/* Reduced motion: no scaling, transitions or animations. */
 @media (prefers-reduced-motion: reduce) {
   .stream {
     --stream-lift: 1;
@@ -3168,4 +3168,58 @@ html[data-reduced='true'] .stream *::after {
   animation: none !important;
   transition: none !important;
   scroll-behavior: auto !important;
+}
+
+/* Loaded part of the video behind the played part, like YouTube. */
+.stream-seek-buffer {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--buffered, 0%);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.42);
+  transition: width 0.25s linear;
+}
+
+/* Shown while playback waits for data; appears after a short delay so brief stalls do not flash. */
+.stream-player-spinner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  pointer-events: none;
+  animation: stream-fade-in 0.2s ease 0.3s both;
+}
+.stream-player-spinner-ring {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 5px solid rgba(255, 255, 255, 0.22);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: stream-spin 0.9s linear infinite;
+}
+@keyframes stream-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Reduced motion (rules above switch off all animations): a still ring still says "loading". */
+
+/* Strip under the clip page's native player: loaded and played part, display only. */
+.player-buffer {
+  position: relative;
+  height: 4px;
+}
+.player-buffer .stream-seek-track {
+  top: 0;
+  height: 4px;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.12);
+}
+.player-buffer .stream-seek-fill,
+.player-buffer .stream-seek-buffer {
+  border-radius: 0;
 }

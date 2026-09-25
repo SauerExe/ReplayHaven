@@ -3,24 +3,24 @@ import type { ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
 /**
- * Erkennt, ob gerade gespielt wird, damit die Analyse die Grafikkarte nicht im Spiel belegt.
- * Maßstab ist das Fenster im Vordergrund: Füllt es den ganzen Bildschirm, läuft ein Spiel im
- * Vollbild oder randlosen Fenster. Browser und Videoplayer im Vollbild zählen nicht; ein Spiel
- * im kleinen Fenster wird nicht erkannt.
+ * Detects whether a game is being played, so the analysis does not occupy the graphics card
+ * during play. The measure is the foreground window: if it fills the whole screen, a game is
+ * running in fullscreen or a borderless window. Fullscreen browsers and video players do not
+ * count; a game in a small window is not detected.
  */
 
-/** Eine Messung: ob das Vordergrundfenster den Bildschirm füllt, und wessen Fenster es ist. */
+/** One sample: whether the foreground window fills the screen, and whose window it is. */
 export interface ForegroundSample {
   fullscreen: boolean;
-  /** SHQueryUserNotificationState; 3 heißt Direct3D exklusiv im Vollbild. */
+  /** SHQueryUserNotificationState; 3 means exclusive fullscreen Direct3D. */
   notification: number;
   windowClass: string;
   process: string;
-  /** Fenstertitel, etwa "Raft"; für Spiele ohne bekannten Prozessnamen. */
+  /** Window title, e.g. "Raft"; for games without a known process name. */
   title?: string;
 }
 
-/** Fenster der Windows-Oberfläche und Programme, die im Vollbild kein Spiel sind. */
+/** Windows shell windows and programs that are not a game when fullscreen. */
 const SHELL_CLASSES = new Set([
   'Progman',
   'WorkerW',
@@ -48,7 +48,7 @@ const NOT_GAMES = new Set(
   ].map((name) => name.toLowerCase()),
 );
 
-/** Ob eine Messung ein laufendes Spiel zeigt; dann sein Prozessname, sonst leer. */
+/** Whether a sample shows a running game; then its process name, otherwise empty. */
 export function gameIn(sample: ForegroundSample) {
   const process = sample.process.trim();
   if (!process || NOT_GAMES.has(process.toLowerCase()) || SHELL_CLASSES.has(sample.windowClass))
@@ -56,7 +56,7 @@ export function gameIn(sample: ForegroundSample) {
   return sample.fullscreen || sample.notification === 3 ? process : '';
 }
 
-/** Eine Ausgabezeile des Messprozesses: Vollbild, Benachrichtigungsstatus, Klasse, Prozess, Titel. */
+/** One output line of the probe process: fullscreen, notification state, class, process, title. */
 export function parseSample(line: string): ForegroundSample | undefined {
   const [full, notification, windowClass = '', process = '', title = ''] = line
     .replace(/\r$/, '')
@@ -72,8 +72,8 @@ export function parseSample(line: string): ForegroundSample | undefined {
 }
 
 /**
- * Prozessnamen bekannter Spiele und der Ordner, unter dem die NVIDIA App sie ablegt; so
- * landen Clips aus "Desktop" beim selben Spiel wie die übrigen.
+ * Process names of known games and the folder the NVIDIA App stores them under, so clips from
+ * "Desktop" land with the same game as the rest.
  */
 const KNOWN_GAMES: [RegExp, string][] = [
   [/^RainbowSix/i, "Tom Clancy's Rainbow Six Siege"],
@@ -85,7 +85,7 @@ const KNOWN_GAMES: [RegExp, string][] = [
   [/^cs2$/i, 'Counter-Strike 2'],
 ];
 
-/** Ein Vordergrund-Eintrag mit Zeitpunkt, für den Spielnamen eines späteren Clips. */
+/** A foreground entry with its time, for the game name of a later clip. */
 export interface ForegroundEntry {
   at: number;
   process: string;
@@ -93,8 +93,8 @@ export interface ForegroundEntry {
 }
 
 /**
- * Das Spiel, das zwischen `from` und `to` am häufigsten im Vordergrund war, als Ordnername wie
- * bei der NVIDIA App; sonst der Fenstertitel. Leer, wenn nichts Spielartiges vorne war.
+ * The game most often in the foreground between `from` and `to`, as a folder name like the
+ * NVIDIA App uses; otherwise the window title. Empty if nothing game-like was in front.
  */
 export function gameBetween(history: readonly ForegroundEntry[], from: number, to: number) {
   const counts = new Map<string, { count: number; title?: string }>();
@@ -111,7 +111,7 @@ export function gameBetween(history: readonly ForegroundEntry[], from: number, t
     counts.set(process, { count: seen.count + 1, title: entry.title ?? seen.title });
   }
   const [process, best] = [...counts.entries()].sort((a, b) => b[1].count - a[1].count)[0] ?? [];
-  // Zwei Messungen (sechs Sekunden) mindestens, damit ein kurzer Blick auf ein Fenster nicht zählt.
+  // At least two samples (six seconds), so a quick glance at a window does not count.
   if (!process || best!.count < 2) return '';
   return (
     KNOWN_GAMES.find(([pattern]) => pattern.test(process))?.[1] ??
@@ -124,15 +124,15 @@ export function gameBetween(history: readonly ForegroundEntry[], from: number, t
 }
 
 /**
- * Das Spiel, das gerade läuft, mit Nachlauf: Ein Spiel gilt sofort als gestartet, aber erst
- * als beendet, wenn eine Minute lang keines im Vordergrund war. Kurz Alt+Tab zu Discord oder
- * ein Ladebildschirm im Fenster soll die Analyse nicht mitten im Spiel starten.
+ * The game currently running, with a grace period: a game counts as started immediately, but
+ * as ended only after no game has been in the foreground for a minute. A quick Alt+Tab to
+ * Discord or a windowed loading screen should not start the analysis mid-game.
  */
 export class GameState {
   game = '';
   private lastSeen = 0;
   constructor(private readonly resumeAfterMs = 60_000) {}
-  /** Verarbeitet eine Messung; true, wenn sich der Zustand geändert hat. */
+  /** Processes a sample; true if the state changed. */
   update(sample: ForegroundSample, now: number) {
     const game = gameIn(sample);
     if (game) {
@@ -147,7 +147,7 @@ export class GameState {
   }
 }
 
-// Win32 über PowerShell, ohne natives Addon: eine Zeile alle drei Sekunden.
+// Win32 via PowerShell, without a native addon: one line every three seconds.
 const PROBE = `
 Add-Type -TypeDefinition @'
 using System; using System.Runtime.InteropServices; using System.Text;
@@ -170,7 +170,7 @@ public static class RhForeground {
     RECT r; GetWindowRect(h, out r);
     MONITORINFO m = new MONITORINFO(); m.cbSize = Marshal.SizeOf(m);
     GetMonitorInfo(MonitorFromWindow(h, 2), ref m);
-    // Ein maximiertes Fenster füllt bei ausgeblendeter Taskleiste auch den Bildschirm.
+    // A maximised window also fills the screen when the taskbar is hidden.
     bool full = !IsZoomed(h) && r.L <= m.rcMonitor.L && r.T <= m.rcMonitor.T && r.R >= m.rcMonitor.R && r.B >= m.rcMonitor.B;
     StringBuilder name = new StringBuilder(256); GetClassName(h, name, 256);
     uint pid; GetWindowThreadProcessId(h, out pid);
@@ -192,13 +192,13 @@ while ($true) {
 `;
 
 /**
- * Beobachtet den Vordergrund, bis stop() gerufen wird, und meldet jeden Wechsel zwischen
- * "Spiel läuft" (Prozessname) und "kein Spiel" (leer). Stirbt der Messprozess, gilt kein Spiel.
+ * Watches the foreground until stop() is called and reports every change between "game running"
+ * (process name) and "no game" (empty). If the probe process dies, no game is assumed.
  */
 export class GameWatch {
   private child?: ChildProcess;
   private readonly state: GameState;
-  /** Was die letzten Stunden vorne war, für den Spielnamen später verarbeiteter Clips. */
+  /** What was in front over the last hours, for the game name of clips processed later. */
   private readonly history: ForegroundEntry[] = [];
   constructor(
     private readonly onChange: (game: string) => void,
@@ -233,7 +233,7 @@ export class GameWatch {
         process: sample.process,
         ...(sample.title ? { title: sample.title } : {}),
       });
-      // Acht Stunden reichen über eine lange Spielsitzung, in der die Analyse wartet.
+      // Eight hours cover a long gaming session during which the analysis waits.
       while (this.history.length && this.history[0].at < now - 8 * 3600_000) this.history.shift();
       if (this.state.update(sample, now)) this.onChange(this.state.game);
     });
@@ -247,7 +247,7 @@ export class GameWatch {
     });
     child.on('error', () => {});
   }
-  /** Das Spiel, das in den zwei Minuten vor `savedAt` vorne war (gameBetween), sonst leer. */
+  /** The game in front during the two minutes before `savedAt` (gameBetween), otherwise empty. */
   gameAt(savedAt: number) {
     return gameBetween(this.history, savedAt - 120_000, savedAt + 5_000);
   }
@@ -258,7 +258,7 @@ export class GameWatch {
   }
 }
 
-/** Der Name eines Spiels zu seinem Prozess, für die Anzeige ("RainbowSix" → "Tom Clancy's …"). */
+/** The display name of a game for its process ("RainbowSix" → "Tom Clancy's …"). */
 export function gameTitle(process: string) {
   return (
     KNOWN_GAMES.find(([pattern]) => pattern.test(process))?.[1].replace(/\s+/g, ' ') ?? process

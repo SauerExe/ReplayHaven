@@ -11,12 +11,13 @@ import {
   Tag,
   Trash2,
 } from 'lucide-react';
+import { t } from '../i18n';
 import { linkHandler, type Navigate } from './links';
 import type { StreamClip } from './model';
 
 /**
- * Aktionen bekommen den Menü-Knopf mit: Beim Öffnen eines Dialogs ist der Menüpunkt schon weg,
- * ohne Knopf fände der Fokus nach Escape nicht zurück.
+ * Actions receive the menu button: when a dialog opens the menu item is already gone, and without
+ * the button focus could not return after Escape.
  */
 type MenuAction = (id: string, opener: HTMLElement | null) => void;
 
@@ -27,17 +28,17 @@ export interface ClipMenuProps {
   onRename?: MenuAction;
   onEditTags?: MenuAction;
   onShare?: MenuAction;
-  /** Mit Download-Eintrag, sofern der Clip eine Originaldatei hat. */
+  /** With a download entry, provided the clip has an original file. */
   download?: boolean;
-  /** Die ausführliche Clip-Seite mit Notizen und KI-Auswertung. */
+  /** The full clip page with notes and AI analysis. */
   pageHref?: string;
   onNavigate?: Navigate;
   onDelete?: MenuAction;
-  /** Größe des Auslösers: klein auf Kacheln, rund wie die übrigen Knöpfe im Detaildialog. */
+  /** Trigger size: small on tiles, round like the other buttons in the detail dialog. */
   variant?: 'tile' | 'round';
 }
 
-/** Weitere Aktionen zu einem Clip; es erscheinen nur die Einträge, für die es eine Aktion gibt. */
+/** More actions for a clip; only entries with an action appear. */
 export function ClipMenu({
   clip,
   onPlay,
@@ -54,13 +55,13 @@ export function ClipMenu({
   const id = clip.id;
   const trigger = useRef<HTMLButtonElement>(null);
   return (
-    // Nicht modal: sonst sperrt Radix das Scrollen und die Seite springt.
+    // Not modal: otherwise Radix locks scrolling and the page jumps.
     <Menu.Root modal={false}>
       <Menu.Trigger
         ref={trigger}
         className={variant === 'round' ? 'stream-round' : 'stream-tile-tool'}
-        aria-label={`Aktionen für ${clip.title}`}
-        title="Weitere Aktionen"
+        aria-label={t('stream.menu.actionsFor', { title: clip.title })}
+        title={t('stream.menu.more')}
       >
         <MoreHorizontal size={variant === 'round' ? 22 : 18} strokeWidth={2.4} aria-hidden="true" />
       </Menu.Trigger>
@@ -69,7 +70,7 @@ export function ClipMenu({
           {onPlay && (
             <Menu.Item className="stream-menu-item" onSelect={() => onPlay(id, trigger.current)}>
               <Play size={16} aria-hidden="true" />
-              Abspielen
+              {t('stream.play')}
             </Menu.Item>
           )}
           {onAddToCollection && (
@@ -78,13 +79,13 @@ export function ClipMenu({
               onSelect={() => onAddToCollection(id, trigger.current)}
             >
               <FolderPlus size={16} aria-hidden="true" />
-              Zur Sammlung
+              {t('stream.menu.addToCollection')}
             </Menu.Item>
           )}
           {onRename && (
             <Menu.Item className="stream-menu-item" onSelect={() => onRename(id, trigger.current)}>
               <Pencil size={16} aria-hidden="true" />
-              Umbenennen
+              {t('stream.menu.rename')}
             </Menu.Item>
           )}
           {onEditTags && (
@@ -93,20 +94,20 @@ export function ClipMenu({
               onSelect={() => onEditTags(id, trigger.current)}
             >
               <Tag size={16} aria-hidden="true" />
-              Tags bearbeiten
+              {t('stream.menu.editTags')}
             </Menu.Item>
           )}
           {onShare && (
             <Menu.Item className="stream-menu-item" onSelect={() => onShare(id, trigger.current)}>
               <Share2 size={16} aria-hidden="true" />
-              Teilen
+              {t('stream.menu.share')}
             </Menu.Item>
           )}
           {download && clip.downloadUrl && (
             <Menu.Item className="stream-menu-item" asChild>
               <a href={clip.downloadUrl} download={clip.title}>
                 <Download size={16} aria-hidden="true" />
-                Herunterladen
+                {t('stream.menu.download')}
               </a>
             </Menu.Item>
           )}
@@ -114,7 +115,7 @@ export function ClipMenu({
             <Menu.Item className="stream-menu-item" asChild>
               <a href={pageHref} onClick={linkHandler(onNavigate, pageHref)}>
                 <FileText size={16} aria-hidden="true" />
-                Clip-Seite öffnen
+                {t('stream.menu.openPage')}
               </a>
             </Menu.Item>
           )}
@@ -126,7 +127,7 @@ export function ClipMenu({
                 onSelect={() => onDelete(id, trigger.current)}
               >
                 <Trash2 size={16} aria-hidden="true" />
-                Löschen
+                {t('common.delete')}
               </Menu.Item>
             </>
           )}

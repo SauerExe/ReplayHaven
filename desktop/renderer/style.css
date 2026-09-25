@@ -1,4 +1,4 @@
-/* Inter und Archivo (SIL Open Font License 1.1, licenses/): dieselben Schriften wie die Web-Bibliothek. */
+/* Inter and Archivo (SIL Open Font License 1.1, licenses/): the same fonts as the web library. */
 @font-face {
   font-family: 'Inter';
   font-style: normal;
@@ -100,7 +100,7 @@ small {
   flex: 1;
 }
 
-/* Knöpfe */
+/* Buttons */
 button {
   cursor: pointer;
   border: 1px solid transparent;
@@ -164,7 +164,7 @@ button:active:not(:disabled) {
   color: #c4b5fd;
 }
 
-/* Kopfzeile */
+/* Header */
 .app {
   height: 100%;
   display: flex;
@@ -270,7 +270,7 @@ button:active:not(:disabled) {
   background: var(--danger);
 }
 
-/* Ansichten */
+/* Views */
 .view {
   flex: 1;
   overflow-y: auto;
@@ -308,7 +308,7 @@ button:active:not(:disabled) {
   text-align: center;
 }
 
-/* Status oben */
+/* Status at the top */
 .hero {
   display: flex;
   align-items: center;
@@ -415,7 +415,7 @@ button:active:not(:disabled) {
   font-size: 12px;
 }
 
-/* Jetzt in Arbeit */
+/* Now in progress */
 .empty {
   display: flex;
   align-items: center;
@@ -568,7 +568,7 @@ button:active:not(:disabled) {
   gap: 12px;
 }
 
-/* Listen */
+/* Lists */
 .columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -680,7 +680,7 @@ button:active:not(:disabled) {
   font-size: 11px;
 }
 
-/* Einstellungen */
+/* Settings */
 .settings {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -805,7 +805,7 @@ input[readonly] {
   background: linear-gradient(135deg, var(--accent-strong), var(--accent-deep));
 }
 
-/* Schalter */
+/* Switches */
 .toggle {
   display: flex;
   align-items: flex-start;
@@ -869,7 +869,7 @@ input[readonly] {
   animation: rise 0.25s ease-out;
 }
 
-/* Assistent */
+/* Setup wizard */
 .wizard {
   position: fixed;
   inset: 0;
@@ -1150,7 +1150,7 @@ input[readonly] {
   align-self: flex-start;
 }
 
-/* Kopplung mit dem Server */
+/* Pairing with the server */
 .pair-card {
   display: flex;
   flex-direction: column;
@@ -1173,4 +1173,9 @@ input[readonly] {
   letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 28px var(--accent-glow);
+}
+
+/* Language choice on the welcome step */
+.language-field {
+  max-width: 240px;
 }

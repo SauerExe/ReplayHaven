@@ -35,13 +35,13 @@ it('prepares detector input in multiples of 32, blue channel first', () => {
   const input = detInput(solid(1280, 720, [255, 0, 0]));
   expect([input.width, input.height]).toEqual([960, 544]);
   const plane = input.width * input.height;
-  // Rot liegt bei OpenCV im dritten Kanal.
+  // In OpenCV order, red is the third channel.
   expect(input.data[0]).toBeCloseTo((0 - 0.485) / 0.229, 4);
   expect(input.data[2 * plane]).toBeCloseTo((1 - 0.406) / 0.225, 4);
   const line = recInput(solid(100, 20, [255, 255, 255]));
   expect(line.width).toBe(320);
   expect(line.data[0]).toBeCloseTo(1, 4);
-  // Rechts aufgefüllt mit 0, der Mitte des Wertebereichs.
+  // Padded on the right with 0, the middle of the value range.
   expect(line.data[319]).toBe(0);
 });
 
@@ -57,7 +57,7 @@ it('finds text boxes in a probability map and drops weak areas', () => {
   paint(60, 0, 1, 1, 0.99);
   const boxes = boxesFromMap(map, width, height);
   expect(boxes).toHaveLength(1);
-  // Aufgeweitet um Fläche · 1,5 / Umfang = 120 · 1,5 / 52 ≈ 3,46 Pixel je Seite.
+  // Expanded by area · 1.5 / perimeter = 120 · 1.5 / 52 ≈ 3.46 pixels per side.
   expect(boxes[0].x).toBeCloseTo(4 - 3.46, 1);
   expect(boxes[0].w).toBeCloseTo(20 + 6.92, 1);
 });

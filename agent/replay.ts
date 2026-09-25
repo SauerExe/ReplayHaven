@@ -2,25 +2,25 @@ import { createDecipheriv } from 'node:crypto';
 import { open } from 'node:fs/promises';
 
 /**
- * Liest Fortnite-Replays (.replay) so weit, wie es für Clip-Titel nötig ist: Dateikopf,
- * Zeitstempel und die Ereignis-Chunks mit Eliminierungen und Match-Statistik.
+ * Reads Fortnite replays (.replay) as far as clip titles need: file header, timestamps and the
+ * event chunks with eliminations and match stats.
  *
- * Den Netzwerkstrom mit Positionen, Namen und Waffenwechseln liest er bewusst nicht: dessen
- * Aufbau ändert sich mit jeder Saison, und er ist mit Oodle komprimiert. Die Ereignis-Chunks
- * sind dagegen seit Jahren gleich gebaut und nur mit dem Schlüssel aus dem Dateikopf
- * verschlüsselt (AES-256-ECB). Aufbau nach der Unreal Engine (LocalFileNetworkReplayStreaming)
- * und den quelloffenen Lesern xNocken/replay-reader und Shiqan/FortniteReplayDecompressor.
- * Geprüft an sechs echten Replays von Saison 11 (2019) bis Kapitel 5 Saison 5 (2024): jede
- * Eliminierung ließ sich bis zum letzten Byte lesen.
+ * It deliberately does not read the network stream with positions, names and weapon switches:
+ * its layout changes every season, and it is Oodle-compressed. The event chunks, by contrast,
+ * have had the same layout for years and are only encrypted with the key from the file header
+ * (AES-256-ECB). Layout based on the Unreal Engine (LocalFileNetworkReplayStreaming) and the
+ * open-source readers xNocken/replay-reader and Shiqan/FortniteReplayDecompressor.
+ * Checked against six real replays from Season 11 (2019) to Chapter 5 Season 5 (2024): every
+ * elimination could be read down to the last byte.
  */
 
 const FILE_MAGIC = 0x1ca2e27f;
 const HEADER_MAGIC = 0x2cf5a13d;
-/** .NET-Ticks (100 ns seit 0001-01-01) am 1970-01-01. */
+/** .NET ticks (100 ns since 0001-01-01) at 1970-01-01. */
 const EPOCH_TICKS = 621355968000000000n;
-/** Ab dieser Netzwerkversion schreibt die Unreal Engine 5 Vektoren als double (Large World Coordinates). */
+/** From this network version on, UE5 writes vectors as double (Large World Coordinates). */
 const LWC_ENGINE_NETWORK_VERSION = 23;
-/** Obergrenzen gegen beschädigte Dateien: kein Ereignis und kein Kopf ist auch nur annähernd so groß. */
+/** Limits against corrupted files: no event and no header comes anywhere near this size. */
 const MAX_EVENT_BYTES = 1 << 20;
 const MAX_STRING_BYTES = 1 << 16;
 
@@ -30,26 +30,26 @@ export interface Vec3 {
   z: number;
 }
 
-/** Beteiligter einer Eliminierung. Spieler tragen ihre Epic-Konto-ID (32 Hex-Zeichen). */
+/** A participant in an elimination. Players carry their Epic account ID (32 hex characters). */
 export type ReplayPlayer =
   { kind: 'player'; id: string } | { kind: 'bot'; id: string } | { kind: 'name'; id: string };
 
 export interface Elimination {
-  /** Millisekunden seit Beginn der Aufzeichnung. */
+  /** Milliseconds since the start of the recording. */
   time: number;
   victim: ReplayPlayer;
   killer: ReplayPlayer;
-  /** Todesursache laut Spiel (EDeathCause): Waffenart, Sturm, Fallschaden, Ausbluten … */
+  /** Cause of death per the game (EDeathCause): weapon type, storm, fall damage, bleed-out … */
   cause: number;
-  /** Niedergeschlagen statt ausgeschieden. */
+  /** Knocked down instead of eliminated. */
   knocked: boolean;
-  /** Ort des Opfers in Zentimetern; fehlt, wenn das Replay ihn nicht kennt. */
+  /** Victim position in centimeters; missing if the replay does not know it. */
   victimAt?: Vec3;
-  /** Ort des Verursachers; fehlt, wenn er zu weit weg war, um im Replay aufzutauchen. */
+  /** Killer position; missing if they were too far away to appear in the replay. */
   killerAt?: Vec3;
 }
 
-/** Statistik des aufnehmenden Spielers, geschrieben, wenn sein Match endet. */
+/** Stats of the recording player, written when their match ends. */
 export interface MatchStats {
   time: number;
   accuracy: number;
@@ -70,35 +70,35 @@ export interface TeamStats {
 export interface Replay {
   fileVersion: number;
   lengthMs: number;
-  /** Die Aufzeichnung läuft noch; Ereignisse und Schlüssel fehlen dann womöglich. */
+  /** The recording is still running; events and key may be missing then. */
   live: boolean;
   encrypted: boolean;
   /**
-   * Beginn der Aufzeichnung in Ortszeit des Spiel-PCs, ohne Zeitzone: Millisekunden, als wäre
-   * die Ortszeit UTC. Das Spiel schreibt hier FDateTime::Now().
+   * Start of the recording in the gaming PC's local time, without time zone: milliseconds as if
+   * local time were UTC. The game writes FDateTime::Now() here.
    */
   localStart?: number;
-  /** Beginn der Aufzeichnung in UTC (Timecode-Ereignis, seit Kapitel 5), Millisekunden seit 1970. */
+  /** Start of the recording in UTC (Timecode event, since Chapter 5), milliseconds since 1970. */
   utcStart?: number;
   engineNetworkVersion?: number;
-  /** Spielversion aus dem Branch, etwa "32.00" aus "++Fortnite+Release-32.00". */
+  /** Game version from the branch, for example "32.00" from "++Fortnite+Release-32.00". */
   gameVersion?: string;
   eliminations: Elimination[];
   stats?: MatchStats;
   team?: TeamStats;
-  /** Ereignisse, die sich nicht lesen ließen. */
+  /** Events that could not be read. */
   unreadable: number;
 }
 
 export class ReplayError extends Error {}
 
-/** Lesezeiger über einem Puffer, der bei jedem Überlauf einen ReplayError wirft. */
+/** Read cursor over a buffer that throws a ReplayError on every overrun. */
 class Cursor {
   offset = 0;
   constructor(readonly data: Buffer) {}
   private take(bytes: number) {
     if (bytes < 0 || this.offset + bytes > this.data.length)
-      throw new ReplayError('Replay endet unerwartet.');
+      throw new ReplayError('Replay ends unexpectedly.');
     const at = this.offset;
     this.offset += bytes;
     return at;
@@ -134,18 +134,18 @@ class Cursor {
     const at = this.take(length);
     return this.data.subarray(at, at + length);
   }
-  /** FString: Länge mit Nullzeichen; negativ bedeutet UTF-16. */
+  /** FString: length including the null terminator; negative means UTF-16. */
   string() {
     const length = this.i32();
     if (length === 0) return '';
     const bytes = length < 0 ? -length * 2 : length;
-    if (bytes > MAX_STRING_BYTES) throw new ReplayError('Zeichenkette im Replay ist zu lang.');
+    if (bytes > MAX_STRING_BYTES) throw new ReplayError('String in replay is too long.');
     const raw = this.bytes(bytes);
     return (length < 0 ? raw.toString('utf16le') : raw.toString('latin1')).replace(/\0+$/, '');
   }
 }
 
-/** Millisekunden seit 1970 aus .NET-Ticks; undefined außerhalb plausibler Jahre. */
+/** Milliseconds since 1970 from .NET ticks; undefined outside plausible years. */
 function ticksToMs(ticks: bigint) {
   const ms = Number((ticks - EPOCH_TICKS) / 10000n);
   return ms > Date.UTC(2017, 0, 1) && ms < Date.UTC(2100, 0, 1) ? ms : undefined;
@@ -158,29 +158,29 @@ interface Info {
   encrypted: boolean;
   key?: Buffer;
   localStart?: number;
-  /** Wo die Chunks beginnen. */
+  /** Where the chunks begin. */
   end: number;
 }
 
 function readInfo(data: Buffer): Info {
   const c = new Cursor(data);
-  if (c.u32() !== FILE_MAGIC) throw new ReplayError('Keine Fortnite-Replay-Datei.');
+  if (c.u32() !== FILE_MAGIC) throw new ReplayError('Not a Fortnite replay file.');
   const fileVersion = c.u32();
-  // Ab Version 7 folgen benutzerdefinierte Versionen: je 16 Byte GUID und 4 Byte Nummer.
+  // From version 7 on, custom versions follow: 16 bytes GUID and 4 bytes number each.
   if (fileVersion >= 7) c.skip(Math.max(0, c.i32()) * 20);
   const lengthMs = c.u32();
-  c.u32(); // Netzwerkversion
-  c.u32(); // Changelist
-  c.string(); // Anzeigename, meist "Unsaved Replay"
+  c.u32(); // network version
+  c.u32(); // changelist
+  c.string(); // display name, usually "Unsaved Replay"
   const live = c.u32() !== 0;
   const localStart = fileVersion >= 3 ? ticksToMs(c.i64()) : undefined;
-  if (fileVersion >= 2) c.u32(); // komprimiert
+  if (fileVersion >= 2) c.u32(); // compressed
   let encrypted = false;
   let key: Buffer | undefined;
   if (fileVersion >= 6) {
     encrypted = c.u32() !== 0;
     const length = c.u32();
-    if (length > 64) throw new ReplayError('Schlüssel im Replay hat eine unbekannte Länge.');
+    if (length > 64) throw new ReplayError('Replay key has an unknown length.');
     key = Buffer.from(c.bytes(length));
   }
   return { fileVersion, lengthMs, live, encrypted, key, localStart, end: c.offset };
@@ -193,22 +193,22 @@ interface Header {
 
 function readHeader(data: Buffer): Header {
   const c = new Cursor(data);
-  if (c.u32() !== HEADER_MAGIC) throw new ReplayError('Replay-Kopf ist beschädigt.');
+  if (c.u32() !== HEADER_MAGIC) throw new ReplayError('Replay header is corrupted.');
   const networkVersion = c.u32();
   if (networkVersion >= 19) c.skip(Math.max(0, c.i32()) * 20);
-  c.u32(); // Prüfsumme
+  c.u32(); // checksum
   const engineNetworkVersion = c.u32();
-  c.u32(); // Protokollversion des Spiels
+  c.u32(); // game protocol version
   if (networkVersion >= 12) c.skip(16); // GUID
   let gameVersion: string | undefined;
   if (networkVersion >= 11) {
-    c.skip(4 + 2 + 4); // Hauptversion, Patch, Changelist
+    c.skip(4 + 2 + 4); // major version, patch, changelist
     gameVersion = /Release-(\d+\.\d+)/.exec(c.string())?.[1];
   }
   return { engineNetworkVersion, gameVersion };
 }
 
-/** Eine Transformation: Drehung (Quaternion), Ort, Skalierung — als float oder double. */
+/** A transform: rotation (quaternion), position, scale — as float or double. */
 function readTransform(number: () => number) {
   const rotation = [number(), number(), number(), number()];
   const at = { x: number(), y: number(), z: number() };
@@ -217,8 +217,8 @@ function readTransform(number: () => number) {
 }
 
 /**
- * Plausibel ist eine Transformation, wenn ihre Zahlen endlich und klein genug sind. Ein mit der
- * falschen Zahlenbreite gelesener Block liefert Werte wie 1e+38 oder NaN und fällt hier heraus.
+ * A transform is plausible if its numbers are finite and small enough. A block read with the
+ * wrong number width yields values like 1e+38 or NaN and is filtered out here.
  */
 function plausible(t: ReturnType<typeof readTransform>) {
   return [...t.rotation, t.at.x, t.at.y, t.at.z, ...t.scale].every(
@@ -233,27 +233,27 @@ function readPlayer(c: Cursor, typed: boolean): ReplayPlayer {
   if (type === 0x10) return { kind: 'name', id: c.string() };
   if (type === 0x11) {
     const length = c.u8();
-    if (length < 1 || length > 64) throw new ReplayError('Spieler-ID mit unbekannter Länge.');
+    if (length < 1 || length > 64) throw new ReplayError('Player ID has an unknown length.');
     return { kind: 'player', id: c.bytes(length).toString('hex') };
   }
-  throw new ReplayError(`Unbekannte Spielerart ${type}.`);
+  throw new ReplayError(`Unknown player type ${type}.`);
 }
 
 /**
- * Liest eine Eliminierung. Vorne steht eine Versionsnummer, dann ein unbekanntes Byte und je eine
- * Transformation für Opfer (ab Version 6) und Verursacher, dann beide Beteiligten, die
- * Todesursache und ob das Opfer nur niedergeschlagen wurde.
+ * Reads an elimination. It starts with a version number, then an unknown byte and one transform
+ * each for the victim (from version 6) and the killer, then both participants, the cause of
+ * death and whether the victim was only knocked down.
  *
- * Die Zahlenbreite der Transformationen hängt an der Engine-Version: float bis Kapitel 2, double
- * ab Large World Coordinates. Beide Breiten werden versucht, die zur Version passende zuerst; gilt
- * nur, was genau am Ende des Ereignisses aufgeht. Geprüft an echten Replays von 6.01 bis 32.00.
- * Dass ein quelloffener Leser ab Engine-Version 34 weitere 80 Byte überspringt, gleicht dort nur
- * float statt double aus; einen weiteren Block gibt es nicht.
+ * The number width of the transforms depends on the engine version: float up to Chapter 2,
+ * double from Large World Coordinates on. Both widths are tried, the one matching the version
+ * first; only a read that ends exactly at the end of the event counts. Checked against real
+ * replays from 6.01 to 32.00. That an open-source reader skips another 80 bytes from engine
+ * version 34 on only compensates for float instead of double there; there is no extra block.
  */
 export function readElimination(data: Buffer, time: number, engineNetworkVersion: number) {
   const version = data.length >= 4 ? data.readInt32LE(0) : -1;
   if (version < 3 || version > 100)
-    throw new ReplayError(`Eliminierung in unbekannter Fassung ${version}.`);
+    throw new ReplayError(`Elimination in unknown format ${version}.`);
   const lwc = engineNetworkVersion >= LWC_ENGINE_NETWORK_VERSION;
   const transforms = version >= 6 ? 2 : 1;
   let failure: unknown;
@@ -263,13 +263,13 @@ export function readElimination(data: Buffer, time: number, engineNetworkVersion
       c.skip(4 + 1);
       const number = wide ? () => c.f64() : () => c.f32();
       const read = Array.from({ length: transforms }, () => readTransform(number));
-      if (!read.every(plausible)) throw new ReplayError('Unplausible Transformation.');
+      if (!read.every(plausible)) throw new ReplayError('Implausible transform.');
       const victim = readPlayer(c, version >= 6);
       const killer = readPlayer(c, version >= 6);
       const cause = c.u8();
       const knocked = c.u32();
-      if (knocked > 1 || c.remaining !== 0) throw new ReplayError('Eliminierung geht nicht auf.');
-      // Ein Ort (0, 0, 0) heißt: unbekannt, nicht Kartenmitte.
+      if (knocked > 1 || c.remaining !== 0) throw new ReplayError('Elimination does not add up.');
+      // A position of (0, 0, 0) means unknown, not the center of the map.
       const place = (t?: (typeof read)[number]) =>
         t && (t.at.x || t.at.y || t.at.z) ? t.at : undefined;
       const victimAt = transforms === 2 ? place(read[0]) : undefined;
@@ -287,7 +287,7 @@ export function readElimination(data: Buffer, time: number, engineNetworkVersion
       failure = error;
     }
   }
-  throw failure instanceof ReplayError ? failure : new ReplayError('Eliminierung unlesbar.');
+  throw failure instanceof ReplayError ? failure : new ReplayError('Elimination unreadable.');
 }
 
 function decrypt(data: Buffer, key: Buffer | undefined) {
@@ -296,14 +296,14 @@ function decrypt(data: Buffer, key: Buffer | undefined) {
   return Buffer.concat([decipher.update(data), decipher.final()]);
 }
 
-/** Zugriff auf die Datei: ganz im Speicher (Tests) oder stückweise von der Platte. */
+/** Access to the file: fully in memory (tests) or piece by piece from disk. */
 interface Source {
   size: number;
   read(offset: number, length: number): Promise<Buffer>;
 }
 
 async function parse(source: Source): Promise<Replay> {
-  // Der Anzeigename ist auf 256 Zeichen aufgefüllt; 4 KiB fassen den Vorspann sicher.
+  // The display name is padded to 256 characters; 4 KiB safely holds the preamble.
   const info = readInfo(await source.read(0, Math.min(source.size, 4096)));
   const replay: Replay = {
     fileVersion: info.fileVersion,
@@ -314,11 +314,11 @@ async function parse(source: Source): Promise<Replay> {
     eliminations: [],
     unreadable: 0,
   };
-  // Während der Aufnahme fehlen Schlüssel und Ereignisse noch; gelesen wird erst danach.
+  // While recording, key and events are still missing; they are only read afterwards.
   if (info.live) return replay;
   const key = info.encrypted ? info.key : undefined;
   if (info.encrypted && key?.length !== 32)
-    throw new ReplayError('Replay ist verschlüsselt, der Schlüssel fehlt.');
+    throw new ReplayError('Replay is encrypted and the key is missing.');
   let header: Header | undefined;
   const pending: { time: number; group: string; meta: string; data: Buffer }[] = [];
   let offset = info.end;
@@ -327,7 +327,7 @@ async function parse(source: Source): Promise<Replay> {
     const type = head.readUInt32LE(0);
     const size = head.readInt32LE(4);
     const start = offset + 8;
-    if (size < 0 || start + size > source.size) break; // abgeschnittene Datei
+    if (size < 0 || start + size > source.size) break; // truncated file
     if (type === 0 && size <= MAX_EVENT_BYTES) header = readHeader(await source.read(start, size));
     if (type === 3 && size <= MAX_EVENT_BYTES) {
       const c = new Cursor(await source.read(start, size));
@@ -335,7 +335,7 @@ async function parse(source: Source): Promise<Replay> {
       const group = c.string();
       const meta = c.string();
       const time = c.u32();
-      c.u32(); // Ende
+      c.u32(); // end
       const length = c.i32();
       if (length >= 0 && length <= c.remaining)
         pending.push({ time, group, meta, data: Buffer.from(c.bytes(length)) });
@@ -371,9 +371,9 @@ async function parse(source: Source): Promise<Replay> {
         replay.team = { time: event.time, placement: c.u32(), totalPlayers: c.u32() };
       } else if (event.group === 'Timecode') {
         const c = new Cursor(data);
-        c.u32(); // Fassung
+        c.u32(); // format version
         const utc = ticksToMs(c.i64());
-        // Der Zeitstempel gehört zum Zeitpunkt des Ereignisses, meist 0.
+        // The timestamp belongs to the time of the event, usually 0.
         if (utc !== undefined) replay.utcStart = utc - event.time;
       }
     } catch {
@@ -384,7 +384,7 @@ async function parse(source: Source): Promise<Replay> {
   return replay;
 }
 
-/** Liest ein Replay aus einem Puffer. */
+/** Reads a replay from a buffer. */
 export function parseReplay(data: Buffer) {
   return parse({
     size: data.length,
@@ -393,8 +393,8 @@ export function parseReplay(data: Buffer) {
 }
 
 /**
- * Liest ein Replay von der Platte, ohne die ganze Datei zu laden: nur Vorspann, Kopf und die
- * Ereignis-Chunks, zusammen wenige Kilobyte einer Datei von 10 bis 20 MB.
+ * Reads a replay from disk without loading the whole file: only the preamble, the header and the
+ * event chunks, together a few kilobytes of a 10 to 20 MB file.
  */
 export async function readReplayFile(path: string) {
   const handle = await open(path, 'r');

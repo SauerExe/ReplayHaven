@@ -16,7 +16,7 @@ for (const path of candidates) {
     /* Try the next installed binary. */
   }
 }
-if (!executablePath) throw new Error('Kein Electron-Binary für den lokalen Client-Test gefunden.');
+if (!executablePath) throw new Error('No Electron binary found for the local client test.');
 const env = { ...process.env, REPLAYHAVEN_SMOKE: '1' };
 delete env.ELECTRON_RUN_AS_NODE;
 const packaged = executablePath.includes('ReplayHaven Client.exe');
@@ -35,12 +35,12 @@ try {
   await expect(page.locator('#pick-folder')).toBeVisible();
   expect(await page.evaluate(() => typeof window.require)).toBe('undefined');
   expect(state.value.config.token).toBe('');
-  // ONNX Runtime und die Texterkennungsmodelle laden im fertigen Client.
-  expect(state.value.texts).toBe('bereit');
+  // ONNX Runtime and the text recognition models load in the packaged client.
+  expect(state.value.texts).toBe('ready');
   if (!state.value.config.folder) {
     const start = await page.evaluate(() => window.vault.call('start'));
     expect(start.ok).toBe(false);
-    expect(start.error).toContain('Aufnahmeordner');
+    expect(start.error).toMatch(/recording folder/i);
   }
   const content = await page.content();
   const { chromium } = await import('@playwright/test');

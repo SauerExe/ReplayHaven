@@ -1,4 +1,5 @@
 import { filterClips } from '../data/repository';
+import { compareText, locale } from '../i18n';
 import type { Clip } from '../domain/models';
 import type { StreamClip, StreamCollection, StreamGame, StreamLibrary } from './model';
 import { gameCover, newestFirst } from './rows';
@@ -13,7 +14,7 @@ export interface LibraryFilters {
   sort: string;
 }
 
-/** Was „Zurücksetzen“ zurücknimmt; die Sortierung gehört nicht dazu. */
+/** What "Reset" clears; sorting is not part of it. */
 export const FILTER_PARAMS = ['q', 'game', 'favorite', 'tag', 'period', 'status'] as const;
 
 export function readFilters(params: URLSearchParams): LibraryFilters {
@@ -33,8 +34,8 @@ export function hasFilters(params: URLSearchParams): boolean {
 }
 
 /**
- * Clips der Bibliothek in Anzeigereihenfolge. Filter und Sortierung wie bisher (filterClips);
- * die Suche findet zusätzlich den Spielnamen von Steam und das Genre.
+ * Library clips in display order. Filtering and sorting as before (filterClips); search also
+ * finds the Steam game name and the genre.
  */
 export function filterLibrary(
   raw: Clip[],
@@ -42,7 +43,7 @@ export function filterLibrary(
   filters: LibraryFilters,
 ): StreamClip[] {
   const byId = new Map(library.clips.map((clip) => [clip.id, clip]));
-  const query = filters.query.toLocaleLowerCase('de').trim();
+  const query = filters.query.toLocaleLowerCase(locale()).trim();
   const direct = query
     ? new Set(filterClips(raw, { query: filters.query }).map((clip) => clip.id))
     : null;
@@ -54,14 +55,14 @@ export function filterLibrary(
         !direct ||
         direct.has(clip.id) ||
         `${clip.game} ${library.games[clip.gameKey]?.genre ?? ''}`
-          .toLocaleLowerCase('de')
+          .toLocaleLowerCase(locale())
           .includes(query),
     );
 }
 
-/** Tags für den Filter; er vergleicht mit den Tags am Clip, nicht mit den Vorschlägen der KI. */
+/** Tags for the filter; it compares against the clip's tags, not the AI's suggestions. */
 export function tagOptions(raw: Clip[]): string[] {
-  return [...new Set(raw.flatMap((clip) => clip.tags))].sort((a, b) => a.localeCompare(b, 'de'));
+  return [...new Set(raw.flatMap((clip) => clip.tags))].sort(compareText);
 }
 
 function totalDuration(clips: StreamClip[]) {
@@ -72,12 +73,12 @@ export interface GameSummary {
   game: StreamGame;
   cover: string;
   count: number;
-  /** Gesamtlänge in Sekunden. */
+  /** Total length in seconds. */
   duration: number;
   newest: StreamClip;
 }
 
-/** Kopf der Bibliothek, wenn ein Spiel gewählt ist: Spielinfos wie in „Deine Spiele“ und mehr. */
+/** Library header when a game is selected: game info as in "Your games" and more. */
 export function gameSummary(library: StreamLibrary, key: string): GameSummary | null {
   const game = library.games[key];
   const clips = newestFirst(library.clips.filter((clip) => clip.gameKey === key));
@@ -99,10 +100,10 @@ export interface CollectionGame {
 }
 
 export interface CollectionSummary {
-  /** In der Reihenfolge der Sammlung. */
+  /** In collection order. */
   clips: StreamClip[];
   duration: number;
-  /** Nach Anzahl Clips, bei Gleichstand in der Reihenfolge der Sammlung. */
+  /** By number of clips; on a tie, in collection order. */
   games: CollectionGame[];
 }
 
@@ -130,7 +131,7 @@ export function summarizeCollection(
   return { clips, duration: totalDuration(clips), games };
 }
 
-/** Nächster abspielbarer Clip nach `id` in einer festen Reihenfolge, etwa der einer Sammlung. */
+/** Next playable clip after `id` in a fixed order, e.g. that of a collection. */
 export function nextInQueue(queue: StreamClip[], id: string): StreamClip | null {
   const index = queue.findIndex((clip) => clip.id === id);
   if (index < 0) return null;

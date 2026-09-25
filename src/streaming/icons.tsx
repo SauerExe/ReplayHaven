@@ -1,4 +1,4 @@
-/** Logo aus dem Entwurf: Abspiel-Dreieck mit Balken auf der Akzentfläche. */
+/** Logo from the design: play triangle with a bar on the accent surface. */
 export function BrandMark({ size = 30 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" focusable="false">
@@ -9,7 +9,7 @@ export function BrandMark({ size = 30 }: { size?: number }) {
   );
 }
 
-/** Zehn-Sekunden-Sprung; Lucide hat kein Symbol mit Zahl. */
+/** Ten-second skip; Lucide has no icon with a number. */
 export function SkipTen({ forward = false, size = 32 }: { forward?: boolean; size?: number }) {
   return (
     <svg

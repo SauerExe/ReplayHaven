@@ -1,24 +1,24 @@
-# ReplayHaven einrichten
+# Setting up ReplayHaven
 
-Dein Gaming-PC übernimmt die KI-Analyse. Dein Server speichert Videos und Ergebnisse und stellt das Archiv im Browser bereit. Auf dem Server ist dafür weder ein KI-Modell noch ein Grafiktreiber nötig.
+Your gaming PC does the AI analysis. Your server stores videos and results and serves the archive in the browser. The server needs neither an AI model nor a graphics driver for this.
 
-## 1. Server einrichten
+## 1. Set up the server
 
-Voraussetzung: ein Linux-Rechner, NAS oder Mini-PC mit [Docker Engine und Compose-Plugin](https://docs.docker.com/engine/install/).
+Requirement: a Linux machine, NAS or mini PC with [Docker Engine and the Compose plugin](https://docs.docker.com/engine/install/).
 
-**Variante A – fertiges Image (empfohlen):**
+**Option A – prebuilt image (recommended):**
 
 ```bash
 mkdir -p replayhaven && cd replayhaven
 curl -fsSLO https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/compose.yaml
 curl -fsSL  https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/.env.example -o .env
-nano .env        # REPLAYHAVEN_ACCESS_TOKEN und REPLAYHAVEN_PUBLIC_ORIGIN eintragen
+nano .env        # set REPLAYHAVEN_ACCESS_TOKEN and REPLAYHAVEN_PUBLIC_ORIGIN
 docker compose up -d
 ```
 
-Den Zugangsschlüssel erzeugst du mit `openssl rand -hex 24`. Als Serveradresse trägst du genau das ein, was du später im Browser öffnest, zum Beispiel `http://192.168.1.20:8787`.
+Generate the access key with `openssl rand -hex 24`. As the server address, enter exactly what you will later open in the browser, for example `http://192.168.1.20:8787`.
 
-**Variante B – aus dem Quellcode:**
+**Option B – from source:**
 
 ```bash
 git clone https://github.com/SauerExe/ReplayHaven.git
@@ -26,107 +26,107 @@ cd ReplayHaven
 bash setup-server.sh
 ```
 
-Das Skript fragt die Serveradresse ab, erzeugt den Zugangsschlüssel, baut das Image und startet den Server. Der erste Build braucht Internet und einige Minuten.
+The script asks for the server address, generates the access key, builds the image and starts the server. The first build needs internet access and takes a few minutes.
 
-Danach die Serveradresse im Browser öffnen und **dein Konto anlegen**: Name, Passwort und einmalig der Zugangsschlüssel aus der Einrichtung. Er verhindert, dass jemand anderes das erste Konto anlegt, falls der Server schon aus dem Internet erreichbar ist. Unter **Geräte** steht anschließend der Windows-Download bereit.
+Then open the server address in the browser and **create your account**: name, password and, once, the access key from setup. It prevents someone else from creating the first account if the server is already reachable from the internet. The Windows download is then available under **Devices**.
 
-**Weitere Geräte** wie Handy oder Laptop öffnen einfach die Serveradresse und melden sich mit Name und Passwort an. Schneller geht es per QR-Code: Unter **Geräte → Handy verbinden** auf einem angemeldeten Gerät, dann mit der Handy-Kamera scannen. Der Code gilt fünf Minuten und meldet genau ein Gerät an. Anmeldungen halten 30 Tage und verlängern sich bei jeder Nutzung; unter **Geräte** siehst du alle und kannst jedes einzeln entfernen.
+**Other devices** such as a phone or laptop simply open the server address and sign in with name and password. A QR code is faster: on a signed-in device go to **Devices → Connect phone**, then scan with the phone camera. The code is valid for five minutes and signs in exactly one device. Sign-ins last 30 days and are extended with every use; under **Devices** you can see all of them and remove each one individually.
 
-## 2. Windows-Client einrichten
+## 2. Set up the Windows client
 
-1. `ReplayHaven-Client-Setup.exe` installieren und ReplayHaven Client öffnen. Node.js, Python oder FFmpeg musst du nicht gesondert installieren.
-2. Den Aufnahmeordner auswählen. Unterordner werden mitgenommen.
-3. Die Serveradresse eintragen, etwa `replay.deine-domain.de` oder `192.168.1.20:8787`, und **Verbinden** klicken. Der Client zeigt einen sechsstelligen Code. In der Web-Oberfläche erscheint unter **Geräte** derselbe Code mit dem Namen deines PCs; dort **Freigeben** klicken. Der PC bekommt einen eigenen Zugang, den der Client mit deinem Windows-Konto verschlüsselt speichert und den du unter **Geräte** jederzeit entziehen kannst. Ältere Server ohne Konten verbindest du über **Stattdessen mit Zugangsschlüssel**.
-4. **Ollama installieren** öffnet den offiziellen Download. Ollama installieren und starten, dann im Client **Verbindung prüfen** klicken.
-5. **Modell laden** lädt einmalig Qwen3.5 9B, ungefähr 6,6 GB. Das geschieht ausschließlich auf deinen Klick.
-6. Mit **24 Bildern** beginnen und **Analyse & Upload starten** klicken.
+1. Install `ReplayHaven-Client-Setup.exe` and open ReplayHaven Client. You do not need to install Node.js, Python or FFmpeg separately.
+2. Choose the recordings folder. Subfolders are included.
+3. Enter the server address, for example `replay.your-domain.com` or `192.168.1.20:8787`, and click **Connect**. The client shows a six-digit code. In the web interface, the same code appears under **Devices** with your PC's name; click **Approve** there. The PC gets its own access, which the client stores encrypted with your Windows account and which you can revoke at any time under **Devices**. Older servers without accounts are connected via **Use access key instead**.
+4. **Install Ollama** opens the official download. Install and start Ollama, then click **Check connection** in the client.
+5. **Download model** downloads Qwen3.5 9B once, about 6.6 GB. This only happens when you click.
+6. Start with **24 frames** and click **Start analysis & upload**.
 
-Aktiviere **Vorhandene Aufnahmen beim ersten Start mitnehmen**, bevor du erstmals startest, wenn du alte Clips ebenfalls importieren möchtest. Sonst werden sie als übersprungen vorgemerkt. Diese Auswahl gilt pro Aufnahmeordner und Server. Der Spielname ist optional; ohne Eingabe dient der Unterordnername als Hinweis für die KI.
+Enable **Include existing recordings on first start** before starting for the first time if you want to import old clips as well. Otherwise they are marked as skipped. This choice applies per recordings folder and server. The game name is optional; without it, the subfolder name serves as a hint for the AI.
 
-Unter **Deine Spielernamen** trägst du ein, wie du im Spiel heißt. Heißt du je Spiel anders, bekommt jeder Name sein Spiel; vorgeschlagen werden die Spielordner deiner Aufnahmen, damit Eintrag und Ordner zusammenpassen. Ein Name ohne Spiel gilt überall. Die KI erfährt nur die Namen, die zum Spiel des Clips passen, und erkennt daran im Killfeed, welche Seite deine ist.
+Under **Your player names**, enter what you are called in-game. If your name differs per game, give each name its game; the game folders of your recordings are suggested so that entry and folder match. A name without a game applies everywhere. The AI only learns the names that match the clip's game and uses them to tell which side of the killfeed is yours.
 
-Der Installer ist derzeit nicht mit einem Herausgeberzertifikat signiert. Windows SmartScreen fragt deshalb einmal nach.
+The installer is currently not signed with a publisher certificate. Windows SmartScreen will therefore ask once.
 
-## 3. Wie bisher aufnehmen
+## 3. Record as before
 
-Speichere deine Clips wie gewohnt, etwa die letzten zwei Minuten über die NVIDIA App. Nach mindestens zehn Sekunden ohne Dateiänderung analysiert der Client die Aufnahme. Danach überträgt er **Originalvideo und Ergebnis**. Der Clip erscheint automatisch im Archiv. Titel, Beschreibung und Tags sind bearbeitbar; Zeitmarken springen zur Videostelle.
+Save your clips as usual, for example the last two minutes via the NVIDIA App. After at least ten seconds without file changes, the client analyses the recording. Then it uploads **original video and result**. The clip appears in the archive automatically. Title, description and tags are editable; timestamps jump to the spot in the video.
 
-Beim Spielen kannst du **pausieren** und anschließend mit **Analyse & Upload starten** fortsetzen. Ein gerade laufender FFmpeg-Schritt kann noch zu Ende laufen. Schließen lässt den Client im Windows-Infobereich weiterlaufen; **Beenden** im Tray-Menü beendet ihn. Nach einem Windows-Neustart startest du den Client erneut. Automatischer Windows-Start ist noch nicht eingerichtet.
+While gaming you can **pause** and then resume with **Start analysis & upload**. An FFmpeg step already running may still finish. Closing the window keeps the client running in the Windows notification area; **Quit** in the tray menu ends it. After a Windows restart, start the client again. Starting automatically with Windows is not set up yet.
 
-Zum ersten Verbindungstest kannst du **Neue Clips vor dem Upload lokal analysieren** ausschalten. Dann werden Originale ohne KI-Ergebnis archiviert; Ollama ist dafür nicht erforderlich. Beim manuellen Browser-Upload wird die PC-KI ebenfalls nicht aufgerufen.
+For a first connection test you can turn off **Analyse new clips locally before upload**. Originals are then archived without an AI result; Ollama is not required for that. Manual uploads in the browser do not call the PC's AI either.
 
-## Fortnite-Replays (optional)
+## Fortnite replays (optional)
 
-Fortnite legt von jedem Match ein Replay unter `%LOCALAPPDATA%\FortniteGame\Saved\Demos` ab. Mit **Fortnite-Replays einbeziehen** liest der Client daraus deine Kills, Knocks, dein Ausscheiden und einen Sieg samt Waffenart und Entfernung, statt sie aus Bildschirmmeldungen zu lesen. So entstehen Titel wie „Doppel-Kill mit der Schrotflinte“ oder „Snipe über 180 m“.
+Fortnite stores a replay of every match under `%LOCALAPPDATA%\FortniteGame\Saved\Demos`. With **Include Fortnite replays**, the client reads your kills, knocks, your elimination and a victory, including weapon type and distance, from it instead of from on-screen messages. This produces titles like "Doppel-Kill mit der Schrotflinte" or "Snipe über 180 m".
 
-- Die Clipzeit ergibt sich aus der Uhrzeit im NVIDIA-Dateinamen und dem Zeitpunkt, zu dem die Datei geschrieben wurde. Originale werden dafür nur gelesen.
-- Ein Replay nennt nicht, wer aufgenommen hat. Der Client erkennt dein Konto daran, dass es in fast jedem Replay dieses PCs vorkommt, und an der Match-Statistik. Bleibt es unklar, nutzt er das Replay nicht. Eindeutig wird es, wenn du deine **Epic-Konto-ID** einträgst; sie steht auf epicgames.com in deinen Kontoeinstellungen.
-- Spielst du Duos oder Squads mit festen Mitspielern, kommen sie in denselben Replays vor wie du. Dann wählt der Client in Teammatches kein Konto, statt womöglich ihre Kills als deine zu zählen. Trag in dem Fall deine Epic-Konto-ID ein.
-- Ein Clip aus einem Match, das noch läuft, wartet bis zu dessen Ende, höchstens 45 Minuten. Danach wird er wie bisher nur mit Bildern analysiert.
-- In Fortnite muss die Aufzeichnung von Replays eingeschaltet sein. Der Client liest nur den Kopf und die Ereignisse eines Replays, nicht das ganze Match.
+- The clip time is derived from the time in the NVIDIA file name and the time the file was written. Originals are only read for this.
+- A replay does not say who recorded it. The client recognises your account by the fact that it appears in almost every replay on this PC, and by the match statistics. If it stays unclear, it does not use the replay. It becomes unambiguous once you enter your **Epic account ID**; you can find it on epicgames.com in your account settings.
+- If you play duos or squads with regular teammates, they appear in the same replays as you. In team matches the client then picks no account rather than possibly counting their kills as yours. In that case, enter your Epic account ID.
+- A clip from a match that is still running waits until it ends, at most 45 minutes. After that it is analysed with frames only, as before.
+- Replay recording must be enabled in Fortnite. The client only reads a replay's header and events, not the whole match.
 
-## Texterkennung: R6-Karte, Rundenausgang und Valorant-Killfeed (optional)
+## Text recognition: R6 map, round outcome and Valorant killfeed (optional)
 
-Mit **Texterkennung: R6-Karte und Rundenausgang, Valorant-Killfeed** liest der Client in R6-Clips zwei Bilder je Sekunde mit einer Texterkennung (PaddleOCR über ONNX Runtime, auf der CPU). Daraus nimmt er den Kartennamen und Rundenergebnisse wie „ROUND WON“, sodass Titel wie „Rundensieg auf Oregon“ möglich werden.
+With **Text recognition: R6 map and round outcome, Valorant killfeed**, the client reads two frames per second in R6 clips with text recognition (PaddleOCR via ONNX Runtime, on the CPU). From these it takes the map name and round results such as "ROUND WON", making titles like "Rundensieg auf Oregon" possible.
 
-- Eine Karte zählt erst, wenn sie in mindestens zwei Bildern sicher gelesen wurde. Ein Titel darf dann keine andere Karte nennen.
-- In R6 liest die Texterkennung Kills bewusst nicht. Wer eine Killfeed-Zeile verursacht hat und ob sie zum Clip gehört, ließ sich so nicht verlässlich klären.
-- In Valorant liest sie nur den Killfeed oben rechts. Steht einer deiner eingetragenen Valorant-Namen links in einer Zeile, ist es dein Kill, steht er rechts, dein Tod; das Kopfschuss-Symbol wird meist mitgelesen. Trag jeden Namen ein, unter dem du je gespielt hast, sonst bleiben Clips aus dieser Zeit ohne Kills. Kills und Tode aus dem Killfeed ersetzen dann die, die die KI aus Bildschirmtexten gedeutet hat. Das dauert etwa 15 bis 25 Sekunden CPU je Clip.
-- Die Texterkennung braucht etwa eine Minute CPU-Zeit je Clip. Sie läuft gleichzeitig mit der KI, die auf der Grafikkarte rechnet, in einem eigenen Thread, damit das Fenster nicht stockt, und nutzt höchstens die Hälfte der Prozessorkerne.
-- Sie nutzt ONNX Runtime von Microsoft. Deren Windows-Fassung enthält Telemetrie-Ereignisse (ETW). Laut Datenschutzhinweis des Projekts werden sie nur aufgezeichnet, wenn eine Trace-Sitzung läuft, und nur mit deiner Zustimmung zu den Windows-Diagnosedaten übertragen.
+- A map only counts once it has been read reliably in at least two frames. A title may then not name any other map.
+- In R6 the text recognition deliberately does not read kills. Who caused a killfeed line and whether it belongs to the clip could not be determined reliably this way.
+- In Valorant it only reads the killfeed at the top right. If one of your entered Valorant names is on the left of a line, it is your kill; if it is on the right, your death. The headshot icon is usually read as well. Enter every name you have ever played under, otherwise clips from that period have no kills. Kills and deaths from the killfeed then replace those the AI interpreted from on-screen text. This takes about 15 to 25 seconds of CPU per clip.
+- Text recognition needs about one minute of CPU time per clip. It runs at the same time as the AI, which computes on the graphics card, in its own thread so the window does not stall, and uses at most half of the processor cores.
+- It uses Microsoft's ONNX Runtime. Its Windows version contains telemetry events (ETW). According to the project's privacy notice, they are only recorded while a trace session is running and only transmitted with your consent to Windows diagnostic data.
 
-## Voice-Chat mitschreiben (optional)
+## Transcribe voice chat (optional)
 
-Mit **Voice-Chat mitschreiben (Spaßclips)** schreibt der Client mit, was im Clip gesagt wird, und gibt es der KI als Kontext. Clips ohne Kills oder Rundenergebnis bekommen so Titel nach dem Gespräch, etwa „Obi-Wan oder Yoda?“ statt „Spitzhacke am Eiszaun“.
+With **Transcribe voice chat (fun clips)**, the client transcribes what is said in the clip and gives it to the AI as context. Clips without kills or round results thus get titles based on the conversation, for example "Obi-Wan oder Yoda?" instead of "Spitzhacke am Eiszaun".
 
-- Die Erkennung läuft mit Parakeet TDT 0.6B v3 über sherpa-onnx auf der CPU, in einem eigenen Prozess neben der KI. Zwei Minuten Ton dauern wenige Sekunden.
-- Beim ersten Start mit der Option lädt der Client die Sprachmodelle einmalig nach `%LOCALAPPDATA%\ReplayHaven\models\parakeet-v3`, rund 670 MB, jede Datei gegen ihre Prüfsumme geprüft.
-- Hat die Aufnahme eine eigene Mikrofonspur (NVIDIA App: „Mikrofon als separate Spur“), hört der Client nur diese. Sonst liest er die gemischte Spur; laute Spielgeräusche verschlucken dann einzelne Wörter.
-- Englische Namen im deutschen Gespräch verhört das Modell gelegentlich. Zitate landen deshalb nicht wörtlich im Titel.
-- Das Transkript bleibt auf deinem PC; zum Server gehen wie bisher nur Titel, Beschreibung, Tags und Zeitmarken.
+- Recognition runs with Parakeet TDT 0.6B v3 via sherpa-onnx on the CPU, in its own process alongside the AI. Two minutes of audio take a few seconds.
+- The first time the option is used, the client downloads the speech models once to `%LOCALAPPDATA%\ReplayHaven\models\parakeet-v3`, about 670 MB, verifying every file against its checksum.
+- If the recording has its own microphone track (NVIDIA App: "Microphone as separate track"), the client listens only to that. Otherwise it reads the mixed track; loud game sounds then swallow individual words.
+- The model occasionally mishears English names in German conversation. Quotes therefore do not end up verbatim in the title.
+- The transcript stays on your PC; as before, only title, description, tags and timestamps go to the server.
 
-## Beim Spielen pausieren
+## Pause while gaming
 
-**Beim Spielen pausieren** ist voreingestellt. Solange ein Spiel im Vollbild oder im randlosen Fenster läuft, warten Analyse und Upload, damit Grafikkarte, Prozessor und Leitung dem Spiel gehören. Eine Minute nachdem kein Spiel mehr im Vordergrund ist, geht es weiter; kurz zu Discord wechseln unterbricht die Pause also nicht.
+**Pause while gaming** is on by default. As long as a game is running in fullscreen or a borderless window, analysis and upload wait so that the graphics card, processor and connection belong to the game. They resume one minute after no game is in the foreground any more; briefly switching to Discord therefore does not end the pause.
 
-- Maßstab ist das Fenster im Vordergrund: Füllt es den ganzen Bildschirm, gilt es als Spiel. Ein Spiel im kleinen Fenster wird nicht erkannt.
-- Browser und Videoplayer im Vollbild zählen nicht als Spiel, ein maximiertes Fenster auch nicht.
-- Eine laufende KI-Anfrage läuft noch zu Ende, dann gibt die KI den Grafikspeicher frei. Der Clip bleibt in der Warteschlange und wird später vollständig analysiert.
-- Nebenbei merkt sich der Client, welches Programm vorne war. Legt die NVIDIA App einen Clip unter „Desktop“ oder „Base Profile“ ab, weil sie das Spiel nicht erkannt hat, bekommt er das Spiel, das in den zwei Minuten vor dem Speichern vorne war, etwa „Tom Clancy's Rainbow Six Siege“ oder den Fenstertitel eines unbekannten Spiels. Das gilt nur für Clips, die gespeichert werden, während der Client läuft.
+- What counts is the foreground window: if it fills the whole screen, it counts as a game. A game in a small window is not detected.
+- Browsers and video players in fullscreen do not count as games, and neither does a maximised window.
+- An AI request already running finishes, then the AI frees the graphics memory. The clip stays in the queue and is fully analysed later.
+- Along the way, the client remembers which program was in front. If the NVIDIA App files a clip under "Desktop" or "Base Profile" because it did not recognise the game, the clip gets the game that was in front during the two minutes before saving, for example "Tom Clancy's Rainbow Six Siege" or the window title of an unknown game. This only applies to clips saved while the client is running.
 
-## R6-Replays zu Clips aufbewahren
+## Keep R6 replays for clips
 
-Rainbow Six schreibt mit „Match Replay“ (Spieleinstellungen) jede Runde als Datei, behält aber nur die letzten rund 30 Matches. **R6-Replays zu Clips aufbewahren** ist voreingestellt: Nach dem Upload eines R6-Clips kopiert der Client das Match, in dem er entstand, nach `%LOCALAPPDATA%\ReplayHaven\r6-replays`, etwa 30 MB je Match. Die Analyse nutzt die Dateien noch nicht; sie sind die Grundlage, um Kills, Kopfschüsse, Ace und Clutch später genau aus dem Spiel zu lesen (docs/R6-REPLAYS.md). Die Dateien enthalten die Namen aller Spieler des Matches und bleiben auf deinem PC.
+With "Match Replay" (game settings), Rainbow Six writes every round as a file but only keeps the last 30 or so matches. **Keep R6 replays for clips** is on by default: after uploading an R6 clip, the client copies the match it came from to `%LOCALAPPDATA%\ReplayHaven\r6-replays`, about 30 MB per match. The analysis does not use these files yet; they are the basis for later reading kills, headshots, ace and clutch precisely from the game ([R6-REPLAYS.md](R6-REPLAYS.md)). The files contain the names of all players in the match and stay on your PC.
 
-## Was tatsächlich passiert
+## What actually happens
 
-- Die lokale KI erhält verkleinerte Einzelbilder in aufeinanderfolgenden Paketen. Ton wertet der Client nur mit **Voice-Chat mitschreiben** aus, und zwar auf deinem PC. Schnelle Ereignisse können zwischen den Bildern liegen; Ergebnisse sind Vorschläge.
-- Im voreingestellten Modus werden keine Aufnahmen an einen Cloud-KI-Anbieter gesendet.
-- Der Server bekommt das unveränderte Original einschließlich eventuell aufgenommenem Ton. Er erstellt ein Thumbnail und bei Bedarf eine H.264-Wiedergabekopie.
-- Nimmt die NVIDIA App das Mikrofon als eigene Spur auf („Mikrofon als separate Spur“), mischt die Wiedergabekopie alle Tonspuren. Ein Browser spielt sonst nur die erste Spur, und deine Stimme fehlt. Weitere Spuren kommen mittig in die Mischung, auch wenn das Mikrofon nur auf einem Kanal liegt. Das Bild wird dabei nur kopiert, das Original behält die getrennten Spuren.
-- Auf dem PC werden Originale weder umbenannt noch verschoben oder gelöscht. Der KI-Titel ist der Anzeigename im Archiv.
-- Nach Verbindungsfehlern wird erneut versucht. Fertige Analysen bleiben bis zur Bestätigung zwischengespeichert. Der Server erkennt doppelte Dateien anhand ihres Inhalts.
-- **Aus Bibliothek entfernen** blendet den Eintrag aus; seine Originaldatei bleibt auf dem Server. Eine automatische Speicherbereinigung gibt es noch nicht.
-- Metadaten und Favoriten eigener Server-Clips liegen auf dem Server. Sammlungen, Wiedergabefortschritt und Anzeigeeinstellungen bleiben derzeit im jeweiligen Browser.
+- The local AI receives downscaled individual frames in consecutive batches. The client only evaluates audio with **Transcribe voice chat**, and does so on your PC. Fast events can fall between frames; results are suggestions.
+- In the default mode, no recordings are sent to a cloud AI provider.
+- The server receives the unmodified original, including any recorded audio. It creates a thumbnail and, if needed, an H.264 playback copy.
+- If the NVIDIA App records the microphone as its own track ("Microphone as separate track"), the playback copy mixes all audio tracks. Otherwise a browser only plays the first track and your voice is missing. Additional tracks go into the centre of the mix, even if the microphone is on only one channel. The video is only copied; the original keeps the separate tracks.
+- On the PC, originals are never renamed, moved or deleted. The AI title is the display name in the archive.
+- After connection errors, the client retries. Finished analyses stay cached until confirmed. The server detects duplicate files by their content.
+- **Remove from library** hides the entry; its original file stays on the server. There is no automatic storage cleanup yet.
+- Metadata and favourites of your own server clips live on the server. Collections, playback progress and display settings currently stay in each browser.
 
-## Fehler beheben
+## Troubleshooting
 
-| Problem                                   | Nächster Schritt                                                                                                                          |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Server nicht erreichbar                   | Adresse im Browser prüfen; auf dem Server `docker compose ps` und `docker compose logs --tail=80` ausführen.                              |
-| „Diese Herkunft ist nicht freigegeben“    | `REPLAYHAVEN_PUBLIC_ORIGIN` in `.env` muss genau der Browseradresse entsprechen. Danach `docker compose up -d`.                           |
-| Schlüssel falsch                          | Den Schlüssel erneut eingeben. Er steht auf dem Server in `.env`.                                                                         |
-| Ollama nicht erreichbar                   | Ollama unter Windows starten, dann **Verbindung prüfen**.                                                                                 |
-| Modell fehlt                              | **Modell laden** wählen und warten.                                                                                                       |
-| GPU-Speicher knapp / Spiel ruckelt        | Client pausieren und nach dem Spielen fortsetzen. Mit 24 Bildern beginnen. Während der Analyse zeigt `ollama ps` die GPU-Nutzung.         |
-| Datei bleibt ausstehend                   | Warten, bis die Aufnahme fertig geschrieben ist. Unterstützt: MP4, M4V, MOV, WebM, MKV; maximal 2 GB, 30 Minuten und 8K pro Aufnahme.     |
-| Fortnite-Clip bleibt ausstehend           | Er wartet auf das Ende seines Matches. Nach dem Match oder spätestens nach 45 Minuten geht es weiter.                                     |
-| Start meldet „Visual C++ Redistributable“ | Die R6-Texterkennung braucht sie. Die aktuelle x64-Fassung von Microsoft installieren und erneut starten, oder die R6-Option ausschalten. |
-| Kein KI-Titel                             | Prüfen, ob die Client-Analyse aktiv war. Bereits archivierte Dateien werden durch späteres Einschalten nicht automatisch nachanalysiert.  |
-| Kein Windows-Download unter Geräte        | Das Image kennt keine Download-Adresse. `REPLAYHAVEN_CLIENT_DOWNLOAD_URL` in `.env` setzen oder den Installer nach `release/` legen.      |
+| Problem                                    | Next step                                                                                                                            |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Server not reachable                       | Check the address in the browser; on the server, run `docker compose ps` and `docker compose logs --tail=80`.                        |
+| "This origin is not allowed"               | `REPLAYHAVEN_PUBLIC_ORIGIN` in `.env` must match the browser address exactly. Then run `docker compose up -d`.                       |
+| Wrong key                                  | Enter the key again. It is in `.env` on the server.                                                                                  |
+| Ollama not reachable                       | Start Ollama on Windows, then **Check connection**.                                                                                  |
+| Model missing                              | Choose **Download model** and wait.                                                                                                  |
+| GPU memory low / game stutters             | Pause the client and resume after gaming. Start with 24 frames. During analysis, `ollama ps` shows GPU usage.                        |
+| File stays pending                         | Wait until the recording has been fully written. Supported: MP4, M4V, MOV, WebM, MKV; at most 2 GB, 30 minutes and 8K per recording. |
+| Fortnite clip stays pending                | It is waiting for its match to end. It continues after the match or after 45 minutes at the latest.                                  |
+| Start reports "Visual C++ Redistributable" | R6 text recognition needs it. Install the current x64 version from Microsoft and start again, or turn off the R6 option.             |
+| No AI title                                | Check whether client analysis was active. Files already archived are not re-analysed automatically when you turn it on later.        |
+| No Windows download under Devices          | The image has no download address. Set `REPLAYHAVEN_CLIENT_DOWNLOAD_URL` in `.env` or put the installer in `release/`.               |
 
-## Grenzen
+## Limits
 
-Modellqualität, Geschwindigkeit und Grafikspeicherbedarf hängen von deiner Hardware ab. Qwen3.5 9B läuft auf Grafikkarten ab etwa 10 GB VRAM flüssig; ohne passende GPU rechnet Ollama auf der CPU und braucht deutlich länger. Prüfe nach der Einrichtung mit einem echten Clip: Server starten → Client verbinden → neue Aufnahme speichern → GPU-Auslastung beobachten → Ergebnis im Archiv prüfen → Original herunterladen.
+Model quality, speed and graphics memory requirements depend on your hardware. Qwen3.5 9B runs smoothly on graphics cards with about 10 GB of VRAM or more; without a suitable GPU, Ollama computes on the CPU and takes considerably longer. After setup, check with a real clip: start the server → connect the client → save a new recording → watch GPU usage → check the result in the archive → download the original.
 
-Weiterführend: [Serverbetrieb](SERVER.md), [Entwicklung](../README.md), [Qwen3.5 bei Ollama](https://ollama.com/library/qwen3.5:9b), [Ollama GPU-Unterstützung](https://docs.ollama.com/gpu).
+Further reading: [Running the server](SERVER.md), [Development](../README.md), [Qwen3.5 on Ollama](https://ollama.com/library/qwen3.5:9b), [Ollama GPU support](https://docs.ollama.com/gpu).

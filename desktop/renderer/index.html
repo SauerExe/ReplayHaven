@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -11,7 +11,8 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <!-- Übersicht und Einstellungen; der Assistent liegt darüber, solange er offen ist. -->
+    <!-- Overview and settings; the setup wizard sits on top while it is open.
+         Texts are English by default; app.js swaps them via the data-i18n* keys (i18n.js). -->
     <div id="app" class="app">
       <header class="topbar">
         <div class="brand">
@@ -19,15 +20,16 @@
           <span class="brand-name">Replay<b>Haven</b></span>
           <span class="brand-tag">Client</span>
         </div>
-        <nav class="tabs" role="tablist" aria-label="Bereiche">
+        <nav class="tabs" role="tablist" aria-label="Sections" data-i18n-aria-label="nav.aria">
           <button
             id="tab-overview"
             class="tab"
             role="tab"
             aria-selected="true"
             data-view="overview"
+            data-i18n="tab.overview"
           >
-            Übersicht
+            Overview
           </button>
           <button
             id="tab-settings"
@@ -35,14 +37,15 @@
             role="tab"
             aria-selected="false"
             data-view="settings"
+            data-i18n="tab.settings"
           >
-            Einstellungen
+            Settings
           </button>
         </nav>
         <div class="topbar-end">
-          <span id="pill" class="pill" data-state="off"><i></i><span>Nicht gestartet</span></span>
+          <span id="pill" class="pill" data-state="off"><i></i><span>Not started</span></span>
           <button id="archive" class="ghost">
-            Archiv öffnen <span aria-hidden="true">↗</span>
+            <span data-i18n="archive.open">Open archive</span> <span aria-hidden="true">↗</span>
           </button>
         </div>
       </header>
@@ -53,28 +56,28 @@
             <div id="hero-orb" class="orb" data-state="off"></div>
             <div>
               <p id="hero-eyebrow" class="eyebrow">Status</p>
-              <h1 id="hero-title">Nicht gestartet</h1>
-              <p id="hero-message" class="hero-message">Richte den Client ein, um loszulegen.</p>
+              <h1 id="hero-title">Not started</h1>
+              <p id="hero-message" class="hero-message">Set up the client to get started.</p>
             </div>
           </div>
           <div class="hero-actions">
-            <button id="primary-action" class="primary large">Starten</button>
+            <button id="primary-action" class="primary large">Start</button>
           </div>
         </section>
 
-        <section class="stats" aria-label="Kennzahlen">
+        <section class="stats" aria-label="Key figures" data-i18n-aria-label="stats.aria">
           <div class="stat">
-            <span class="stat-label">Warteschlange</span>
+            <span class="stat-label" data-i18n="stat.queue">Queue</span>
             <strong id="stat-queue">0</strong>
-            <span id="stat-queue-eta" class="stat-note">Nichts offen</span>
+            <span id="stat-queue-eta" class="stat-note">Nothing pending</span>
           </div>
           <div class="stat">
-            <span class="stat-label">Heute archiviert</span>
+            <span class="stat-label" data-i18n="stat.today">Archived today</span>
             <strong id="stat-today">0</strong>
             <span id="stat-today-note" class="stat-note">&nbsp;</span>
           </div>
           <div class="stat">
-            <span class="stat-label">Insgesamt archiviert</span>
+            <span class="stat-label" data-i18n="stat.total">Archived in total</span>
             <strong id="stat-total">0</strong>
             <span id="stat-average" class="stat-note">&nbsp;</span>
           </div>
@@ -82,16 +85,16 @@
 
         <section class="card now" aria-labelledby="now-title">
           <div class="card-head">
-            <h2 id="now-title">Jetzt in Arbeit</h2>
+            <h2 id="now-title" data-i18n="now.title">In progress now</h2>
             <span id="now-elapsed" class="muted mono"></span>
           </div>
           <div id="now-empty" class="empty">
             <div class="empty-art" aria-hidden="true"></div>
             <div>
-              <strong>Gerade ist nichts zu tun.</strong>
-              <p>
-                Speicherst du im Spiel einen Clip, erscheint er hier, sobald die NVIDIA App ihn
-                fertig geschrieben hat.
+              <strong data-i18n="now.emptyTitle">Nothing to do right now.</strong>
+              <p data-i18n="now.emptyText">
+                When you save a clip in a game, it shows up here as soon as the NVIDIA App has
+                finished writing it.
               </p>
             </div>
           </div>
@@ -103,11 +106,13 @@
             <div class="now-body">
               <p id="now-game" class="eyebrow"></p>
               <h3 id="now-name"></h3>
-              <ol id="stepper" class="stepper" aria-label="Arbeitsschritte">
-                <li data-step="prepare"><i></i>Vorbereiten</li>
-                <li data-step="view"><i></i>Bilder sichten</li>
-                <li data-step="summary"><i></i>Titel schreiben</li>
-                <li data-step="upload"><i></i>Hochladen</li>
+              <ol id="stepper" class="stepper" aria-label="Steps" data-i18n-aria-label="now.steps">
+                <li data-step="prepare"><i></i><span data-i18n="step.prepare">Prepare</span></li>
+                <li data-step="view"><i></i><span data-i18n="step.view">Review frames</span></li>
+                <li data-step="summary">
+                  <i></i><span data-i18n="step.summary">Write title</span>
+                </li>
+                <li data-step="upload"><i></i><span data-i18n="step.upload">Upload</span></li>
               </ol>
               <div
                 class="progress"
@@ -120,7 +125,9 @@
               </div>
               <div class="now-foot">
                 <span id="now-detail" class="muted"></span>
-                <button id="now-reveal" class="link">Im Explorer zeigen</button>
+                <button id="now-reveal" class="link" data-i18n="now.reveal">
+                  Show in Explorer
+                </button>
               </div>
             </div>
           </div>
@@ -129,25 +136,25 @@
         <div class="columns">
           <section class="card" aria-labelledby="queue-title">
             <div class="card-head">
-              <h2 id="queue-title">Warteschlange</h2>
+              <h2 id="queue-title" data-i18n="queue.title">Queue</h2>
               <span id="queue-count" class="count">0</span>
             </div>
             <ol id="queue-list" class="list"></ol>
-            <p id="queue-empty" class="list-empty">
-              Alles erledigt. Neue Clips landen automatisch hier.
+            <p id="queue-empty" class="list-empty" data-i18n="queue.empty">
+              All done. New clips land here automatically.
             </p>
           </section>
           <section class="card" aria-labelledby="recent-title">
             <div class="card-head">
-              <h2 id="recent-title">Zuletzt archiviert</h2>
+              <h2 id="recent-title" data-i18n="recent.title">Recently archived</h2>
               <button id="recent-all" class="link">
-                Alle im Archiv <span aria-hidden="true">↗</span>
+                <span data-i18n="recent.all">All in archive</span>
+                <span aria-hidden="true">↗</span>
               </button>
             </div>
             <ol id="recent-list" class="list"></ol>
-            <p id="recent-empty" class="list-empty">
-              Noch nichts archiviert. Der erste Clip erscheint hier mit dem Titel, den die KI ihm
-              gibt.
+            <p id="recent-empty" class="list-empty" data-i18n="recent.empty">
+              Nothing archived yet. The first clip appears here with the title the AI gives it.
             </p>
           </section>
         </div>
@@ -155,194 +162,260 @@
 
       <main id="settings" class="view" role="tabpanel" aria-labelledby="tab-settings" hidden>
         <div id="settings-lock" class="banner" hidden>
-          <span>Einstellungen lassen sich ändern, solange der Client pausiert ist.</span>
-          <button id="settings-pause" class="secondary">Jetzt pausieren</button>
+          <span data-i18n="settings.lock">Settings can be changed while the client is paused.</span>
+          <button id="settings-pause" class="secondary" data-i18n="settings.pauseNow">
+            Pause now
+          </button>
         </div>
         <form id="settings-form" class="settings" novalidate>
           <section class="card">
-            <h2>Archiv-Server</h2>
+            <h2 data-i18n="card.server">Archive server</h2>
             <label class="field"
-              >Serveradresse<input id="server" type="url" placeholder="http://server-adresse:8787"
+              ><span data-i18n="field.server">Server address</span
+              ><input
+                id="server"
+                type="url"
+                placeholder="http://server-address:8787"
+                data-i18n-placeholder="field.serverPlaceholder"
             /></label>
             <label class="field"
-              >Zugangsschlüssel<input
+              ><span data-i18n="field.token">Access key</span
+              ><input
                 id="token"
                 type="password"
                 autocomplete="off"
-                placeholder="Leer lassen, um den gespeicherten zu behalten"
+                placeholder="Leave empty to keep the saved one"
+                data-i18n-placeholder="token.keep"
             /></label>
             <div class="row">
-              <button id="pair-server" type="button" class="primary">Mit Server koppeln</button>
-              <button id="test-server" type="button" class="secondary">Verbindung testen</button>
+              <button id="pair-server" type="button" class="primary" data-i18n="btn.pair">
+                Pair with server
+              </button>
+              <button id="test-server" type="button" class="secondary" data-i18n="btn.test">
+                Test connection
+              </button>
               <span id="server-result" class="result" role="status"></span>
             </div>
           </section>
 
           <section class="card">
-            <h2>Aufnahmen</h2>
+            <h2 data-i18n="card.recordings">Recordings</h2>
             <label class="field"
-              >Aufnahmeordner
+              ><span data-i18n="field.folder">Recordings folder</span>
               <span class="input-row">
-                <input id="folder" readonly placeholder="NVIDIA-Aufnahmeordner" />
-                <button id="pick-folder" type="button" class="secondary">Auswählen</button>
+                <input
+                  id="folder"
+                  readonly
+                  placeholder="NVIDIA recordings folder"
+                  data-i18n-placeholder="field.folderPlaceholder"
+                />
+                <button id="pick-folder" type="button" class="secondary" data-i18n="btn.choose">
+                  Choose
+                </button>
               </span>
             </label>
             <p id="folder-info" class="hint"></p>
             <label class="field"
-              ><span>Spiel für alle Clips <small>optional</small></span
+              ><span
+                ><span data-i18n="field.game">Game for all clips</span>
+                <small data-i18n="field.optional">optional</small></span
               ><input
                 id="game"
                 maxlength="100"
-                placeholder="Sonst gilt der Unterordner der NVIDIA App"
+                placeholder="Otherwise the NVIDIA App subfolder is used"
+                data-i18n-placeholder="field.gamePlaceholder"
             /></label>
           </section>
 
           <section class="card">
-            <h2>Deine Spielernamen</h2>
-            <p class="hint">
-              Heißt du je Spiel anders, trag jeden Namen mit seinem Spiel ein. Ohne Spiel gilt ein
-              Name überall. So erkennt die KI, welche Kills deine sind.
+            <h2 data-i18n="card.names">Your player names</h2>
+            <p class="hint" data-i18n="names.hint">
+              If your name differs per game, enter each name with its game. A name without a game
+              applies everywhere. This is how the AI knows which kills are yours.
             </p>
             <div id="player-names" class="name-rows"></div>
             <datalist id="game-suggestions"></datalist>
-            <button id="add-name" type="button" class="link">+ Weiteren Namen</button>
+            <button id="add-name" type="button" class="link" data-i18n="names.add">
+              + Another name
+            </button>
           </section>
 
           <section class="card">
-            <h2>Lokale KI</h2>
+            <h2 data-i18n="card.ai">Local AI</h2>
             <div class="model">
               <span class="model-mark" aria-hidden="true">✦</span>
               <div>
-                <strong>Qwen3.5 · 9B über Ollama</strong>
-                <p class="muted">Läuft auf deiner Grafikkarte, nichts verlässt deinen PC.</p>
+                <strong data-i18n="ai.model">Qwen3.5 · 9B via Ollama</strong>
+                <p class="muted" data-i18n="ai.local">
+                  Runs on your graphics card, nothing leaves your PC.
+                </p>
               </div>
-              <span id="model-state" class="chip">Ungeprüft</span>
+              <span id="model-state" class="chip">Not checked</span>
             </div>
             <div class="row">
-              <button id="check-model" type="button" class="secondary">Prüfen</button>
-              <button id="install-ollama" type="button" class="secondary">
-                Ollama installieren ↗
+              <button id="check-model" type="button" class="secondary" data-i18n="btn.check">
+                Check
               </button>
-              <button id="download-model" type="button" class="secondary">
-                Modell laden · 6,6 GB
+              <button
+                id="install-ollama"
+                type="button"
+                class="secondary"
+                data-i18n="btn.installOllama"
+              >
+                Install Ollama ↗
               </button>
-              <button id="cancel-download" type="button" class="secondary" hidden>Abbrechen</button>
+              <button
+                id="download-model"
+                type="button"
+                class="secondary"
+                data-i18n="btn.downloadModel"
+              >
+                Download model · 6.6 GB
+              </button>
+              <button
+                id="cancel-download"
+                type="button"
+                class="secondary"
+                data-i18n="btn.cancel"
+                hidden
+              >
+                Cancel
+              </button>
             </div>
             <div id="model-progress" class="progress thin" hidden><span></span></div>
             <label class="toggle"
               ><input id="analyze" type="checkbox" /><span
-                ><b>Clips vor dem Upload analysieren</b
-                ><small>Titel, Tags und Zeitmarken von der lokalen KI.</small></span
+                ><b data-i18n="opt.analyze">Analyze clips before upload</b
+                ><small data-i18n="opt.analyzeNote"
+                  >Title, tags and highlights from the local AI.</small
+                ></span
               ></label
             >
             <label class="field"
-              >Analyseumfang
+              ><span data-i18n="field.frames">Analysis scope</span>
               <select id="frames">
-                <option value="0">Ganzer Clip · ein Bild alle 3 Sekunden (empfohlen)</option>
-                <option value="24">24 Bilder · schneller</option>
-                <option value="48">48 Bilder</option>
+                <option value="0" data-i18n="frames.whole">
+                  Whole clip · one frame every 3 seconds (recommended)
+                </option>
+                <option value="24" data-i18n="frames.24">24 frames · faster</option>
+                <option value="48" data-i18n="frames.48">48 frames</option>
               </select>
             </label>
           </section>
 
           <section class="card">
-            <h2>Erkennung</h2>
+            <h2 data-i18n="card.detection">Detection</h2>
             <label class="toggle"
               ><input id="r6-texts" type="checkbox" /><span
-                ><b>Texterkennung</b
-                ><small
-                  >R6: Karte und Rundenausgang. Valorant: Kills, Kopfschüsse und Tode aus dem
-                  Killfeed. Etwa eine Minute CPU je Clip.</small
+                ><b data-i18n="opt.texts">Text recognition</b
+                ><small data-i18n="opt.textsNote"
+                  >R6: map and round result. Valorant: kills, headshots and deaths from the
+                  killfeed. About a minute of CPU per clip.</small
                 ></span
               ></label
             >
             <label class="toggle"
               ><input id="speech" type="checkbox" /><span
-                ><b>Voice-Chat mitschreiben</b
-                ><small
-                  >Titel nach dem Gespräch für Clips ohne Kills. Einmalig rund 670 MB Sprachmodelle,
-                  alles bleibt auf deinem PC.</small
+                ><b data-i18n="opt.speech">Transcribe voice chat</b
+                ><small data-i18n="opt.speechNote"
+                  >Titles based on the conversation for clips without kills. One-time download of
+                  about 670 MB of speech models, everything stays on your PC.</small
                 ></span
               ></label
             >
             <label class="toggle"
               ><input id="fortnite-replays" type="checkbox" /><span
-                ><b>Fortnite-Replays</b
-                ><small
-                  >Kills, Waffe und Entfernung exakt aus den Replays. Clips warten bis zum
-                  Matchende.</small
+                ><b data-i18n="opt.fortnite">Fortnite replays</b
+                ><small data-i18n="opt.fortniteNote"
+                  >Exact kills, weapon and distance from the replays. Clips wait until the match
+                  ends.</small
                 ></span
               ></label
             >
             <label class="field"
-              ><span>Epic-Konto-ID <small>optional</small></span
+              ><span
+                ><span data-i18n="field.epic">Epic account ID</span>
+                <small data-i18n="field.optional">optional</small></span
               ><input
                 id="epic-accounts"
                 maxlength="340"
                 autocomplete="off"
-                placeholder="Nur nötig bei festen Mitspielern"
+                placeholder="Only needed with regular teammates"
+                data-i18n-placeholder="field.epicPlaceholder"
             /></label>
             <label class="toggle"
               ><input id="keep-r6-replays" type="checkbox" /><span
-                ><b>R6-Replays zu Clips aufbewahren</b
-                ><small
-                  >Sichert das Match zu jedem R6-Clip, etwa 30 MB, für spätere genaue
-                  Auswertung.</small
+                ><b data-i18n="opt.keepR6">Keep R6 replays with clips</b
+                ><small data-i18n="opt.keepR6Note"
+                  >Saves the match for every R6 clip, about 30 MB, for exact analysis later.</small
                 ></span
               ></label
             >
           </section>
 
           <section class="card">
-            <h2>Verhalten</h2>
+            <h2 data-i18n="card.behavior">Behavior</h2>
+            <!-- The language applies and is saved right away, independent of the Save button. -->
+            <label class="field"
+              ><span data-i18n="field.language">Language</span>
+              <select id="language">
+                <option value="en">English</option>
+                <option value="de">Deutsch</option>
+              </select>
+            </label>
             <label class="toggle"
               ><input id="pause-while-gaming" type="checkbox" /><span
-                ><b>Beim Spielen pausieren</b
-                ><small
-                  >Analyse und Upload warten, solange ein Spiel den Bildschirm füllt, und laufen
-                  eine Minute danach weiter.</small
+                ><b data-i18n="opt.pauseGaming">Pause while gaming</b
+                ><small data-i18n="opt.pauseGamingNote"
+                  >Analysis and upload wait while a game fills the screen and continue one minute
+                  afterwards.</small
                 ></span
               ></label
             >
             <label class="toggle"
               ><input id="auto-start" type="checkbox" /><span
-                ><b>Beim Öffnen gleich weiterarbeiten</b
-                ><small>Ohne Klick auf „Starten“.</small></span
+                ><b data-i18n="opt.autoStart">Resume work when opened</b
+                ><small data-i18n="opt.autoStartNote">Without clicking “Start”.</small></span
               ></label
             >
             <label class="toggle"
               ><input id="open-at-login" type="checkbox" /><span
-                ><b>Mit Windows starten</b><small>Unauffällig im Infobereich.</small></span
+                ><b data-i18n="opt.openAtLogin">Start with Windows</b
+                ><small data-i18n="opt.openAtLoginNote"
+                  >Quietly in the notification area.</small
+                ></span
               ></label
             >
             <label class="toggle"
               ><input id="notify" type="checkbox" /><span
-                ><b>Mitteilung bei jedem archivierten Clip</b
-                ><small>Nie während eines Spiels.</small></span
+                ><b data-i18n="opt.notify">Notification for every archived clip</b
+                ><small data-i18n="opt.notifyNote">Never during a game.</small></span
               ></label
             >
             <label class="toggle"
               ><input id="include-existing" type="checkbox" /><span
-                ><b>Vorhandene Aufnahmen mitnehmen</b
-                ><small>Gilt beim ersten Start mit einem neuen Ordner oder Server.</small></span
+                ><b data-i18n="opt.existing">Include existing recordings</b
+                ><small data-i18n="opt.existingNote"
+                  >Applies on the first start with a new folder or server.</small
+                ></span
               ></label
             >
           </section>
 
           <div class="settings-actions">
-            <button id="rerun-setup" type="button" class="link">
-              Einrichtung erneut durchlaufen
+            <button id="rerun-setup" type="button" class="link" data-i18n="btn.rerun">
+              Run setup again
             </button>
             <span class="spacer"></span>
             <span id="save-result" class="result" role="status"></span>
-            <button id="save" type="submit" class="primary">Speichern</button>
+            <button id="save" type="submit" class="primary" data-i18n="btn.save">Save</button>
           </div>
         </form>
       </main>
       <p id="toast" class="toast" role="alert" hidden></p>
     </div>
 
-    <!-- Einrichtungsassistent -->
+    <!-- Setup wizard -->
     <div
       id="wizard"
       class="wizard"
@@ -357,7 +430,9 @@
           <span class="brand-name">Replay<b>Haven</b></span>
         </div>
         <ol id="wizard-steps" class="wizard-steps"></ol>
-        <p class="rail-foot">Deine Aufnahmen bleiben deine. Die KI läuft auf deinem PC.</p>
+        <p class="rail-foot" data-i18n="wizard.railFoot">
+          Your recordings stay yours. The AI runs on your PC.
+        </p>
       </aside>
       <div class="wizard-main">
         <div class="wizard-body">
@@ -368,13 +443,14 @@
           <p id="wizard-error" class="wizard-error" role="alert"></p>
         </div>
         <div class="wizard-nav">
-          <button id="wizard-back" class="ghost">Zurück</button>
+          <button id="wizard-back" class="ghost" data-i18n="btn.back">Back</button>
           <span class="spacer"></span>
           <button id="wizard-skip" class="link" hidden></button>
-          <button id="wizard-next" class="primary large">Weiter</button>
+          <button id="wizard-next" class="primary large">Next</button>
         </div>
       </div>
     </div>
+    <script src="i18n.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

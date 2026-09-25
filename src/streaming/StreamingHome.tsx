@@ -1,5 +1,6 @@
 import { useId, useMemo } from 'react';
 import { Film, Heart, Info, Play, Sparkles, Upload } from 'lucide-react';
+import { t } from '../i18n';
 import { confidenceLabel, formatDuration, formatWhen, isNew, titleSize } from './format';
 import type { Navigate } from './links';
 import type { StreamClip, StreamLibrary, StreamStatus } from './model';
@@ -10,16 +11,17 @@ import { ClipTile, CollectionTile, ConnectFolderTile, GameTile } from './Tile';
 
 export interface StreamingHomeProps {
   library: StreamLibrary;
-  /** Bezugszeit für „Neu“ und „Heute, 21:14“. */
+  /** Reference time for "New" and "Today, 9:14 PM". */
   now: number;
   status?: StreamStatus;
   onOpenClip: (id: string) => void;
   onPlayClip: (id: string) => void;
-  onToggleFavorite: (id: string) => void;
+  /** Missing for accounts that may not change clips; the heart is hidden then. */
+  onToggleFavorite?: (id: string) => void;
   onNavigate?: Navigate;
   onAddClip?: () => void;
   onCreateCollection?: () => void;
-  /** Ziel der gestrichelten Kachel „Aufnahmeordner verbinden“, etwa /devices. */
+  /** Target of the dashed "Connect recording folder" tile, e.g. /devices. */
   connectHref?: string;
 }
 
@@ -73,7 +75,7 @@ export function StreamingHome({
         onNavigate={onNavigate}
         action={
           row.id === 'sammlungen' && onCreateCollection
-            ? { label: 'Neue Sammlung', onClick: onCreateCollection }
+            ? { label: t('stream.home.newCollection'), onClick: onCreateCollection }
             : undefined
         }
       >
@@ -101,8 +103,8 @@ export function StreamingHome({
           <span className="stream-empty-icon">
             <Film size={34} strokeWidth={1.5} aria-hidden="true" />
           </span>
-          <h1>Noch keine Clips</h1>
-          <p>Füge deinen ersten Clip hinzu. Hier landen dann deine besten Momente.</p>
+          <h1>{t('stream.home.emptyTitle')}</h1>
+          <p>{t('stream.home.emptyText')}</p>
           {onAddClip && (
             <button
               type="button"
@@ -110,7 +112,7 @@ export function StreamingHome({
               onClick={onAddClip}
             >
               <Upload size={20} aria-hidden="true" />
-              Clip hinzufügen
+              {t('stream.home.addClip')}
             </button>
           )}
         </div>
@@ -141,7 +143,7 @@ function Hero({
   now: number;
   onPlay: (id: string) => void;
   onOpen: (id: string) => void;
-  onToggleFavorite: (id: string) => void;
+  onToggleFavorite?: (id: string) => void;
 }) {
   const titleId = useId();
   return (
@@ -156,7 +158,7 @@ function Hero({
           {isNew(clip.recordedAt, now) && (
             <>
               <span className="stream-dot" aria-hidden="true" />
-              <span className="stream-pill">Neu</span>
+              <span className="stream-pill">{t('stream.tile.new')}</span>
             </>
           )}
         </p>
@@ -180,7 +182,7 @@ function Hero({
         </p>
         {clip.description && <p className="stream-hero-description">{clip.description}</p>}
         {clip.tags.length > 0 && (
-          <ul className="stream-hero-tags" aria-label="Tags">
+          <ul className="stream-hero-tags" aria-label={t('stream.tags')}>
             {clip.tags.slice(0, 4).map((tag) => (
               <li key={tag}>{tag}</li>
             ))}
@@ -193,7 +195,7 @@ function Hero({
             onClick={() => onPlay(clip.id)}
           >
             <Play size={24} fill="currentColor" strokeWidth={0} aria-hidden="true" />
-            Abspielen
+            {t('stream.play')}
           </button>
           <button
             type="button"
@@ -201,28 +203,32 @@ function Hero({
             onClick={() => onOpen(clip.id)}
           >
             <Info size={24} strokeWidth={2} aria-hidden="true" />
-            Details
+            {t('stream.details')}
           </button>
-          <button
-            type="button"
-            className="stream-round stream-round--large"
-            aria-label="Favorit"
-            aria-pressed={clip.favorite}
-            onClick={() => onToggleFavorite(clip.id)}
-          >
-            <Heart
-              size={22}
-              strokeWidth={2}
-              fill={clip.favorite ? 'currentColor' : 'none'}
-              aria-hidden="true"
-            />
-          </button>
+          {onToggleFavorite && (
+            <button
+              type="button"
+              className="stream-round stream-round--large"
+              aria-label={t('stream.favorite')}
+              aria-pressed={clip.favorite}
+              onClick={() => onToggleFavorite(clip.id)}
+            >
+              <Heart
+                size={22}
+                strokeWidth={2}
+                fill={clip.favorite ? 'currentColor' : 'none'}
+                aria-hidden="true"
+              />
+            </button>
+          )}
         </div>
       </div>
       {clip.hasAnalysis && (
         <p className="stream-hero-note">
           <Sparkles size={18} strokeWidth={2} aria-hidden="true" />
-          KI-Titel{clip.confidence ? ` · Sicherheit ${confidenceLabel[clip.confidence]}` : ''}
+          {clip.confidence
+            ? t('stream.home.aiTitleConfidence', { confidence: confidenceLabel(clip.confidence) })
+            : t('stream.home.aiTitle')}
         </p>
       )}
     </section>

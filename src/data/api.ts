@@ -1,4 +1,5 @@
 import type { Clip, ServerInfo } from '../domain/models';
+import { t } from '../i18n';
 export const disconnectedServer: ServerInfo = {
   connected: false,
   provider: 'none',
@@ -8,6 +9,16 @@ export const disconnectedServer: ServerInfo = {
   queue: 0,
   devices: [],
 };
+/** A failed API request; `status` is the HTTP status, e.g. 401 when a sign-in or key is needed. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api${path}`, {
     ...options,
@@ -19,7 +30,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || `Server antwortet mit HTTP ${response.status}.`);
+    throw new ApiError(
+      data.error || t('app.api.httpError', { status: response.status }),
+      response.status,
+    );
   }
   return response.json() as Promise<T>;
 }
@@ -32,17 +46,15 @@ export function uploadToServer(file: File, onProgress: (progress: number) => voi
     request.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
-    request.onerror = () =>
-      reject(new Error('Server nicht erreichbar. Die Datei wurde nicht bestätigt.'));
-    request.ontimeout = () =>
-      reject(new Error('Der Upload hat zu lange gedauert. Versuche es erneut.'));
+    request.onerror = () => reject(new Error(t('app.api.unreachable')));
+    request.ontimeout = () => reject(new Error(t('app.api.timeout')));
     request.onload = () => {
       try {
         const result = JSON.parse(request.responseText);
         if (request.status >= 200 && request.status < 300) resolve(result.clip);
-        else reject(new Error(result.error || 'Upload fehlgeschlagen.'));
+        else reject(new Error(result.error || t('app.api.uploadFailed')));
       } catch {
-        reject(new Error('Ungültige Serverantwort.'));
+        reject(new Error(t('app.api.invalidResponse')));
       }
     };
     const form = new FormData();

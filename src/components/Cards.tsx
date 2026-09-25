@@ -14,9 +14,11 @@ import {
 import type { Clip, Collection } from '../domain/models';
 import { games } from '../data/seed';
 import { useVault } from '../data/store';
+import { useCanEdit } from './AuthGate';
 import { relativeDate, time } from '../data/repository';
 import { ClipMenu } from './Actions';
 import { Artwork } from './Artwork';
+import { t, tp } from '../i18n';
 export { Artwork } from './Artwork';
 export function ClipCard({
   clip,
@@ -30,6 +32,7 @@ export function ClipCard({
   onSelect?: () => void;
 }) {
   const { state, patchClip } = useVault();
+  const editable = useCanEdit(clip);
   const game = games.find((g) => g.id === clip.gameId);
   const progress = state.progress[clip.id];
   const content = (
@@ -42,7 +45,9 @@ export function ClipCard({
       <span className="duration">{time(clip.duration)}</span>
       {clip.status !== 'ready' && (
         <span className={`status-badge ${clip.status}`}>
-          {clip.status === 'processing' ? 'Verarbeitung' : 'Fehler'}
+          {clip.status === 'processing'
+            ? t('app.cards.status.processing')
+            : t('app.cards.status.error')}
         </span>
       )}
       {progress && progress.duration > 0 && (
@@ -65,7 +70,9 @@ export function ClipCard({
           <button
             className="thumbnail-link"
             onClick={onSelect}
-            aria-label={`${clip.title} ${selected ? 'abwählen' : 'auswählen'}`}
+            aria-label={t(selected ? 'app.cards.deselect' : 'app.cards.select', {
+              title: clip.title,
+            })}
             aria-pressed={selected}
           >
             {content}
@@ -74,18 +81,18 @@ export function ClipCard({
           <Link
             className="thumbnail-link"
             to={`/clips/${clip.id}`}
-            aria-label={`${clip.title} abspielen`}
+            aria-label={t('app.clip.play', { title: clip.title })}
           >
             {content}
           </Link>
         )}
-        {!selecting && (
+        {!selecting && editable && (
           <button
             className={`card-favorite ${clip.favorite ? 'is-favorite' : ''}`}
             onClick={() => patchClip(clip.id, { favorite: !clip.favorite })}
-            aria-label={
-              clip.favorite ? `${clip.title} aus Favoriten entfernen` : `${clip.title} favorisieren`
-            }
+            aria-label={t(clip.favorite ? 'app.cards.unfavorite' : 'app.cards.favorite', {
+              title: clip.title,
+            })}
             aria-pressed={clip.favorite}
           >
             <Heart size={15} fill={clip.favorite ? 'currentColor' : 'none'} />
@@ -99,7 +106,7 @@ export function ClipCard({
           </Link>
           <p>
             <span className="game-dot" style={{ background: game?.color || '#a78bfa' }} />
-            {game?.name || clip.gameName || 'Deine Aufnahme'}
+            {game?.name || clip.gameName || t('app.clip.fallbackGame')}
             <span className="metadata-divider">·</span>
             {relativeDate(clip.recordedAt)}
           </p>
@@ -154,7 +161,7 @@ export function Section({
         <div className="section-actions">
           {link && (
             <Link className="text-link" to={link}>
-              Alle anzeigen <ArrowRight size={15} />
+              {t('app.cards.showAll')} <ArrowRight size={15} />
             </Link>
           )}
           {overflow && (
@@ -162,7 +169,7 @@ export function Section({
               <button
                 className="icon-button"
                 disabled={!position.left}
-                aria-label={`${title}: zurück`}
+                aria-label={t('app.cards.scrollBack', { title })}
                 onClick={() =>
                   ref.current?.scrollBy({
                     left: -ref.current.clientWidth * 0.8,
@@ -175,7 +182,7 @@ export function Section({
               <button
                 className="icon-button"
                 disabled={!position.right}
-                aria-label={`${title}: weiter`}
+                aria-label={t('app.cards.scrollForward', { title })}
                 onClick={() =>
                   ref.current?.scrollBy({ left: ref.current.clientWidth * 0.8, behavior: 'smooth' })
                 }
@@ -214,7 +221,7 @@ export function CollectionCard({ collection }: { collection: Collection }) {
           <div>
             <h3>{collection.title}</h3>
             <p>
-              {clips.length} Clips <span>·</span> {relativeDate(collection.updatedAt)}
+              {tp('common.clips', clips.length)} <span>·</span> {relativeDate(collection.updatedAt)}
             </p>
           </div>
           <ArrowRight size={19} />
@@ -224,8 +231,8 @@ export function CollectionCard({ collection }: { collection: Collection }) {
   );
 }
 export function EmptyState({
-  title = 'Noch keine Clips',
-  description = 'Dein nächster guter Moment wartet schon.',
+  title = t('app.cards.emptyTitle'),
+  description = t('app.cards.emptyText'),
   children,
   icon: Icon = Film,
 }: {

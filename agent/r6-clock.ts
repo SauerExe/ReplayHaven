@@ -3,25 +3,25 @@ import type { TextLine, TextReader } from './ocr';
 import type { MediaProcessor } from '../server/media';
 
 /**
- * Zeitanker für die R6-Replays (docs/R6-REPLAYS.md): Kills im Replay tragen die Rundenuhr aus
- * dem HUD, keine Uhrzeit. Liest die Texterkennung dieselbe Uhr im Clip, gilt innerhalb einer
- * Phase Clipsekunde + Uhr = fest, und jeder Kill lässt sich auf eine Clipsekunde umrechnen.
- * Wo das HUD die Uhr genau zeigt, ist an echten Clips noch nicht vermessen; der Ausschnitt oben
- * in der Mitte ist deshalb großzügig.
+ * Time anchor for the R6 replays (docs/R6-REPLAYS.md): kills in the replay carry the round clock
+ * from the HUD, not a wall-clock time. If text recognition reads the same clock in the clip, clip
+ * second + clock is constant within a phase, and every kill converts to a clip second. Exactly
+ * where the HUD shows the clock has not yet been measured on real clips, so the top-centre region
+ * is generous.
  */
 
-/** Ausschnitt oben in der Mitte, als Anteil von Breite und Höhe des Bildes. */
+/** Top-centre region, as a fraction of the frame's width and height. */
 export const CLOCK_AREA = { x: 0.35, y: 0, w: 0.3, h: 0.12 };
-/** Die Vorbereitung zählt von 0:45 herunter; ein höherer Wert gehört sicher zur Aktionsphase. */
+/** The preparation phase counts down from 0:45; a higher value surely belongs to the action phase. */
 const PREP_SECONDS = 45;
 
-/** Die Rundenuhr in einer gelesenen Zeile, "2:47" oder "2.47", in Sekunden. */
+/** The round clock in a read line, "2:47" or "2.47", in seconds. */
 export function clockValue(text: string): number | undefined {
   const match = /(?<![\d:.])([0-4])\s?[:.]\s?([0-5]\d)(?![\d:.])/.exec(text);
   return match ? Number(match[1]) * 60 + Number(match[2]) : undefined;
 }
 
-/** Die Uhr in einem Ausschnitt: die sicher gelesene Zeile, die der Mitte am nächsten liegt. */
+/** The clock in a region: the confidently read line closest to the centre. */
 export function clockIn(lines: readonly TextLine[], width: number): number | undefined {
   return lines
     .filter((line) => line.score >= 0.8)
@@ -34,20 +34,20 @@ export function clockIn(lines: readonly TextLine[], width: number): number | und
 }
 
 export interface ClockSample {
-  /** Zeitpunkt des Bildes im Clip, in Sekunden. */
+  /** Time of the frame in the clip, in seconds. */
   seconds: number;
   clock: number;
 }
 
 export interface ClockAnchor {
-  /** Clipsekunde + Uhr, fest innerhalb einer Phase. */
+  /** Clip second + clock, constant within a phase. */
   anchor: number;
-  /** Zahl der übereinstimmenden Lesungen. */
+  /** Number of matching readings. */
   samples: number;
-  /** Kleinste und größte gelesene Uhr der Phase. */
+  /** Lowest and highest clock read in the phase. */
   low: number;
   high: number;
-  /** Eine Lesung über 0:45: sicher die Aktionsphase, nicht die Vorbereitung. */
+  /** A reading above 0:45: surely the action phase, not preparation. */
   action: boolean;
 }
 
@@ -58,10 +58,9 @@ const median = (values: number[]) => {
 };
 
 /**
- * Bündelt die Lesungen nach Clipsekunde + Uhr. Ein Bündel braucht mindestens `minimum`
- * Lesungen, die höchstens `tolerance` Sekunden auseinanderliegen; Fehllesungen fallen so
- * heraus. Mehrere Bündel entstehen an Phasenwechseln (Vorbereitung, Aktionsphase, Entschärfer).
- * Das größte Bündel steht vorn.
+ * Groups the readings by clip second + clock. A group needs at least `minimum` readings at most
+ * `tolerance` seconds apart, so misreads drop out. Several groups arise at phase changes
+ * (preparation, action phase, defuser). The largest group comes first.
  */
 export function clockAnchors(
   samples: readonly ClockSample[],
@@ -90,23 +89,23 @@ export function clockAnchors(
 }
 
 /**
- * Der Anker für die Kills der Aktionsphase: das größte Bündel mit einer Lesung über 0:45. Ohne
- * ein solches bleibt nur das größte Bündel; ob es Vorbereitung oder Rundenende ist, ist offen.
+ * The anchor for kills in the action phase: the largest group with a reading above 0:45. Without
+ * one, only the largest group remains; whether it is preparation or round end stays open.
  */
 export function actionAnchor(anchors: readonly ClockAnchor[]) {
   return anchors.find((a) => a.action) ?? anchors[0];
 }
 
-/** Clipsekunde eines Replay-Ereignisses mit der Rundenuhr `clock`. */
+/** Clip second of a replay event with the round clock `clock`. */
 export function clipSecond(anchor: ClockAnchor, clock: number) {
   return Math.round((anchor.anchor - clock) * 10) / 10;
 }
 
 /**
- * Liest die Rundenuhr eines Clips: zwei Bilder je Sekunde, nur der Ausschnitt oben in der Mitte.
- * Sobald `enough` Lesungen die Aktionsphase übereinstimmend verankern, hört es auf; ein
- * Ausschnitt kostet einen CPU-Kern etwa 70 ms. rawFrames nennt die Mitte des Abtastintervalls,
- * das Bild selbst stammt vom Intervallbeginn.
+ * Reads the round clock of a clip: two frames per second, only the top-centre region. It stops
+ * once `enough` readings agree on the action phase anchor; one region costs a CPU core about
+ * 70 ms. rawFrames reports the middle of the sampling interval, while the frame itself comes from
+ * the start of the interval.
  */
 export async function readClock(
   media: MediaProcessor,

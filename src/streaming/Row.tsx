@@ -1,6 +1,7 @@
 import { Children, useId } from 'react';
 import type { ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { t } from '../i18n';
 import { linkHandler, type Navigate } from './links';
 import { useScrollPager } from './useScrollPager';
 
@@ -16,7 +17,7 @@ export function Row({
   kind: 'clips' | 'games' | 'collections';
   href?: string;
   onNavigate?: Navigate;
-  /** Ersetzt „Alle anzeigen“, etwa „Neue Sammlung“. */
+  /** Replaces "See all", e.g. "New collection". */
   action?: { label: string; onClick: () => void };
   children: ReactNode;
 }) {
@@ -36,7 +37,7 @@ export function Row({
         ) : (
           href && (
             <a className="stream-row-link" href={href} onClick={linkHandler(onNavigate, href)}>
-              Alle anzeigen
+              {t('stream.row.seeAll')}
               <ChevronRight size={16} strokeWidth={2.5} aria-hidden="true" />
             </a>
           )
@@ -46,12 +47,12 @@ export function Row({
         <ul className="stream-row-track" ref={trackRef}>
           {children}
         </ul>
-        {/* Kacheln sind selbst per Tab erreichbar und scrollen dabei ins Bild; die Pfeile sind Mauskomfort. */}
+        {/* Tiles are reachable with Tab and scroll into view; the arrows are a mouse convenience. */}
         <button
           type="button"
           className="stream-row-arrow stream-row-arrow--prev"
           tabIndex={-1}
-          aria-label={`${title}: zurück`}
+          aria-label={t('stream.row.previous', { title })}
           data-visible={edges.start}
           onClick={() => page(-1)}
         >
@@ -61,7 +62,7 @@ export function Row({
           type="button"
           className="stream-row-arrow stream-row-arrow--next"
           tabIndex={-1}
-          aria-label={`${title}: weiter`}
+          aria-label={t('stream.row.next', { title })}
           data-visible={edges.end}
           onClick={() => page(1)}
         >

@@ -8,9 +8,9 @@ import ffmpeg from 'ffmpeg-static';
 import sharp from 'sharp';
 
 /**
- * Erzeugt die Bilder der README in docs/images: die Web-Bibliothek mit Beispieldaten und einem
- * nachgestellten Server, den Windows-Client und aus docs/images/src Banner, Social-Preview und
- * Architekturgrafik. Nach Änderungen an der Oberfläche einfach neu laufen lassen:
+ * Generates the README images in docs/images: the web library with sample data and a mocked
+ * server, the Windows client, and from docs/images/src the banner, social preview and
+ * architecture graphic. After UI changes, just run it again:
  * npm run readme:images
  */
 
@@ -28,12 +28,12 @@ function run(command, args) {
     child.stderr.on('data', (text) => (log += text));
     child.on('error', fail);
     child.on('close', (code) =>
-      code === 0 ? done() : fail(new Error(`${command} endete mit ${code}: ${log}`)),
+      code === 0 ? done() : fail(new Error(`${command} exited with ${code}: ${log}`)),
     );
   });
 }
 
-/** Vite liefert App, Vorschau und die Vorlagen unter docs/images/src aus. */
+/** Vite serves the app, the preview and the templates under docs/images/src. */
 async function startVite() {
   const vite = spawn(
     process.execPath,
@@ -51,10 +51,10 @@ async function startVite() {
     await new Promise((r) => setTimeout(r, 250));
   }
   vite.kill();
-  throw new Error(`Vite antwortet nicht auf ${base}.`);
+  throw new Error(`Vite is not responding on ${base}.`);
 }
 
-/** Ein ruhiges Standbild als VP9-Video: Screenshots brauchen ein ladbares Video, keine Bewegung. */
+/** A still image as VP9 video: screenshots need a loadable video, not motion. */
 async function demoVideo(folder) {
   const file = join(folder, 'demo.webm');
   await run(ffmpeg, [
@@ -88,7 +88,10 @@ async function demoVideo(folder) {
 
 const iso = (hoursAgo) => new Date(now - hoursAgo * HOUR).toISOString();
 
-/** Beispiel-Clips, wie sie der Server nach Upload und Analyse durch den Client ausliefert. */
+/**
+ * Sample clips as the server serves them after upload and analysis by the client. Titles, tags
+ * and descriptions are German product content.
+ */
 function demoClips() {
   const clip = (id, gameName, image, title, hoursAgo, duration, extra = {}) => {
     const tags = extra.tags ?? [];
@@ -200,7 +203,10 @@ const covers = {
   'Forza Horizon 5': 'forza',
   'Cyberpunk 2077': 'cyberpunk',
 };
-/** Was der Server bei Steam nachschlägt; die Beschreibungen sind eigene Kurztexte. */
+/**
+ * What the server looks up on Steam (in German, like server/metadata.ts); the descriptions are
+ * our own short texts.
+ */
 const details = {
   'Counter-Strike 2': {
     genre: 'Action, Free to Play',
@@ -234,36 +240,36 @@ const details = {
   },
 };
 
-/** Was die Web-App lokal speichert: Sammlungen, Fortschritt und Anzeigename. */
+/** What the web app stores locally: collections, progress and display name. */
 const vault = {
   version: 1,
   clips: [],
   collections: [
     {
       id: 'clutches',
-      title: 'Beste Clutches',
-      description: 'Es ist erst vorbei, wenn es vorbei ist.',
+      title: 'Best Clutches',
+      description: "It ain't over till it's over.",
       clipIds: ['clutch-inferno', 'ace-inferno', 'apex-final'],
       updatedAt: iso(2),
     },
     {
       id: 'friends',
-      title: 'Mit Freunden',
-      description: 'Gute Gesellschaft, fragwürdige Entscheidungen.',
+      title: 'With Friends',
+      description: 'Good company, questionable decisions.',
       clipIds: ['apex-third', 'mirage-triple', 'forza-drift'],
       updatedAt: iso(20),
     },
     {
       id: 'montage',
-      title: 'Montage-Material',
-      description: 'Für das nächste Video.',
+      title: 'Montage Material',
+      description: 'For the next video.',
       clipIds: ['forza-drift', 'night-city', 'headshot-dust'],
       updatedAt: iso(40),
     },
     {
       id: 'bosses',
-      title: 'Bosskämpfe',
-      description: 'Einmal noch.',
+      title: 'Boss Fights',
+      description: 'One more try.',
       clipIds: ['elden-boss', 'elden-view'],
       updatedAt: iso(80),
     },
@@ -273,10 +279,10 @@ const vault = {
     'night-city': { seconds: 41, duration: 58, updatedAt: iso(3) },
     'forza-drift': { seconds: 9, duration: 31, updatedAt: iso(6) },
   },
-  preferences: { name: 'Spieler', speed: 1, reducedMotion: false, compact: false },
+  preferences: { name: 'Player', speed: 1, reducedMotion: false, compact: false },
 };
 
-/** Stellt den Server nach: Status mit verbundenem Gaming-PC, Clips, Spielinfos und das Video. */
+/** Mocks the server: status with a connected gaming PC, clips, game info and the video. */
 async function mockServer(context, video) {
   const clips = demoClips();
   await context.route(`${base}/api/**`, (route) => {
@@ -317,9 +323,9 @@ async function mockServer(context, video) {
           cover: `/media/${covers[name]}-cover.webp`,
         })),
       });
-    return route.fulfill({ status: 404, json: { error: 'Nicht Teil der Demo.' } });
+    return route.fulfill({ status: 404, json: { error: 'Not part of the demo.' } });
   });
-  // Mit Byte-Bereichen, sonst kann Chromium im Video nicht springen.
+  // With byte ranges, otherwise Chromium cannot seek in the video.
   const bytes = await readFile(video);
   await context.route(`${base}/demo/clip.webm`, (route) => {
     const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers().range ?? '');
@@ -340,7 +346,7 @@ async function mockServer(context, video) {
   }, vault);
 }
 
-/** Screenshot als JPEG (Fotos aus Spielen komprimieren so auf einen Bruchteil) oder PNG. */
+/** Screenshot as JPEG (game footage compresses to a fraction that way) or PNG. */
 async function save(page, name, options = {}) {
   const buffer = await page.screenshot(options);
   const target = join(out, name);
@@ -350,7 +356,7 @@ async function save(page, name, options = {}) {
   console.log(`  ${name}`);
 }
 
-/** Wartet auf Schriften und sichtbare Bilder; Bilder unterhalb laden per Lazy Loading nie. */
+/** Waits for fonts and visible images; images below the fold never load due to lazy loading. */
 const settle = (page) =>
   page.evaluate(async () => {
     await document.fonts.ready;
@@ -377,8 +383,8 @@ async function appShots(browser, video) {
   await settle(page);
   await save(page, 'app-home.jpg');
 
-  // Details und Player der Startseite hängen an ?clip= und ?play=. Per Klick geöffnet zeigt der
-  // Dialog keinen Tastaturfokus-Rahmen.
+  // Details and player on the home page hang off ?clip= and ?play=. Opened by a click, the
+  // dialog shows no keyboard focus ring.
   await page.getByRole('button', { name: 'Details', exact: true }).first().click();
   await page.getByRole('dialog').waitFor();
   await page.waitForTimeout(500);
@@ -389,7 +395,7 @@ async function appShots(browser, video) {
   await page.waitForFunction(
     () => (document.querySelector('.stream-player video')?.readyState ?? 0) >= 2,
   );
-  // Angehalten bleiben die Bedienelemente stehen; zweimal vorspulen zeigt etwas Fortschritt.
+  // While paused the controls stay visible; skipping ahead twice shows some progress.
   await page.getByRole('button', { name: 'Pause' }).click();
   await page.getByRole('button', { name: '10 Sekunden vor' }).click();
   await page.getByRole('button', { name: '10 Sekunden vor' }).click();
@@ -399,12 +405,12 @@ async function appShots(browser, video) {
 
   await page.goto(`${base}/library`);
   await page.getByText('Triple Kill auf Mirage').first().waitFor();
-  // Die Maus stand zuletzt mitten im Bild und höbe sonst ein Cover hervor.
+  // The mouse was last in the middle of the page and would otherwise highlight a cover.
   await page.mouse.move(1420, 140);
   await settle(page);
   await save(page, 'app-library.jpg');
 
-  // Ein Spiel gewählt: oben die Spieleleiste, darunter die Spielinfos und die ersten Clips.
+  // A game selected: the game bar at the top, below it the game info and the first clips.
   await page.goto(`${base}/library?game=${encodeURIComponent('name:Counter-Strike 2')}`);
   await page.locator('.stream-spotlight').waitFor();
   await page
@@ -414,7 +420,7 @@ async function appShots(browser, video) {
   await settle(page);
   await save(page, 'app-game.jpg');
 
-  // Eine automatische Sammlung: entsteht allein aus den Tags der Clips.
+  // An automatic collection: created from the clips' tags alone.
   await page.goto(`${base}/collections/auto/mehrfach-kills`);
   await page.getByRole('heading', { name: 'Mehrfach-Kills', level: 1 }).waitFor();
   await page.waitForTimeout(300);
@@ -430,7 +436,7 @@ async function appShots(browser, video) {
   await context.close();
 }
 
-/** Das Fenster des Windows-Clients, mit nachgestellter Brücke zum Hauptprozess. */
+/** The Windows client window, with a mocked bridge to the main process. */
 async function clientShot(browser) {
   const page = await browser.newPage({ viewport: { width: 1040, height: 900 } });
   await page.addInitScript(() => {
@@ -438,7 +444,7 @@ async function clientShot(browser) {
       folder: 'D:\\Clips',
       server: 'http://192.168.1.20:8787',
       game: '',
-      playerNames: [{ name: 'SpielerEins', game: '' }],
+      playerNames: [{ name: 'PlayerOne', game: '' }],
       includeExisting: false,
       analyze: true,
       frames: 24,
@@ -450,7 +456,7 @@ async function clientShot(browser) {
     const status = {
       running: true,
       paused: false,
-      message: 'Hochgeladen: „Ace auf Inferno“. Warte auf die nächste Aufnahme.',
+      message: 'Uploaded: “Ace auf Inferno”. Waiting for the next recording.',
       queued: 0,
       uploaded: 48,
       model: true,
@@ -502,7 +508,7 @@ const work = await mkdtemp(join(tmpdir(), 'replayhaven-readme-'));
 const vite = await startVite();
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 try {
-  console.log(`Bilder nach ${out}:`);
+  console.log(`Images to ${out}:`);
   const video = await demoVideo(work);
   await appShots(browser, video);
   await clientShot(browser);

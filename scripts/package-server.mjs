@@ -34,4 +34,4 @@ if (await stat('release/ReplayHaven-Client-Setup.exe').catch(() => null))
 execFileSync('tar', ['-czf', 'release/ReplayHaven-Server.tar.gz', '-C', stage, '.'], {
   windowsHide: true,
 });
-console.log('release/ReplayHaven-Server.tar.gz erstellt.');
+console.log('release/ReplayHaven-Server.tar.gz created.');

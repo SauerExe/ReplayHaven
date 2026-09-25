@@ -4,6 +4,7 @@ dist/
 desktop-bundle/
 server-bundle/
 release/
+release-*/
 *.tsbuildinfo
 .vite/
 
@@ -24,6 +25,9 @@ agent-state/
 .env.*
 !.env.example
 .server.env
+# Local Compose overrides (ports, volumes) stay on the machine
+compose.override.yaml
+compose.override.yml
 
 # Editors and operating systems
 .vscode/

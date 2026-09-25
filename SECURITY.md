@@ -18,7 +18,7 @@ simple:
   session and device tokens only as SHA-256 hashes. Failed sign-ins are throttled.
 - Recording PCs pair by request: the client shows a six-digit code, the owner approves the
   matching request in the web UI, and the PC receives its own bearer token, stored encrypted
-  with the Windows user account. Every session and PC can be revoked under Geräte. Paired PCs
+  with the Windows user account. Every session and PC can be revoked under Devices. Paired PCs
   cannot manage accounts or devices.
 - The access key keeps working as a bearer token for older clients and scripts.
 - API requests must come from `REPLAYHAVEN_PUBLIC_ORIGIN`; other origins are rejected.

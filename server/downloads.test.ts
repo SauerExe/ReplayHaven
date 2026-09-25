@@ -18,7 +18,7 @@ describe('Windows client download', () => {
     const config: ServerConfig = {
       host: '127.0.0.1',
       port: 8787,
-      // Tests fragen nichts bei Steam an.
+      // Tests do not query Steam.
       gameMetadata: false,
       dataDir: join(root, 'archive'),
       token,

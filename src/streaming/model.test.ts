@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { setLanguage } from '../i18n';
 import type { Clip, ClipAnalysis, Game, ServerInfo } from '../domain/models';
-import { serverStatus, toStreamLibrary, UNKNOWN_GAME } from './model';
+import { serverStatus, toStreamLibrary, unknownGame } from './model';
+
+// These expectations use the German wording; English is covered in i18n.test.ts.
+beforeAll(() => setLanguage('de', false));
+afterAll(() => setLanguage('en', false));
 
 const cs2: Game = {
   id: 'cs2',
@@ -149,7 +154,7 @@ describe('toStreamLibrary', () => {
     expect(clips[0]).toMatchObject({ game: 'Mein Spiel', gameKey: 'name:Mein Spiel' });
     expect(clips[0].gameCover).toBeUndefined();
     expect(clips[1]).toMatchObject({
-      game: UNKNOWN_GAME,
+      game: unknownGame(),
       gameKey: '',
       downloadUrl: 'blob:lokal',
     });

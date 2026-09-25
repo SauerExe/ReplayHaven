@@ -13,6 +13,10 @@ export interface StoredClip extends Clip {
   userEditedTitle?: boolean;
   deleted?: boolean;
   expectsClientAnalysis?: boolean;
+  /** Version of the playback rendition (media.ts playbackProfile); unset while one is due. */
+  playbackProfile?: string;
+  /** Profile for which rendering the playback file failed, so the backfill does not loop. */
+  playbackFailed?: string;
 }
 export interface AgentDevice {
   id: string;
@@ -26,11 +30,11 @@ export interface AgentDevice {
 }
 export interface StoredGame {
   key: string;
-  /** Der Name, wie er in der Bibliothek steht — also der Ordnername der Aufnahmen. */
+  /** The name as it appears in the library — the folder name of the recordings. */
   label: string;
   checkedAt: string;
   status?: 'ready' | 'not_found' | 'error';
-  /** Fehlt, wenn es zu diesem Namen keinen exakten Treffer gibt. */
+  /** Missing when there is no exact match for this name. */
   info?: {
     name: string;
     appId: number;
@@ -38,7 +42,7 @@ export interface StoredGame {
     genre: string;
     released: string;
     source: string;
-    /** Dateiname des heruntergeladenen Covers unterhalb von `covers/`. */
+    /** File name of the downloaded cover below `covers/`. */
     cover?: string;
   };
 }
@@ -54,8 +58,8 @@ export class VaultDatabase {
       CREATE TABLE IF NOT EXISTS games(key TEXT PRIMARY KEY, data TEXT NOT NULL);`);
   }
   /**
-   * Nachgeschlagene Spielinfos. Ein Eintrag ohne `info` merkt sich, dass für diesen Namen
-   * nichts zu finden war — sonst fragt der Server bei jedem Upload erneut nach.
+   * Looked-up game info. An entry without `info` remembers that nothing was found for this
+   * name — otherwise the server would ask again on every upload.
    */
   games(): StoredGame[] {
     return (this.db.prepare('SELECT data FROM games').all() as { data: string }[]).map((r) =>
@@ -136,6 +140,8 @@ export function publicClip(clip: StoredClip): Clip {
     playbackFile: _playbackFile,
     userEditedTitle: _edited,
     deleted: _deleted,
+    playbackProfile: _profile,
+    playbackFailed: _failed,
     ...publicData
   } = clip;
   void _hash;
@@ -143,5 +149,7 @@ export function publicClip(clip: StoredClip): Clip {
   void _playbackFile;
   void _edited;
   void _deleted;
+  void _profile;
+  void _failed;
   return publicData;
 }

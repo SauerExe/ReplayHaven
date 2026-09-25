@@ -6,9 +6,9 @@ import type { Transcript } from '../agent/speech';
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 /**
- * Die Spracherkennung (agent/speech-worker.ts) in einem eigenen Prozess. Er startet bei der
- * ersten Anfrage und behält die Modelle bis close(); stirbt er, scheitern die offenen Anfragen
- * und die nächste startet ihn neu.
+ * Speech recognition (agent/speech-worker.ts) in its own process. It starts on the first
+ * request and keeps the models until close(); if it dies, pending requests fail and the next
+ * one restarts it.
  */
 export class SpeechProcess {
   private child?: UtilityProcess;
@@ -23,7 +23,7 @@ export class SpeechProcess {
   >();
   constructor(private readonly options: { script: string; data: SpeechWorkerData }) {}
 
-  /** Lädt fehlende Modelle (einmalig rund 670 MB) und meldet jede Datei beim Laden. */
+  /** Downloads missing models (about 670 MB, once) and reports each file as it downloads. */
   prepare(onDownload?: (file: string) => void) {
     return this.request({ type: 'prepare' }, undefined, onDownload) as Promise<boolean>;
   }
@@ -35,14 +35,14 @@ export class SpeechProcess {
   close() {
     const child = this.child;
     this.child = undefined;
-    this.fail(new Error('Spracherkennung beendet.'));
+    this.fail(new Error('Speech recognition stopped.'));
     child?.kill();
   }
 
   private start() {
     if (this.child) return this.child;
     const child = utilityProcess.fork(this.options.script, [JSON.stringify(this.options.data)], {
-      serviceName: 'ReplayHaven Spracherkennung',
+      serviceName: 'ReplayHaven Speech Recognition',
       stdio: 'ignore',
     });
     child.on('message', (reply: SpeechReply) => {
@@ -56,7 +56,7 @@ export class SpeechProcess {
     child.on('exit', (code) => {
       if (this.child !== child) return;
       this.child = undefined;
-      this.fail(new Error(`Spracherkennung unerwartet beendet (Code ${code}).`));
+      this.fail(new Error(`Speech recognition stopped unexpectedly (code ${code}).`));
     });
     this.child = child;
     return child;

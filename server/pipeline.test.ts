@@ -48,7 +48,7 @@ describe('archive and client-analysis pipeline', () => {
     config = {
       host: '127.0.0.1',
       port: 8787,
-      // Tests fragen nichts bei Steam an.
+      // Tests do not query Steam.
       gameMetadata: false,
       dataDir: join(root, 'archive'),
       token,
@@ -181,11 +181,11 @@ describe('archive and client-analysis pipeline', () => {
       tags: ['Test'],
       analysis: { status: 'ready', provider: 'client', result },
     });
-    // Eine wiederholte Übertragung desselben Ergebnisses ändert nichts.
+    // Sending the same result again changes nothing.
     const stamp = vault.db.get(id)?.analysis?.updatedAt;
     await send({ result, duration: 2, model: 'test-only' });
     expect(vault.db.get(id)?.analysis?.updatedAt).toBe(stamp);
-    // Eine neue Analyse ersetzt die alte samt ihrer Tags; eigener Titel und eigene Tags bleiben.
+    // A new analysis replaces the old one including its tags; a custom title and custom tags stay.
     await vault.app.inject({
       method: 'PATCH',
       url: `/api/clips/${id}`,

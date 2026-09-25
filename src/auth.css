@@ -1,4 +1,4 @@
-/* Anmeldung, Kopplung von Aufnahme-PCs und angemeldete Geräte (AuthGate, DeviceAccess). */
+/* Sign-in, pairing of recording PCs, signed-in devices and user management (AuthGate, DeviceAccess, Users). */
 
 .auth-screen {
   min-height: 100vh;
@@ -223,7 +223,7 @@
     grid-column: 1 / -1;
   }
 }
-/* Die allgemeine Bildregel der Seiten würde Logo und QR-Code auf volle Breite ziehen. */
+/* The general image rule of the pages would stretch logo and QR code to full width. */
 .auth-brand img {
   width: 36px;
   height: 36px;
@@ -232,4 +232,143 @@
   width: 220px;
   height: 220px;
   max-width: 100%;
+}
+
+/* Single sign-on on the login screen */
+.auth-card .auth-sso {
+  justify-content: center;
+  padding-block: 12px;
+  text-decoration: none;
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.auth-banner {
+  position: fixed;
+  z-index: 60;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(560px, calc(100% - 32px));
+  padding: 10px 12px 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgb(244 124 135 / 45%);
+  background: var(--surface);
+  color: var(--error);
+  font-weight: 600;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 35%);
+}
+.auth-banner span {
+  flex: 1;
+}
+
+/* Account access and user management */
+.access-links {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.access-link {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  color: var(--muted);
+}
+.access-link + .access-link {
+  border-top: 1px solid var(--border);
+}
+.access-link strong {
+  color: var(--text);
+}
+.access-link p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+.user-create {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto;
+  align-items: end;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.user-create .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+.user-create input,
+.user-create select,
+.user-actions select {
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.user-create input:focus,
+.user-create select:focus,
+.user-actions select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(167 139 250 / 22%);
+}
+.users-hint {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+.user-row.is-disabled > svg,
+.user-row.is-disabled strong {
+  opacity: 0.55;
+}
+.user-actions .danger {
+  color: var(--error);
+}
+@media (max-width: 720px) {
+  .user-create,
+  .access-link {
+    grid-template-columns: 1fr;
+  }
+  .access-link > svg {
+    display: none;
+  }
+  .user-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
 }

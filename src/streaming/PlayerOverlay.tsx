@@ -13,6 +13,8 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { t } from '../i18n';
+import { bufferedEnd } from './buffer';
 import { formatDuration } from './format';
 import { SkipTen } from './icons';
 import type { StreamClip } from './model';
@@ -20,13 +22,13 @@ import { useReturnFocus } from './useReturnFocus';
 
 export interface PlayerOverlayProps {
   clip: StreamClip;
-  /** Startposition in Sekunden, etwa aus „Weiterschauen“ oder einer Zeitmarke. */
+  /** Start position in seconds, e.g. from "Continue watching" or a highlight. */
   startAt?: number;
   nextClip?: StreamClip | null;
   playbackRate?: number;
   onClose: () => void;
   onNext?: (id: string) => void;
-  /** Höchstens alle 5 Sekunden, außerdem bei Pause, Ende und Schließen. */
+  /** At most every 5 seconds, plus on pause, end and close. */
   onProgress?: (id: string, seconds: number, duration: number) => void;
   onMetadata?: (id: string, info: { duration: number; height: number }) => void;
 }
@@ -38,18 +40,18 @@ const SKIP = 10;
 function unavailable(clip: StreamClip) {
   if (clip.status === 'processing')
     return {
-      title: 'Clip wird verarbeitet',
-      text: 'Der Clip steht nach der Verarbeitung zur Verfügung.',
+      title: t('stream.player.processingTitle'),
+      text: t('stream.player.processingText'),
     };
   if (clip.status === 'error')
     return {
-      title: 'Clip nicht verfügbar',
-      text: 'Dieser Clip konnte nicht verarbeitet werden.',
+      title: t('stream.player.errorTitle'),
+      text: t('stream.player.errorText'),
     };
   if (!clip.videoUrl)
     return {
-      title: 'Keine Videodatei vorhanden',
-      text: 'Zu diesem Clip gibt es noch keine Videodatei zum Abspielen.',
+      title: t('stream.player.noFileTitle'),
+      text: t('stream.player.noFileText'),
     };
   return null;
 }
@@ -65,19 +67,23 @@ export function PlayerOverlay({
   onMetadata,
 }: PlayerOverlayProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  // Radix hängt den Inhalt erst einen Durchlauf später ins Portal. Als Zustand statt Ref
-  // löst das fertige Element den Lade-Effekt aus.
+  // Radix mounts the content into the portal one pass later. As state instead of a ref, the
+  // finished element triggers the loading effect.
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(startAt);
   const [mediaDuration, setMediaDuration] = useState(0);
+  /** End of the loaded range around the playhead, in seconds. */
+  const [buffered, setBuffered] = useState(0);
+  /** Playback stalled while waiting for data. */
+  const [waiting, setWaiting] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [volumeOpen, setVolumeOpen] = useState(false);
   const volumeRef = useRef<HTMLDivElement>(null);
   const volumeButtonRef = useRef<HTMLButtonElement>(null);
-  // Wie bei Netflix: die Maus öffnet den Regler durch Überfahren, ein Klick schaltet stumm.
-  // Ein Tippen auf dem Touchscreen öffnet ihn stattdessen, sonst käme man nicht heran.
+  // Like Netflix: hovering with the mouse opens the slider, a click mutes. A tap on a touchscreen
+  // opens it instead, otherwise it could not be reached.
   const volumePointer = useRef('mouse');
   const lastAudibleVolume = useRef(1);
   const volumePanelId = useId();
@@ -98,7 +104,7 @@ export function PlayerOverlay({
   const duration = mediaDuration || clip.duration;
   const blocked = unavailable(clip);
   const message =
-    blocked ?? (loadError ? { title: 'Das Video lässt sich nicht laden', text: loadError } : null);
+    blocked ?? (loadError ? { title: t('stream.player.loadErrorTitle'), text: loadError } : null);
   const controlsHidden = playing && idle && !overControls && !volumeOpen && !message;
   const silent = muted || volume === 0;
   const volumePercent = silent ? 0 : Math.round(volume * 100);
@@ -115,7 +121,7 @@ export function PlayerOverlay({
     [clip.id],
   );
 
-  // Gleicher Weg wie im bisherigen Player: HLS über hls.js, wenn der Browser es nicht selbst kann.
+  // Same approach as the previous player: HLS through hls.js if the browser cannot play it itself.
   useEffect(() => {
     const source = clip.videoUrl;
     if (!video || !source || clip.status !== 'ready') return;
@@ -126,29 +132,22 @@ export function PlayerOverlay({
         .then(({ default: Hls }) => {
           if (cancelled) return;
           if (!Hls.isSupported()) {
-            setLoadError(
-              'Dieser Browser unterstützt den Videostream nicht. Verwende einen aktuellen Browser.',
-            );
+            setLoadError(t('stream.player.hlsUnsupported'));
             return;
           }
           const hls = new Hls({ maxBufferLength: 20, maxMaxBufferLength: 30, startLevel: 0 });
           hls.loadSource(source);
           hls.attachMedia(video);
           hls.on(Hls.Events.ERROR, (_event, data) => {
-            if (data.fatal)
-              setLoadError(
-                'Der Videostream ist gerade nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.',
-              );
+            if (data.fatal) setLoadError(t('stream.player.streamUnavailable'));
           });
           destroy = () => hls.destroy();
         })
-        .catch(() =>
-          setLoadError('Der Videoplayer konnte nicht geladen werden. Versuche es erneut.'),
-        );
+        .catch(() => setLoadError(t('stream.player.playerFailed')));
     } else video.src = source;
     return () => {
       cancelled = true;
-      // Beim Schließen zählt die letzte Position, auch wenn der 5-Sekunden-Takt noch nicht erreicht ist.
+      // On close the last position counts, even if the 5-second interval has not been reached.
       save(video, true);
       destroy?.();
       video.pause();
@@ -170,7 +169,7 @@ export function PlayerOverlay({
     };
   }, []);
 
-  // Steuerung blendet sich nach drei Sekunden ohne Bewegung aus; jede Eingabe startet die Frist neu.
+  // Controls hide after three seconds without movement; every input restarts the timer.
   useEffect(() => {
     const timer = window.setTimeout(() => setIdle(true), HIDE_CONTROLS_AFTER);
     return () => window.clearTimeout(timer);
@@ -226,11 +225,11 @@ export function PlayerOverlay({
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     wake();
-    // Pfeiltasten auf einem Regler gehören dem Regler, nicht den Sprungtasten des Players.
+    // Arrow keys on a slider belong to the slider, not to the player's skip keys.
     if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]'))
       return;
     const key = event.key.toLowerCase();
-    // Leertaste und Enter auf Schaltflächen lösen die Schaltfläche aus, nicht Play/Pause.
+    // Space and Enter on buttons activate the button, not play/pause.
     if ((key === ' ' || key === 'enter') && (event.target as HTMLElement).closest('button, a'))
       return;
     if (key === ' ' || key === 'k') toggle();
@@ -243,6 +242,11 @@ export function PlayerOverlay({
   }
 
   const played = duration > 0 ? Math.min(100, (time / duration) * 100) : 0;
+  const loaded = duration > 0 ? Math.min(100, Math.max(played, (buffered / duration) * 100)) : 0;
+
+  function updateBuffered(video: HTMLVideoElement) {
+    setBuffered(bufferedEnd(video.buffered, video.currentTime));
+  }
 
   return (
     <Dialog.Root
@@ -259,7 +263,7 @@ export function PlayerOverlay({
           data-idle={controlsHidden}
           aria-describedby={undefined}
           onOpenAutoFocus={(event) => {
-            // Fokus auf den Player selbst, damit Leertaste sofort pausiert statt „Zurück“ auszulösen.
+            // Focus the player itself so Space pauses right away instead of triggering "Back".
             event.preventDefault();
             rootRef.current?.focus();
           }}
@@ -304,8 +308,18 @@ export function PlayerOverlay({
             }}
             onTimeUpdate={(event) => {
               setTime(event.currentTarget.currentTime);
+              updateBuffered(event.currentTarget);
               save(event.currentTarget, false);
             }}
+            onProgress={(event) => updateBuffered(event.currentTarget)}
+            onLoadStart={() => {
+              setBuffered(0);
+              setWaiting(false);
+            }}
+            // 'waiting' fires when playback stalls for data; 'playing' or 'canplay' mean it moves on.
+            onWaiting={() => setWaiting(true)}
+            onPlaying={() => setWaiting(false)}
+            onCanPlay={() => setWaiting(false)}
             onPlay={() => setPlaying(true)}
             onPause={(event) => {
               setPlaying(false);
@@ -313,9 +327,13 @@ export function PlayerOverlay({
             }}
             onEnded={(event) => {
               setPlaying(false);
+              setWaiting(false);
               save(event.currentTarget, true);
             }}
-            onSeeked={(event) => save(event.currentTarget, false)}
+            onSeeked={(event) => {
+              updateBuffered(event.currentTarget);
+              save(event.currentTarget, false);
+            }}
             onVolumeChange={(event) => {
               const video = event.currentTarget;
               setMuted(video.muted);
@@ -324,9 +342,7 @@ export function PlayerOverlay({
             }}
             onError={(event) => {
               if (event.currentTarget.getAttribute('src'))
-                setLoadError(
-                  'Das Video kann nicht abgespielt werden. Prüfe das Format oder versuche es erneut.',
-                );
+                setLoadError(t('stream.player.cannotPlay'));
             }}
           />
           <div className="stream-player-shade" aria-hidden="true" />
@@ -334,9 +350,16 @@ export function PlayerOverlay({
           <div className="stream-player-top stream-player-chrome">
             <button type="button" className="stream-player-back" onClick={onClose}>
               <ArrowLeft size={26} strokeWidth={2.2} aria-hidden="true" />
-              Zurück
+              {t('common.back')}
             </button>
           </div>
+
+          {waiting && !message && (
+            <div className="stream-player-spinner" role="status" data-testid="player-buffering">
+              <span className="stream-player-spinner-ring" aria-hidden="true" />
+              <span className="stream-sr-only">{t('stream.player.buffering')}</span>
+            </div>
+          )}
 
           {message && (
             <div className="stream-player-message" role="alert">
@@ -353,7 +376,7 @@ export function PlayerOverlay({
                   }}
                 >
                   <RotateCcw size={18} aria-hidden="true" />
-                  Erneut versuchen
+                  {t('common.retry')}
                 </button>
               )}
             </div>
@@ -370,7 +393,7 @@ export function PlayerOverlay({
                 className="stream-next-mark"
                 onClick={() => seekTo(upcoming.seconds)}
               >
-                Zum nächsten Highlight
+                {t('stream.player.nextHighlight')}
                 <span className="stream-next-mark-detail">
                   {formatDuration(upcoming.seconds)} · {upcoming.title}
                 </span>
@@ -378,8 +401,12 @@ export function PlayerOverlay({
               </button>
             )}
 
-            <div className="stream-seek" style={{ '--played': `${played}%` } as CSSProperties}>
+            <div
+              className="stream-seek"
+              style={{ '--played': `${played}%`, '--buffered': `${loaded}%` } as CSSProperties}
+            >
               <div className="stream-seek-track" aria-hidden="true">
+                <div className="stream-seek-buffer" data-testid="seek-buffer" />
                 <div className="stream-seek-fill" />
                 <div className="stream-seek-thumb" />
               </div>
@@ -391,8 +418,11 @@ export function PlayerOverlay({
                 step={0.1}
                 value={Math.min(time, duration || 0)}
                 disabled={!duration}
-                aria-label="Wiedergabeposition"
-                aria-valuetext={`${formatDuration(time)} von ${formatDuration(duration)}`}
+                aria-label={t('stream.player.position')}
+                aria-valuetext={t('stream.player.positionValue', {
+                  time: formatDuration(time),
+                  duration: formatDuration(duration),
+                })}
                 onChange={(event) => seekTo(Number(event.target.value))}
               />
               {duration > 0 &&
@@ -421,7 +451,7 @@ export function PlayerOverlay({
               <button
                 type="button"
                 className="stream-control"
-                aria-label={playing ? 'Pause' : 'Abspielen'}
+                aria-label={playing ? t('stream.player.pause') : t('stream.play')}
                 onClick={toggle}
               >
                 {playing ? (
@@ -433,7 +463,7 @@ export function PlayerOverlay({
               <button
                 type="button"
                 className="stream-control"
-                aria-label="10 Sekunden zurück"
+                aria-label={t('stream.player.back10')}
                 onClick={() => seekBy(-SKIP)}
               >
                 <SkipTen />
@@ -441,7 +471,7 @@ export function PlayerOverlay({
               <button
                 type="button"
                 className="stream-control"
-                aria-label="10 Sekunden vor"
+                aria-label={t('stream.player.forward10')}
                 onClick={() => seekBy(SKIP)}
               >
                 <SkipTen forward />
@@ -453,7 +483,7 @@ export function PlayerOverlay({
                   if (event.pointerType === 'mouse') setVolumeOpen(true);
                 }}
                 onPointerLeave={(event) => {
-                  // Ein Mausklick aufs Symbol hält den Regler nicht offen, nur ein Tastaturfokus.
+                  // A mouse click on the icon does not keep the slider open, only keyboard focus does.
                   if (
                     event.pointerType === 'mouse' &&
                     !event.currentTarget.querySelector(':focus-visible')
@@ -471,12 +501,12 @@ export function PlayerOverlay({
                   ref={volumeButtonRef}
                   type="button"
                   className="stream-control"
-                  aria-label={silent ? 'Ton einschalten' : 'Stummschalten'}
+                  aria-label={silent ? t('stream.player.unmute') : t('stream.player.mute')}
                   aria-expanded={volumeOpen}
                   aria-controls={volumePanelId}
                   onPointerDown={(event) => (volumePointer.current = event.pointerType)}
                   onClick={(event) => {
-                    // Tastatur (detail 0) und Maus schalten stumm; ein Tippen öffnet erst den Regler.
+                    // Keyboard (detail 0) and mouse mute; a tap opens the slider first.
                     if (event.detail > 0 && volumePointer.current !== 'mouse' && !volumeOpen)
                       setVolumeOpen(true);
                     else toggleMute();
@@ -490,7 +520,11 @@ export function PlayerOverlay({
                 </button>
                 {volumeOpen && (
                   <div id={volumePanelId} className="stream-volume-popover">
-                    <div className="stream-volume-panel" role="group" aria-label="Lautstärke">
+                    <div
+                      className="stream-volume-panel"
+                      role="group"
+                      aria-label={t('stream.player.volume')}
+                    >
                       <input
                         type="range"
                         className="stream-volume-input"
@@ -498,8 +532,8 @@ export function PlayerOverlay({
                         max={100}
                         step={1}
                         value={volumePercent}
-                        aria-label="Lautstärke"
-                        aria-valuetext={`${volumePercent} Prozent`}
+                        aria-label={t('stream.player.volume')}
+                        aria-valuetext={t('stream.player.volumeValue', { percent: volumePercent })}
                         style={{ '--volume': `${volumePercent}%` } as CSSProperties}
                         onChange={(event) => changeVolume(Number(event.target.value))}
                       />
@@ -518,8 +552,8 @@ export function PlayerOverlay({
                 <button
                   type="button"
                   className="stream-control"
-                  aria-label={`Nächster Clip: ${nextClip.title}`}
-                  title={`Nächster Clip: ${nextClip.title}`}
+                  aria-label={t('stream.player.nextClip', { title: nextClip.title })}
+                  title={t('stream.player.nextClip', { title: nextClip.title })}
                   onClick={() => onNext(nextClip.id)}
                 >
                   <SkipForward size={28} strokeWidth={2} aria-hidden="true" />
@@ -528,7 +562,9 @@ export function PlayerOverlay({
               <button
                 type="button"
                 className="stream-control"
-                aria-label={fullscreen ? 'Vollbild beenden' : 'Vollbild'}
+                aria-label={
+                  fullscreen ? t('stream.player.exitFullscreen') : t('stream.player.fullscreen')
+                }
                 onClick={toggleFullscreen}
               >
                 {fullscreen ? (

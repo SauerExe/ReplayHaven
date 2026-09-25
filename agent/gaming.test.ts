@@ -18,13 +18,13 @@ it('reads a line of the foreground probe', () => {
     process: 'VALORANT-Win64-Shipping',
   });
   expect(parseSample('0\t5\tChrome_WidgetWin_1\tCode')?.fullscreen).toBe(false);
-  expect(parseSample('Add-Type : Fehler')).toBeUndefined();
+  expect(parseSample('Add-Type : Error')).toBeUndefined();
 });
 
 it.each([
   [sample('RainbowSix'), 'RainbowSix'],
   [sample('FortniteClient-Win64-Shipping'), 'FortniteClient-Win64-Shipping'],
-  // Exklusives Vollbild meldet Windows auch, wenn das Fenster kleiner gemeldet wird.
+  // Windows reports exclusive fullscreen even when the window is reported smaller.
   [sample('cod', false, { notification: 3 }), 'cod'],
   [sample('Code', false), ''],
   [sample('chrome'), ''],
@@ -40,7 +40,7 @@ it('starts at once and ends only after a minute without a game', () => {
   expect(state.update(sample('Code', false), 0)).toBe(false);
   expect(state.update(sample('RainbowSix'), 3_000)).toBe(true);
   expect(state.game).toBe('RainbowSix');
-  // Alt+Tab zu Discord: das Spiel läuft weiter.
+  // Alt+Tab to Discord: the game keeps running.
   expect(state.update(sample('Discord', false), 30_000)).toBe(false);
   expect(state.update(sample('Discord', false), 62_000)).toBe(false);
   expect(state.game).toBe('RainbowSix');
@@ -62,13 +62,13 @@ it('reads the window title and names the game of a clip saved without one', () =
     at(9, 'Discord'),
     at(12, 'RainbowSix', 'Rainbow Six'),
   ];
-  // Bekannte Prozesse heißen wie der Ordner der NVIDIA App.
+  // Known processes are named like the NVIDIA App folder.
   expect(gameBetween(history, 0, 15_000)).toBe("Tom Clancy's Rainbow Six Siege");
-  // Unbekannte nach dem Fenstertitel, ohne Zeichen, die in Ordnernamen fehlen dürfen.
+  // Unknown ones by window title, without characters not allowed in folder names.
   expect(
     gameBetween([at(1, 'Raft', 'Raft: Survival'), at(4, 'Raft', 'Raft: Survival')], 0, 5_000),
   ).toBe('Raft Survival');
-  // Ein kurzer Blick zählt nicht, Browser und Werkzeuge auch nicht.
+  // A quick glance does not count, nor do browsers and tools.
   expect(gameBetween([at(1, 'Raft', 'Raft')], 0, 5_000)).toBe('');
   expect(
     gameBetween([at(1, 'chrome'), at(4, 'chrome'), at(7, 'Discord'), at(9, 'Discord')], 0, 10_000),

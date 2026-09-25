@@ -9,45 +9,65 @@ import {
 import type { DatabaseSync } from 'node:sqlite';
 
 /**
- * Konten, Sitzungen und die Kopplung von Aufnahme-PCs. Wie bei Immich meldet sich jedes Gerät
- * mit dem eigenen Konto an; ein Aufnahme-PC bekommt seinen Zugang, indem er um Kopplung bittet
- * und jemand mit Konto sie in der Web-Oberfläche freigibt. In der Datenbank liegen nur Hashes
- * der Zugänge, nie die Zugänge selbst.
+ * Accounts, sessions and the pairing of recording PCs. Like Immich, every device signs in with
+ * its own account; a recording PC gets its access by requesting a pairing that an admin approves
+ * in the web UI. The database only stores hashes of secrets, never the secrets themselves.
  */
 
+export type Role = 'admin' | 'user';
 export interface Account {
   id: string;
   name: string;
+  /** Empty for accounts that only sign in through OIDC. */
   salt: string;
   hash: string;
   createdAt: string;
+  role: Role;
+  disabled?: boolean;
 }
 export interface Session {
   id: string;
   userId: string;
-  /** browser: Anmeldung im Browser; client: gekoppelter Aufnahme-PC. */
+  /** browser: a signed-in browser; client: a paired recording PC. */
   kind: 'browser' | 'client';
   label: string;
   createdAt: string;
   lastSeen: string;
-  /** Browser-Sitzungen laufen ab, gekoppelte PCs erst, wenn man sie entzieht. */
+  /** Browser sessions expire, paired PCs only when their access is revoked. */
   expiresAt: string | null;
 }
 export interface Pairing {
   id: string;
   secretHash: string;
-  /** Sechs Ziffern, die PC und Web-Oberfläche gleichermaßen zeigen. */
+  /** Six digits that both the PC and the web UI show. */
   code: string;
   name: string;
   deviceId: string;
   status: 'pending' | 'approved' | 'denied' | 'delivered';
   createdAt: string;
   expiresAt: string;
-  /** Nur zwischen Freigabe und Abholung durch den PC, danach gelöscht. */
+  /** Only kept between approval and pickup by the PC, deleted afterwards. */
   token?: string;
 }
+export interface OidcIdentity {
+  issuer: string;
+  sub: string;
+  userId: string;
+  createdAt: string;
+  lastLogin: string;
+}
 
-/** Browser-Sitzungen: 30 Tage, jede Nutzung (höchstens einmal am Tag gezählt) verlängert sie. */
+/** A rule of account management was violated; the message is meant for the user. */
+export class AccountError extends Error {
+  constructor(
+    message: string,
+    readonly status = 409,
+  ) {
+    super(message);
+  }
+}
+
+/** Browser sessions: 30 days, each use (counted at most once a day) extends them. */
 export const SESSION_DAYS = 30;
 const PAIRING_MINUTES = 10;
 const LOGIN_CODE_MINUTES = 5;
@@ -65,60 +85,190 @@ function scrypt(password: string, salt: string) {
 export function sameSecret(a: string, b: string) {
   return timingSafeEqual(Buffer.from(sha(a), 'hex'), Buffer.from(sha(b), 'hex'));
 }
+async function passwordFields(password: string | null) {
+  if (password === null) return { salt: '', hash: '' };
+  const salt = randomBytes(16).toString('hex');
+  return { salt, hash: (await scrypt(password, salt)).toString('hex') };
+}
 
 export class Accounts {
   constructor(private readonly db: DatabaseSync) {
     db.exec(`CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS sessions(key TEXT PRIMARY KEY, id TEXT NOT NULL UNIQUE, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS pairings(id TEXT PRIMARY KEY, data TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS login_codes(key TEXT PRIMARY KEY, data TEXT NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS login_codes(key TEXT PRIMARY KEY, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS oidc_identities(issuer TEXT NOT NULL, sub TEXT NOT NULL, user_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(issuer, sub));`);
+    this.migrateRoles();
+  }
+
+  /**
+   * Accounts from before roles existed have no `role`. Back then a server had exactly one
+   * account that managed everything, so the first of them becomes admin and any others users.
+   */
+  private migrateRoles() {
+    const rows = this.db.prepare('SELECT id, data FROM users ORDER BY rowid').all() as {
+      id: string;
+      data: string;
+    }[];
+    let hasAdmin = rows.some((r) => (JSON.parse(r.data) as Account).role === 'admin');
+    for (const row of rows) {
+      const account = JSON.parse(row.data) as Partial<Account>;
+      if (account.role === 'admin' || account.role === 'user') continue;
+      const role: Role = hasAdmin ? 'user' : 'admin';
+      hasAdmin = true;
+      this.save({ ...(account as Account), role });
+    }
+  }
+  private save(account: Account) {
+    this.db
+      .prepare('UPDATE users SET name=?, data=? WHERE id=?')
+      .run(account.name, JSON.stringify(account), account.id);
   }
 
   hasUsers() {
     return !!this.db.prepare('SELECT 1 FROM users LIMIT 1').get();
   }
-  firstUser(): Account | undefined {
-    const row = this.db.prepare('SELECT data FROM users ORDER BY rowid LIMIT 1').get() as
-      { data: string } | undefined;
-    return row ? JSON.parse(row.data) : undefined;
+  users(): Account[] {
+    return (
+      this.db.prepare('SELECT data FROM users ORDER BY rowid').all() as { data: string }[]
+    ).map((r) => JSON.parse(r.data) as Account);
+  }
+  firstAdmin(): Account | undefined {
+    const all = this.users();
+    return all.find((u) => u.role === 'admin' && !u.disabled) ?? all[0];
   }
   user(id: string): Account | undefined {
     const row = this.db.prepare('SELECT data FROM users WHERE id=?').get(id) as
       { data: string } | undefined;
     return row ? JSON.parse(row.data) : undefined;
   }
-  async createUser(name: string, password: string) {
-    const salt = randomBytes(16).toString('hex');
+  byName(name: string): Account | undefined {
+    const row = this.db.prepare('SELECT data FROM users WHERE name=?').get(name.trim()) as
+      { data: string } | undefined;
+    return row ? JSON.parse(row.data) : undefined;
+  }
+  /** Admins that can still sign in. */
+  activeAdmins() {
+    return this.users().filter((u) => u.role === 'admin' && !u.disabled).length;
+  }
+  /**
+   * Creates an account. Without a role the very first account becomes admin, every later one a
+   * user. A `null` password makes an account that can only sign in through OIDC.
+   */
+  async createUser(name: string, password: string | null, role?: Role) {
+    const trimmed = name.trim();
+    if (this.byName(trimmed)) throw new AccountError('An account with this name already exists.');
     const account: Account = {
       id: randomUUID(),
-      name: name.trim(),
-      salt,
-      hash: (await scrypt(password, salt)).toString('hex'),
+      name: trimmed,
+      ...(await passwordFields(password)),
       createdAt: new Date().toISOString(),
+      role: role ?? (this.hasUsers() ? 'user' : 'admin'),
     };
     this.db
       .prepare('INSERT INTO users(id,name,data) VALUES(?,?,?)')
       .run(account.id, account.name, JSON.stringify(account));
     return account;
   }
-  /** Das Konto zu Name und Passwort, sonst undefined; rechnet auch für unbekannte Namen. */
+  /** A free account name based on `wanted`: "name", "name-2", "name-3" … */
+  freeName(wanted: string) {
+    const base =
+      wanted
+        .trim()
+        .replace(/\s+/g, ' ')
+        .replace(/[^\p{L}\p{N} ._@-]/gu, '')
+        .slice(0, 50) || 'user';
+    if (!this.byName(base)) return base;
+    for (let i = 2; ; i++) if (!this.byName(`${base}-${i}`)) return `${base}-${i}`;
+  }
+  /** The account for name and password, otherwise undefined; also hashes for unknown names. */
   async verify(name: string, password: string) {
-    const row = this.db.prepare('SELECT data FROM users WHERE name=?').get(name.trim()) as
-      { data: string } | undefined;
-    const account: Account | undefined = row ? JSON.parse(row.data) : undefined;
-    const key = await scrypt(password, account?.salt ?? 'kein-konto');
-    const expected = Buffer.from(account?.hash ?? '0'.repeat(128), 'hex');
-    return account && timingSafeEqual(key, expected) ? account : undefined;
+    const account = this.byName(name);
+    const usable = account && account.hash ? account : undefined;
+    const key = await scrypt(password, usable?.salt ?? 'no-account');
+    const expected = Buffer.from(usable?.hash ?? '0'.repeat(128), 'hex');
+    return usable && timingSafeEqual(key, expected) ? usable : undefined;
   }
   async changePassword(userId: string, password: string) {
     const account = this.user(userId);
-    if (!account) throw new Error('Konto nicht gefunden.');
-    const salt = randomBytes(16).toString('hex');
-    const next = { ...account, salt, hash: (await scrypt(password, salt)).toString('hex') };
-    this.db.prepare('UPDATE users SET data=? WHERE id=?').run(JSON.stringify(next), userId);
+    if (!account) throw new AccountError('Account not found.', 404);
+    this.save({ ...account, ...(await passwordFields(password)) });
   }
 
-  /** Legt eine Sitzung an; der zurückgegebene Zugang wird nur hier einmal im Klartext gesehen. */
+  /* User management (admins only, see auth-routes.ts) */
+
+  private mustKeepAdmin(account: Account) {
+    if (account.role === 'admin' && !account.disabled && this.activeAdmins() <= 1)
+      throw new AccountError('The last admin cannot be removed, disabled or demoted.');
+  }
+  setRole(id: string, role: Role) {
+    const account = this.user(id);
+    if (!account) throw new AccountError('Account not found.', 404);
+    if (account.role === role) return account;
+    if (role === 'user') this.mustKeepAdmin(account);
+    const next = { ...account, role };
+    this.save(next);
+    return next;
+  }
+  setDisabled(id: string, disabled: boolean) {
+    const account = this.user(id);
+    if (!account) throw new AccountError('Account not found.', 404);
+    if (!!account.disabled === disabled) return account;
+    if (disabled) this.mustKeepAdmin(account);
+    const next: Account = { ...account, disabled };
+    if (!disabled) delete next.disabled;
+    this.save(next);
+    // A disabled account is signed out everywhere, paired PCs included.
+    if (disabled) this.revokeAll(id);
+    return next;
+  }
+  deleteUser(id: string) {
+    const account = this.user(id);
+    if (!account) throw new AccountError('Account not found.', 404);
+    this.mustKeepAdmin(account);
+    this.revokeAll(id);
+    this.db.prepare('DELETE FROM oidc_identities WHERE user_id=?').run(id);
+    this.db.prepare('DELETE FROM users WHERE id=?').run(id);
+  }
+
+  /* OIDC identities, linked by issuer + subject */
+
+  identityUser(issuer: string, sub: string): Account | undefined {
+    const row = this.db
+      .prepare('SELECT user_id FROM oidc_identities WHERE issuer=? AND sub=?')
+      .get(issuer, sub) as { user_id: string } | undefined;
+    return row ? this.user(row.user_id) : undefined;
+  }
+  identities(userId: string): OidcIdentity[] {
+    return (
+      this.db.prepare('SELECT data FROM oidc_identities WHERE user_id=?').all(userId) as {
+        data: string;
+      }[]
+    ).map((r) => JSON.parse(r.data) as OidcIdentity);
+  }
+  linkIdentity(issuer: string, sub: string, userId: string, now = Date.now()) {
+    const existing = this.identityUser(issuer, sub);
+    if (existing && existing.id !== userId)
+      throw new AccountError('This sign-in is already linked to another account.');
+    const at = new Date(now).toISOString();
+    const identity: OidcIdentity = { issuer, sub, userId, createdAt: at, lastLogin: at };
+    const previous = this.identities(userId).find((i) => i.issuer === issuer && i.sub === sub);
+    this.db
+      .prepare(
+        'INSERT INTO oidc_identities(issuer,sub,user_id,data) VALUES(?,?,?,?) ON CONFLICT(issuer,sub) DO UPDATE SET data=excluded.data',
+      )
+      .run(
+        issuer,
+        sub,
+        userId,
+        JSON.stringify(previous ? { ...previous, lastLogin: at } : identity),
+      );
+  }
+  unlinkIdentities(userId: string) {
+    this.db.prepare('DELETE FROM oidc_identities WHERE user_id=?').run(userId);
+  }
+
+  /** Creates a session; the returned secret is only ever seen here in plain text. */
   createSession(userId: string, kind: Session['kind'], label: string, now = Date.now()) {
     const secret = kind === 'client' ? `${DEVICE_PREFIX}${token()}` : token();
     const session: Session = {
@@ -136,8 +286,8 @@ export class Accounts {
     return { secret, session };
   }
   /**
-   * Die Sitzung zu einem Zugang. `renewed` meldet, dass eine Browser-Sitzung verlängert wurde
-   * und ihr Cookie neu gesetzt werden sollte.
+   * The session for a secret. `renewed` reports that a browser session was extended and its
+   * cookie should be set again.
    */
   session(secret: string, now = Date.now()): { session: Session; renewed: boolean } | undefined {
     if (!secret) return undefined;
@@ -160,11 +310,25 @@ export class Accounts {
     this.db.prepare('UPDATE sessions SET data=? WHERE key=?').run(JSON.stringify(next), key);
     return { session: next, renewed };
   }
+  private allSessions(): Session[] {
+    return (this.db.prepare('SELECT data FROM sessions').all() as { data: string }[]).map(
+      (r) => JSON.parse(r.data) as Session,
+    );
+  }
   sessions(userId: string): Session[] {
-    return (this.db.prepare('SELECT data FROM sessions').all() as { data: string }[])
-      .map((r) => JSON.parse(r.data) as Session)
+    return this.allSessions()
       .filter((s) => s.userId === userId)
       .sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
+  }
+  /** Number of sessions per account, for the user list. */
+  sessionCounts() {
+    const counts = new Map<string, { browser: number; client: number }>();
+    for (const s of this.allSessions()) {
+      const entry = counts.get(s.userId) ?? { browser: 0, client: 0 };
+      entry[s.kind]++;
+      counts.set(s.userId, entry);
+    }
+    return counts;
   }
   revoke(userId: string, id: string) {
     const row = this.db.prepare('SELECT data FROM sessions WHERE id=?').get(id) as
@@ -173,17 +337,27 @@ export class Accounts {
     this.db.prepare('DELETE FROM sessions WHERE id=?').run(id);
     return true;
   }
+  /** Signs an account out everywhere; `kind` limits it to browsers or paired PCs. */
+  revokeAll(userId: string, kind?: Session['kind']) {
+    let count = 0;
+    for (const s of this.sessions(userId))
+      if (!kind || s.kind === kind) {
+        this.db.prepare('DELETE FROM sessions WHERE id=?').run(s.id);
+        count++;
+      }
+    return count;
+  }
   endSession(secret: string) {
     this.db.prepare('DELETE FROM sessions WHERE key=?').run(sha(secret));
   }
 
-  /* Kopplung eines Aufnahme-PCs */
+  /* Pairing a recording PC */
 
   private pairings(now: number): Pairing[] {
     const all = (this.db.prepare('SELECT data FROM pairings').all() as { data: string }[]).map(
       (r) => JSON.parse(r.data) as Pairing,
     );
-    // Abgelaufene Anfragen verschwinden, auch freigegebene, die der PC nie abgeholt hat.
+    // Expired requests disappear, including approved ones the PC never picked up.
     const stale = all.filter((p) => Date.parse(p.expiresAt) <= now);
     for (const p of stale) this.db.prepare('DELETE FROM pairings WHERE id=?').run(p.id);
     return all.filter((p) => !stale.includes(p));
@@ -195,12 +369,12 @@ export class Accounts {
       )
       .run(pairing.id, JSON.stringify(pairing));
   }
-  /** Ein PC bittet um Kopplung. Höchstens fünf offene Anfragen gleichzeitig. */
+  /** A PC asks to be paired. At most five open requests at a time. */
   requestPairing(name: string, deviceId: string, now = Date.now()) {
     const open = this.pairings(now).filter((p) => p.status === 'pending');
     if (open.length >= 5)
-      throw new Error('Zu viele offene Kopplungsanfragen. Versuch es in ein paar Minuten erneut.');
-    // Fragt derselbe PC erneut, ersetzt die neue Anfrage seine alte.
+      throw new Error('Too many open pairing requests. Try again in a few minutes.');
+    // When the same PC asks again, its new request replaces the old one.
     for (const p of open.filter((p) => p.deviceId === deviceId))
       this.db.prepare('DELETE FROM pairings WHERE id=?').run(p.id);
     const secret = token();
@@ -228,7 +402,7 @@ export class Accounts {
         expiresAt,
       }));
   }
-  /** Gibt eine Anfrage frei: Der PC bekommt eine eigene, entziehbare Sitzung. */
+  /** Approves a request: the PC gets its own session that can be revoked. */
   approvePairing(id: string, userId: string, now = Date.now()) {
     const pairing = this.pairings(now).find((p) => p.id === id && p.status === 'pending');
     if (!pairing) return false;
@@ -237,7 +411,7 @@ export class Accounts {
       ...pairing,
       status: 'approved',
       token: secret,
-      // Der PC fragt alle paar Sekunden; so lange darf die Abholung dauern.
+      // The PC polls every few seconds; this is how long the pickup may take.
       expiresAt: new Date(now + PAIRING_MINUTES * 60000).toISOString(),
     });
     return true;
@@ -248,7 +422,7 @@ export class Accounts {
     this.savePairing({ ...pairing, status: 'denied' });
     return true;
   }
-  /** Was der wartende PC über seine Anfrage erfährt; den Zugang genau einmal. */
+  /** What the waiting PC learns about its request; the access token exactly once. */
   pairingStatus(id: string, secret: string, now = Date.now()) {
     const pairing = this.pairings(now).find((p) => p.id === id);
     if (!pairing || !sameSecret(sha(secret), pairing.secretHash))
@@ -260,7 +434,7 @@ export class Accounts {
     return { status: pairing.status === 'delivered' ? ('expired' as const) : pairing.status };
   }
 
-  /* Anmeldung per QR-Code auf einem weiteren Gerät */
+  /* Signing in another device with a QR code */
 
   loginCode(userId: string, now = Date.now()) {
     const code = token();
@@ -270,7 +444,7 @@ export class Accounts {
       .run(sha(code), JSON.stringify({ userId, expiresAt }));
     return { code, expiresAt };
   }
-  /** Löst einen QR-Code genau einmal ein. */
+  /** Redeems a QR code exactly once. */
   redeemLoginCode(code: string, now = Date.now()) {
     const key = sha(code);
     const row = this.db.prepare('SELECT data FROM login_codes WHERE key=?').get(key) as
@@ -282,7 +456,7 @@ export class Accounts {
   }
 }
 
-/** Zählt fehlgeschlagene Anmeldungen; nach zu vielen ist für eine Weile Schluss. */
+/** Counts failed sign-ins; after too many, sign-in pauses for a while. */
 export class Throttle {
   private readonly failures: number[] = [];
   constructor(

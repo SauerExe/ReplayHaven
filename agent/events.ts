@@ -2,10 +2,10 @@ import { basename } from 'node:path';
 import type { FrameObservation } from '../server/schema';
 
 /**
- * Ereignisse, die sich aus Bildschirmmeldungen sicher ablesen lassen. Das Modell liest diese
- * Meldungen zuverlässig, deutet sie aber unzuverlässig: es verwechselte "ELIMINIERT: X" mit dem
- * eigenen Tod und hielt "Teameliminierung" für einen eigenen Verlust (.docs/05-experimente.md,
- * E14 und E17). Deshalb deutet hier fester Code, was das Modell gelesen hat.
+ * Events that can be read reliably from on-screen messages. The model reads these messages
+ * reliably but interprets them unreliably: it mistook "ELIMINIERT: X" for the player's own death
+ * and took "Teameliminierung" for a loss of its own (.docs/05-experimente.md, E14 and E17).
+ * So fixed code interprets here what the model has read.
  */
 export type EventKind =
   | 'kill'
@@ -20,7 +20,7 @@ export type EventKind =
   | 'matchWon'
   | 'matchLost';
 
-/** Waffenart oder Todesursache, wie sie ein Spiel-Replay nennt (agent/fortnite.ts). */
+/** Weapon type or cause of death as named by a game replay (agent/fortnite.ts). */
 export type Weapon =
   | 'pistol'
   | 'shotgun'
@@ -40,35 +40,35 @@ export type Weapon =
 
 export interface GameEvent {
   kind: EventKind;
-  /** Sekunde im Clip; null, wenn nur der Dateiname von NVIDIA das Ereignis nennt. */
+  /** Second in the clip; null if only the NVIDIA file name mentions the event. */
   seconds: number | null;
-  /** Die gelesene Meldung, oder das Ereignis aus dem Dateinamen bzw. Replay. */
+  /** The message that was read, or the event from the file name or replay. */
   text: string;
   /**
-   * replay: aus den Spielereignissen eines Replays, exakt statt gelesen; ocr: aus der
-   * Texterkennung (agent/r6.ts), nur Runden- und Matchergebnisse.
+   * replay: from a replay's game events, exact rather than read; ocr: from text recognition
+   * (agent/r6.ts), round and match results only.
    */
   source: 'screen' | 'spectator' | 'nvidia' | 'replay' | 'ocr';
-  /** Gegner, falls die Meldung ihn nennt: Opfer bei Kills, Verursacher beim eigenen Tod. */
+  /** Opponent, if the message names one: the victim for kills, the killer for the player's own death. */
   other?: string;
-  /** Aus Replays: Waffe bzw. Ursache, Entfernung in Metern. Zahl der Kills einer Serie. */
+  /** From replays: weapon or cause, distance in metres. Number of kills in a streak. */
   weapon?: Weapon;
   distance?: number;
   count?: number;
-  /** Mehrfach-Kill über den ganzen Clip verteilt statt kurz nacheinander. */
+  /** Multi-kill spread over the whole clip instead of in quick succession. */
   spread?: boolean;
-  /** Mehrfach-Kill: so viele der Kills waren Kopfschüsse. */
+  /** Multi-kill: this many of the kills were headshots. */
   headshots?: number;
   /**
-   * Nur bei gelesenen Meldungen: das letzte Bild davor, auf dem sie noch fehlte. Das Ereignis
-   * liegt zwischen diesem Bild und `seconds`; eine Einblendung erscheint erst nach dem Kill.
+   * Only for messages that were read: the last frame before, on which it was still missing. The
+   * event lies between this frame and `seconds`; a message only appears after the kill.
    */
   from?: number;
 }
 
 export type SeenFrame = Pick<FrameObservation, 'kind' | 'visibleText'> & { seconds: number };
 
-/** Wie stark ein Ereignis einen Clip trägt — für den Titel und die Wahl des Belegbilds. */
+/** How strongly an event carries a clip, for the title and the choice of evidence frame. */
 export const SIGNIFICANCE: Record<EventKind, number> = {
   matchWon: 9,
   matchLost: 9,
@@ -86,13 +86,13 @@ export const SIGNIFICANCE: Record<EventKind, number> = {
 const KILL_CONTEXT = /\bELIMINIERUNG\b|\bKILLS?\b|\bABSCHUSS\b/;
 
 /**
- * Meldungen, wie sie in der Sammlung tatsächlich vorkommen (gemessen an den Läufen vom
- * 2026-09-22 und den Kontaktbögen vom 2026-09-23): Fortnite und CoD auf Deutsch, R6 auf
- * Englisch, Valorant auf Deutsch. Mehrdeutiges bleibt bewusst draußen — "Angreifer haben durch
- * Eliminierung gewonnen" sagt nicht, auf welcher Seite der Nutzer steht.
+ * Messages as they actually occur in the collection (measured on the runs of 2026-09-22 and the
+ * contact sheets of 2026-09-23): Fortnite and CoD in German, R6 in English, Valorant in German.
+ * Ambiguous ones are deliberately left out: "Angreifer haben durch Eliminierung gewonnen" does
+ * not say which side the user is on.
  */
 const RULES: { kind: EventKind; pattern: RegExp; games?: RegExp }[] = [
-  // Eigener Tod: der Verursacher steht hinter "von" bzw. "by".
+  // Own death: the killer follows "von" or "by".
   { kind: 'death', pattern: /\bGET(?:Ö|OE|O)TET (?:VON|DURCH)\b/ },
   { kind: 'death', pattern: /\b(?:ELIMINIERT|AUSGESCHALTET|NIEDERGESTRECKT) VON\b/ },
   {
@@ -102,26 +102,26 @@ const RULES: { kind: EventKind; pattern: RegExp; games?: RegExp }[] = [
   { kind: 'death', pattern: /\b(?:KILLED|ELIMINATED|SLAIN) BY\b/ },
   { kind: 'death', pattern: /\bYOU (?:WERE|GOT) (?:KILLED|ELIMINATED|SLAIN)\b|\bYOU DIED\b/ },
   { kind: 'death', pattern: /\bDU BIST (?:GESTORBEN|TOT)\b/ },
-  // Eigener Kill: "ELIMINIERT: Name" (Fortnite), Punkte-Einblendungen, R6-Punkteleiste.
+  // Own kill: "ELIMINIERT: Name" (Fortnite), score pop-ups, R6 score bar.
   { kind: 'kill', pattern: /\bELIMINIERT\s*[:：]/ },
   { kind: 'kill', pattern: /\+\s?[\d.,]+\s*(?:G?EP|XP)\b.{0,24}\bELIMINIERUNG\b/ },
   { kind: 'kill', pattern: /\bDU HAST\b.{0,40}\b(?:ELIMINIERT|GET(?:Ö|OE|O)TET|AUSGESCHALTET)\b/ },
-  // Das Modell trennt Punkte und Wort oft mit "|": R6 zeigt "+100 KILL" nur für eigene Kills.
+  // The model often separates points and word with "|": R6 shows "+100 KILL" only for own kills.
   { kind: 'kill', pattern: /\+\s?\d+\s*(?:\|\s*)?KILL\b|\bKILL\s*(?:\|\s*)?\+\s?\d+/ },
   { kind: 'kill', pattern: /\bYOU (?:KILLED|ELIMINATED)\b|\bENEMY (?:KILLED|ELIMINATED)\b/ },
   { kind: 'kill', pattern: /\bABSCHUSS\b/ },
-  // "TÖTUNG BESTÄTIGT" (Wardogs), nicht "BEI TÖTUNG ASSISTIERT". Nachgetragen nach dem Neutest
-  // vom 2026-09-23, wo zwei Clips deshalb ohne Kill blieben.
+  // "TÖTUNG BESTÄTIGT" (Wardogs), not "BEI TÖTUNG ASSISTIERT". Added after the retest of
+  // 2026-09-23, where two clips ended up without a kill because of it.
   { kind: 'kill', pattern: /\bT(?:Ö|OE|O)TUNG BEST(?:Ä|AE|A)TIGT\b|\bKILL CONFIRMED\b/ },
   { kind: 'headshot', pattern: /\bHEAD\s?SHOT\b|\bKOPFSCHUSS\b/ },
   { kind: 'clutch', pattern: /\bCLUTCH\b/ },
-  // "ACE" ist in R6 zugleich ein Operator-Name und darf dort nichts bedeuten.
+  // In R6 "ACE" is also an operator name and must not mean anything there.
   {
     kind: 'ace',
     pattern: /^ACE\b|\bTEAM ACE\b|\bACE\s*[!|]|\|\s*ACE\b/,
     games: /valorant|counter|\bcs/i,
   },
-  // Runde und Match. Gegnerische Siege zählen als eigene Niederlage.
+  // Round and match. Enemy wins count as the player's own loss.
   { kind: 'roundLost', pattern: /\b(?:ENEMY|ENEMIES|OPPONENTS?)(?: TEAM)? WON ROUND\b/ },
   {
     kind: 'roundWon',
@@ -130,9 +130,9 @@ const RULES: { kind: EventKind; pattern: RegExp; games?: RegExp }[] = [
   },
   { kind: 'roundLost', pattern: /\bRUNDE VERLOREN\b|\bROUND LOST\b|\bLOST (?:THE )?ROUND\b/ },
   { kind: 'roundWon', pattern: /\bGEGNERISCHES TEAM ELIMINIERT\b/ },
-  // Valorant blendet das Rundenende ohne das Wort "Runde" ein; "KNAPP", "FEHLERLOS" und
-  // "MAKELLOS" sind Siegerbanner. Nachgetragen nach der Prüfung von E17 (VAL-WIN, VAL-KNAPP)
-  // und dem Neutest (VAL-B1).
+  // Valorant shows the end of a round without the word "Runde"; "KNAPP", "FEHLERLOS" and
+  // "MAKELLOS" are victory banners. Added after the review of E17 (VAL-WIN, VAL-KNAPP)
+  // and the retest (VAL-B1).
   {
     kind: 'roundWon',
     pattern: /(?:^|\|\s*)(?:GEWONNEN|KNAPP|FEHLERLOS|MAKELLOS)[!.]?(?:\s*$|\s*\|)/,
@@ -155,12 +155,12 @@ const RULES: { kind: EventKind; pattern: RegExp; games?: RegExp }[] = [
 ];
 
 /**
- * Zuschauer- und Respawn-Ansicht: der Nutzer ist ausgeschieden, auch wenn der Tod selbst fehlt.
- * "0 VS 2" zählt R6 aus Sicht des eigenen Teams — niemand von euch lebt mehr.
+ * Spectator and respawn view: the user is out, even if the death itself is missing.
+ * R6 counts "0 VS 2" from the player's own team's view: none of you is alive anymore.
  */
 const SPECTATOR =
   /\bWATCHING\b|\bSPECTATING\b|\bZUSCHAUEN\b|\bSPIELER WECHSELN\b|\bRESPAWN(?:EN|ING)?\b|\bWIEDERBELEBUNG IN\b|\b0\s*VS\.?\s*[1-9]\b/;
-/** In Wiederholungen nach Rundenende steht "WATCHING" auch bei Überlebenden. */
+/** In replays after the end of a round, "WATCHING" also shows for survivors. */
 const REPLAY = /\bREPLAY\b|\bWIEDERHOLUNG\b|\bKILLCAM\b|\bBESTE AKTION\b|\bPLAY OF THE/;
 
 function normalize(text: string) {
@@ -170,9 +170,9 @@ function normalize(text: string) {
 const TELLING =
   /ELIMINIER|KILL|ABSCHUSS|GET(?:Ö|OE|O)TET|SIEG|VICTORY|NIEDERLAGE|DEFEAT|GEWONNEN|VERLOREN|\bWON\b|\bLOST\b|\bWINS\b|HEAD\s?SHOT|KOPFSCHUSS|DOPPEL|DREIFACH|VIERFACH|\bX\s?[2-9]\b|CLUTCH|\bACE\b|WATCHING|RESPAWN|ZUSCHAU|SPIELER WECHSELN|\b\d\s*VS\.?\s*\d\b|\+\s?[\d.,]+\s*(?:G?EP|XP)\b/;
 /**
- * Die Teile einer gelesenen Zeile, die etwas bedeuten. Das Modell schreibt Punkteleiste, FPS und
- * Munition oft mit ab; im Prompt und in den Zeitmarken stört das, und bei 90 Zeichen fiel sonst
- * ausgerechnet "DOPPELT" am Ende weg.
+ * The parts of a line that was read which mean something. The model often copies the score bar,
+ * FPS and ammo as well; that gets in the way in the prompt and in highlights, and with a
+ * 90-character cut, "DOPPELT" at the end of all things used to fall off.
  */
 function tellingPart(text: string) {
   const parts = text.split('|').map((p) => p.trim());
@@ -180,7 +180,7 @@ function tellingPart(text: string) {
   return (kept.length ? kept.join(' | ') : text).slice(0, 120);
 }
 
-/** Deutet eine gelesene Meldung. Liefert jede Ereignisart höchstens einmal. */
+/** Interprets a message that was read. Returns each event kind at most once. */
 export function eventsInText(text: string, game = ''): EventKind[] {
   const upper = normalize(text);
   if (!upper) return [];
@@ -188,12 +188,12 @@ export function eventsInText(text: string, game = ''): EventKind[] {
   for (const rule of RULES) {
     if (rule.games && !rule.games.test(game)) continue;
     if (!rule.pattern.test(upper)) continue;
-    // Ein gegnerischer Rundensieg ist schon als Niederlage erfasst.
+    // An enemy round win is already recorded as a loss.
     if (rule.kind === 'roundWon' && kinds.has('roundLost')) continue;
     if (rule.kind === 'matchWon' && kinds.has('matchLost')) continue;
     kinds.add(rule.kind);
   }
-  // Mehrfach nur im Zusammenhang mit einem Kill, sonst wäre "DOPPELTE EP" ein Doppelkill.
+  // Multi only in connection with a kill, otherwise "DOPPELTE EP" would be a double kill.
   if (
     KILL_CONTEXT.test(upper) &&
     /\bDOPPEL(?:T|TE|-?KILL|ELIMINIERUNG)?\b|\bDREIFACH\b|\bVIERFACH\b|\bFÜNFFACH\b|\bX\s?[2-9]\b|\b(?:DOUBLE|TRIPLE|QUAD|PENTA|MULTI)\s?-?KILL\b/.test(
@@ -201,13 +201,13 @@ export function eventsInText(text: string, game = ''): EventKind[] {
     )
   )
     kinds.add('multikill');
-  // Punkte für eine Elimination belegen einen Kill, auch wenn nur die Mehrfach-Angabe gelesen wurde.
+  // Points for an elimination prove a kill, even if only the multi-kill note was read.
   if (kinds.has('multikill') || kinds.has('headshot') || kinds.has('ace')) kinds.add('kill');
-  // "Tod von X" und "X eliminiert" in derselben Zeile widersprechen sich nicht: beide bleiben.
+  // "Tod von X" and "X eliminiert" in the same line do not contradict each other: both stay.
   return [...kinds];
 }
 
-/** Gegner aus der Meldung: Verursacher des eigenen Todes oder Opfer eines Kills. */
+/** Opponent from the message: the player's killer or the victim of a kill. */
 function otherParty(kind: EventKind, text: string) {
   const pattern =
     kind === 'death'
@@ -221,8 +221,8 @@ function otherParty(kind: EventKind, text: string) {
 }
 
 /**
- * Banner schreiben Namen in Großbuchstaben ("DEADLOCK", "GEGNER_ZWEI"). Im Titel wirkt das wie
- * abgeschrieben; also jeden Wortteil groß beginnen. Gemischte Schreibung bleibt, wie sie ist.
+ * Banners write names in capitals ("DEADLOCK", "GEGNER_ZWEI"). In a title that looks copied,
+ * so each word part starts with a capital. Mixed case stays as it is.
  */
 function readable(name: string) {
   if (name !== name.toUpperCase() || !/\p{Lu}/u.test(name)) return name;
@@ -231,7 +231,7 @@ function readable(name: string) {
     .replace(/(^|[^\p{L}])(\p{L})/gu, (_, before, letter) => before + letter.toUpperCase());
 }
 
-/** NVIDIA speichert Highlights mit dem Ereignis im Dateinamen: "… 16.42.51.07.Eliminierung.DVR.mp4". */
+/** NVIDIA saves highlights with the event in the file name: "… 16.42.51.07.Eliminierung.DVR.mp4". */
 export function eventsFromFileName(path: string): { kinds: EventKind[]; label: string } {
   const match = /\.([A-Za-zÄÖÜäöüß ]{3,40})\.DVR\.[a-z0-9]+$/i.exec(basename(path));
   const label = match?.[1] ?? '';
@@ -251,21 +251,21 @@ export function eventsFromFileName(path: string): { kinds: EventKind[]; label: s
 }
 
 /**
- * Sammelt die Ereignisse eines Clips. Eine Meldung steht oft mehrere Sekunden im Bild und wird
- * dabei verschieden gelesen; Einträge derselben Art werden deshalb zusammengefasst, solange sie
- * ohne Lücke von mehr als zweieinhalb Sekunden weiterstehen, oder wenn sie denselben Gegner
- * nennen bzw. wörtlich gleich lauten und nicht zwischendurch aus dem Bild verschwunden sind.
- * Letzteres trennt zwei Tode durch denselben Agenten in zwei Runden (VAL-B2, Nachprüfung E17).
+ * Collects a clip's events. A message often stays on screen for several seconds and is read
+ * differently along the way; entries of the same kind are therefore merged as long as they
+ * continue without a gap of more than two and a half seconds, or when they name the same
+ * opponent or read identically and have not vanished from the screen in between. The latter
+ * separates two deaths by the same agent in two rounds (VAL-B2, re-check of E17).
  */
 /**
- * Mehrere verschiedene Kills im Clip sind ein Mehrfach-Kill, auch ohne Einblendung und auch,
- * wenn sie sich über die Runde verteilen. Er steht beim letzten Kill und zählt alle.
+ * Several distinct kills in a clip are a multi-kill, even without an on-screen message and even
+ * when they are spread across the round. It sits at the last kill and counts all of them.
  */
 export function seriesOf(events: GameEvent[], source: GameEvent['source']): GameEvent | undefined {
   const kills = events.filter((e) => e.kind === 'kill' && e.seconds !== null);
   if (kills.length < 2) return undefined;
   const quick = kills.every((k, i) => i === 0 || k.seconds! - kills[i - 1].seconds! <= 12);
-  // Ein Kopfschuss steht in derselben Meldung wie sein Kill ("Head Shot +20", Killfeed-Symbol).
+  // A headshot appears in the same message as its kill ("Head Shot +20", killfeed icon).
   const headshots = kills.filter((k) =>
     events.some(
       (h) => h.kind === 'headshot' && h.seconds !== null && Math.abs(h.seconds - k.seconds!) <= 1.5,
@@ -283,20 +283,20 @@ export function seriesOf(events: GameEvent[], source: GameEvent['source']): Game
   };
 }
 
-/** Die Zahl der Lebenden, wie R6 sie oben zeigt ("3vs4"), oder leer. */
+/** The number of players alive as R6 shows it at the top ("3vs4"), or empty. */
 function aliveCount(text: string) {
   const match = /\b(\d)\s*vs\.?\s*(\d)\b/i.exec(text);
   return match ? `${match[1]}:${match[2]}` : '';
 }
 
-/** So lange steht eine Einblendung wie der R6-Killfeed ungefähr im Bild. */
+/** Roughly how long a message such as the R6 killfeed stays on screen. */
 const MESSAGE_SECONDS = 5;
 export function collectEvents(frames: SeenFrame[], path: string, game = ''): GameEvent[] {
   const found: GameEvent[] = [];
   const lastSeen = new Map<GameEvent, number>();
   const lastText = new Map<GameEvent, string>();
   const ordered = [...frames].sort((a, b) => a.seconds - b.seconds);
-  // Wiederholungen wie "BESTE AKTION" oder die Killcam können das Spiel eines anderen zeigen.
+  // Replays such as "BESTE AKTION" or the killcam can show someone else's play.
   const counted = (f: SeenFrame) => f.kind !== 'loading' && !REPLAY.test(normalize(f.visibleText));
   const kindsOf = new Map(
     ordered.map((f) => [f, counted(f) ? eventsInText(f.visibleText, game) : []]),
@@ -308,8 +308,8 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
       const other = otherParty(kind, text);
       const previous = [...found].reverse().find((e) => e.kind === kind);
       const seen = previous ? lastSeen.get(previous)! : -Infinity;
-      // Ein einzelnes verlesenes Bild trennt nichts; eine längere Lücke, in der die Meldung
-      // sichtbar fehlte, schon.
+      // A single misread frame separates nothing; a longer gap in which the message was
+      // visibly missing does.
       const vanished =
         frame.seconds - seen > 12 &&
         ordered.some(
@@ -319,9 +319,9 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
             counted(f) &&
             !kindsOf.get(f)!.includes(kind),
         );
-      // Eine Kill-Einblendung steht rund fünf Sekunden und damit auf zwei aufeinanderfolgenden
-      // Bildern, auch wenn sich ihr Text ändert ("+100 KILL", dann "+100 KILL | Head Shot +20").
-      // Erst eine geänderte Zahl der Lebenden ("3vs4" → "3vs3") zeigt einen neuen Kill.
+      // A kill message stays for about five seconds and thus on two consecutive frames, even
+      // if its text changes ("+100 KILL", then "+100 KILL | Head Shot +20"). Only a changed
+      // number of players alive ("3vs4" → "3vs3") shows a new kill.
       const adjacent =
         previous &&
         (kind === 'kill' || kind === 'headshot') &&
@@ -345,7 +345,7 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
       const event: GameEvent = {
         kind,
         seconds: frame.seconds,
-        // Länger als rund fünf Sekunden steht keine Meldung; bei weiten Bildabständen zählt das.
+        // No message stays longer than about five seconds; with wide frame spacing that matters.
         from: Math.max(before?.seconds ?? 0, frame.seconds - MESSAGE_SECONDS),
         text: tellingPart(text),
         source: 'screen',
@@ -356,7 +356,7 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
       lastText.set(event, text);
     }
   }
-  // Zuschaueransicht ohne gelesenen Tod: ausgeschieden, sofern es mehr als ein Bild zeigt.
+  // Spectator view without a death that was read: out, provided more than one frame shows it.
   const watching = ordered.filter(
     (f) =>
       f.kind !== 'other' &&
@@ -380,17 +380,17 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
 }
 
 /**
- * Ersetzt gelesene Kills, Knocks und Tode durch die exakten aus einem Replay. Gelesen kann eine
- * Meldung auch von einem beobachteten Mitspieler stammen oder doppelt zählen; das Replay kennt
- * jeden eigenen Treffer genau einmal. Meldungen zu Runde und Match bleiben, ein Sieg steht nur
- * einmal da. Eine leere Liste aus dem Replay heißt: In diesem Clip gab es nichts davon.
+ * Replaces kills, knocks and deaths that were read with the exact ones from a replay. A message
+ * that was read may come from a spectated teammate or be counted twice; the replay knows each
+ * of the player's own hits exactly once. Round and match messages stay; a win appears only
+ * once. An empty list from the replay means there was none of these in this clip.
  */
 export function withReplay(events: GameEvent[], replay: GameEvent[] | undefined) {
   if (!replay) return events;
   const exact: EventKind[] = ['kill', 'multikill', 'headshot', 'knock', 'death'];
   const won = replay.some((e) => e.kind === 'matchWon');
-  // Kopfschüsse kennt ein Replay nicht: Ein gelesener bleibt, wenn das Replay zur selben Zeit
-  // (±3 s) einen eigenen Kill hat — sonst gehörte er vermutlich einem beobachteten Mitspieler.
+  // A replay does not know headshots: one that was read stays if the replay has an own kill at
+  // the same time (±3 s); otherwise it probably belonged to a spectated teammate.
   const backed = (e: GameEvent) =>
     e.kind === 'headshot' &&
     e.seconds !== null &&
@@ -404,12 +404,12 @@ export function withReplay(events: GameEvent[], replay: GameEvent[] | undefined)
 }
 
 /**
- * Nimmt Runden- und Matchergebnisse aus der Texterkennung hinzu (agent/r6.ts). Sie waren im
- * Blindtest nie falsch; ein vom Modell gelesenes Ergebnis derselben Stelle (±5 s) weicht ihnen.
+ * Adds round and match results from text recognition (agent/r6.ts). They were never wrong in
+ * the blind test; a result the model read at the same point (±5 s) gives way to them.
  */
 export function withTexts(events: GameEvent[], texts: GameEvent[] | undefined, feed = false) {
-  // Ein gelesener Killfeed ist für Kills und Tode maßgeblich, auch wenn er keine eigenen zeigt:
-  // das Modell hielt etwa den Kampfbericht der Vorrunde für einen Tod in diesem Clip.
+  // A killfeed that was read is authoritative for kills and deaths, even if it shows none of
+  // the player's own: the model once took the previous round's combat report for a death here.
   if (feed) {
     const personal: EventKind[] = ['kill', 'multikill', 'headshot', 'knock', 'death'];
     events = events.filter((e) => !personal.includes(e.kind) || e.source === 'replay');
@@ -425,27 +425,26 @@ export function withTexts(events: GameEvent[], texts: GameEvent[] | undefined, f
   );
 }
 
-/** Stärkstes Ereignis einer Meldung, für die Wahl des Belegbilds. 0 ohne Ereignis. */
+/** Strongest event of a message, for choosing the evidence frame. 0 without an event. */
 export function eventWeight(text: string, game = '') {
   return Math.max(0, ...eventsInText(text, game).map((k) => SIGNIFICANCE[k]));
 }
 
 /**
- * Die Ereignisse, von denen der Titel handeln soll: das gewichtigste aus dem Schluss, dazu
- * höchstens ein zweites anderer Art. NVIDIA-Ereignisse gehören zum gespeicherten Moment.
- * Ereignisse des Vorlaufs tragen keinen Titel: in Valorant steht während der Kaufphase der
- * Kampfbericht der Vorrunde im Bild, und der Titel handelte sonst vom Tod einer früheren Runde
- * (VAL-KNAPP, Prüfung von E17).
+ * The events the title should be about: the weightiest one from the end, plus at most a second
+ * one of another kind. NVIDIA events belong to the saved moment. Events from the lead-in carry
+ * no title: in Valorant the previous round's combat report is on screen during the buy phase,
+ * and the title would otherwise be about a death in an earlier round (VAL-KNAPP, review of E17).
  */
 export function headline(events: GameEvent[], momentStart: number): GameEvent[] {
-  // Ein Treffer über große Distanz oder mit dem Scharfschützengewehr ist bemerkenswerter als
-  // ein gewöhnlicher Kill oder der eigene Tod; das weiß nur ein Replay.
+  // A long-distance hit or a sniper rifle hit is more remarkable than an ordinary kill or the
+  // player's own death; only a replay knows that.
   const notable = (e: GameEvent) =>
     Number(
       ['kill', 'knock', 'multikill'].includes(e.kind) &&
         ((e.distance ?? 0) >= 100 || e.weapon === 'sniper' || e.weapon === 'noscope'),
     );
-  // Ein Mehrfach-Kill fasst die ganze Runde zusammen und zählt deshalb auch aus dem Vorlauf.
+  // A multi-kill sums up the whole round and therefore also counts from the lead-in.
   const pool = events
     .filter((e) => e.seconds === null || e.seconds >= momentStart || e.kind === 'multikill')
     .sort(
@@ -471,7 +470,7 @@ const TAG_FOR: Record<EventKind, string[]> = {
   headshot: ['Kill', 'Headshot'],
   ace: ['Kill', 'Multikill', 'Ace'],
   clutch: ['Clutch'],
-  // Niederschlagen ist kein Kill; ein eigenes Tag gibt es dafür (noch) nicht.
+  // A knock is not a kill; there is no tag of its own for it (yet).
   knock: [],
   death: ['Tod'],
   roundWon: ['Rundensieg'],
@@ -481,8 +480,8 @@ const TAG_FOR: Record<EventKind, string[]> = {
 };
 
 /**
- * Tags entstehen aus belegten Ereignissen und der Art der Bilder, nicht aus der Wahl des
- * Modells. Frei gewählt klebte "Tod" an 20 von 45 Clips, auch an Kletter- und Unterwasserszenen.
+ * Tags come from proven events and the kind of frames, not from the model's choice. When chosen
+ * freely, "Tod" stuck to 20 of 45 clips, including climbing and underwater scenes.
  */
 export function tagsFor(
   events: GameEvent[],
@@ -515,7 +514,7 @@ const PHRASE: Record<EventKind, string> = {
   matchLost: 'Dein Team verliert das Match',
 };
 
-/** Waffe im Dativ, für "mit …" in Sätzen und Titeln. */
+/** Weapon in the German dative case, for "mit …" in sentences and titles. */
 export const WEAPON_WITH: Record<Weapon, string> = {
   pistol: 'mit der Pistole',
   shotgun: 'mit der Schrotflinte',
@@ -534,7 +533,7 @@ export const WEAPON_WITH: Record<Weapon, string> = {
   fall: 'durch Fallschaden',
 };
 
-/** Wie viele Kills eine Serie hat, als Wort. */
+/** How many kills a streak has, as a word. */
 export function countWord(count: number) {
   return count === 2
     ? 'zwei'
@@ -547,7 +546,7 @@ export function countWord(count: number) {
           : String(count);
 }
 
-/** Ein Ereignis als Satz aus Sicht des Nutzers, ohne Titelform — sonst schreibt das Modell ab. */
+/** An event as a sentence from the user's point of view, not in title form, or the model copies it. */
 export function phrase(event: GameEvent) {
   const base =
     event.kind === 'multikill' && event.count
@@ -559,7 +558,7 @@ export function phrase(event: GameEvent) {
       ? `aus ${Math.round(event.distance)} m Entfernung`
       : '',
   ].filter(Boolean);
-  // Die Angaben gehören vor das Partizip: "… mit der Schrotflinte ausgeschaltet".
+  // The details go before the participle: "… mit der Schrotflinte ausgeschaltet".
   const cut = base.lastIndexOf(' ');
   const sentence = details.length
     ? `${base.slice(0, cut)} ${details.join(' ')}${base.slice(cut)}`
@@ -571,7 +570,7 @@ export function phrase(event: GameEvent) {
   return `${sentence}${heads}${event.kind === 'death' && event.other ? ` (von ${event.other})` : ''}`;
 }
 
-/** Die belegten Ereignisse als Tatsachen für den Prompt der Zusammenfassung. */
+/** The proven events as facts for the summary prompt. */
 export function describeFacts(events: GameEvent[], momentStart: number) {
   if (!events.length)
     return 'Belegte Ereignisse: keine. Es wurde keine Meldung zu Kill, Tod, Sieg oder Niederlage gelesen, also behaupte nichts davon.';

@@ -3,8 +3,8 @@ import { conversational, speechFacts, splitTranscript, usableTopic } from './spe
 import { tidyHighlights } from './wording';
 import type { SpeechSegment, Transcript } from './speech';
 
-// Auszug aus dem Transkript eines Fortnite-Clips (Whisper medium, 2026-09-24): Star-Wars-Raten,
-// dann ein Lachflash, den Whisper als Serie von "Nein." mitschrieb.
+// Excerpt from the transcript of a Fortnite clip (Whisper medium, 2026-09-24): Star Wars guessing,
+// then a laughing fit that Whisper transcribed as a series of "Nein."
 const said = (start: number, text: string): SpeechSegment => ({ start, end: start + 1, text });
 const segments = [
   said(71.2, 'Anakin Skywalker.'),

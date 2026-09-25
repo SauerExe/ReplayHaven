@@ -1,5 +1,6 @@
 import media from './media.json';
 import type { Clip, Game, VaultState } from '../domain/models';
+import { t } from '../i18n';
 export const games: Game[] = media;
 const titles = [
   [
@@ -33,7 +34,7 @@ const titles = [
     'Komplettes Chaos',
   ],
 ];
-/** Kennungen der Beispiel-Sammlungen, damit ein verbundener Server sie ausräumen kann. */
+/** IDs of the sample collections, so a connected server can clear them out. */
 export const sampleCollectionIds = new Set([
   'favorites-2026',
   'clutches',
@@ -41,9 +42,9 @@ export const sampleCollectionIds = new Set([
   'after-hours',
 ]);
 /**
- * Beispiel-Clips gibt es nur in Entwicklung und Tests. Im ausgelieferten Build startet die
- * Bibliothek leer: Sonst stehen die Beispiele in jedem Browser, bis der Server einmal
- * erfolgreich geantwortet hat, und bleiben bei jedem Fehlschlag stehen.
+ * Sample clips exist only in development and tests. In the shipped build the library starts
+ * empty: otherwise the samples would show up in every browser until the server answered once,
+ * and stay whenever it fails.
  */
 export const withSamples = import.meta.env.MODE !== 'production';
 export function createSeed(): VaultState {
@@ -53,7 +54,12 @@ export function createSeed(): VaultState {
       clips: [],
       collections: [],
       progress: {},
-      preferences: { name: 'Spieler', speed: 1, reducedMotion: false, compact: false },
+      preferences: {
+        name: t('app.seed.playerName'),
+        speed: 1,
+        reducedMotion: false,
+        compact: false,
+      },
     };
   const clips: Clip[] = games.flatMap((g, gi) =>
     titles[gi].map((title, i) => ({
@@ -114,6 +120,6 @@ export function createSeed(): VaultState {
       },
     ],
     progress: {},
-    preferences: { name: 'Spieler', speed: 1, reducedMotion: false, compact: false },
+    preferences: { name: t('app.seed.playerName'), speed: 1, reducedMotion: false, compact: false },
   };
 }

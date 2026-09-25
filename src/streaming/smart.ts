@@ -1,30 +1,34 @@
+import { getLanguage, t, type MessageKey } from '../i18n';
 import type { StreamClip, StreamCollection } from './model';
 
 /**
- * Automatische Sammlungen: Clips landen über ihre Tags darin, wie die Oberfläche sie zeigt (die
- * eigenen, sonst die der Analyse). Der Windows-Client vergibt feste Tags aus erkannten
- * Ereignissen: Ace, Clutch, Headshot, Multikill, Sieg und andere (server/schema.ts, CLIP_TAGS).
- * Alles Weitere, etwa „Lustig“ oder „Bossfight“, kommt von Hand oder von Gemini. Wer Tags
- * ändert, ändert damit auch diese Sammlungen. Erkannt wird hier nichts Neues.
+ * Automatic collections: clips land in them through their tags as the UI shows them (their own,
+ * otherwise those of the analysis). The Windows client assigns fixed tags from detected events:
+ * Ace, Clutch, Headshot, Multikill, Sieg and others (server/schema.ts, CLIP_TAGS). Everything
+ * else, such as "Lustig" or "Bossfight", comes from the user or from Gemini. Changing tags changes
+ * these collections too. Nothing new is detected here.
+ *
+ * Tags stay German on purpose (the AI writes German tags); only titles, descriptions and the
+ * example tags shown on the page follow the UI language.
  */
 export interface SmartRule {
   id: string;
   title: string;
   description: string;
-  /** So stehen die Tags in der Erklärung auf der Seite der Sammlung. */
+  /** How the tags appear in the explanation on the collection page. */
   examples: string[];
-  /** Tags, die hineinführen, in Vergleichsform (siehe tagKey). */
+  /** Tags that lead into the collection, in comparison form (see tagKey). */
   tags: string[];
-  /** Weitere Schreibweisen in Vergleichsform, etwa „1v3“ oder „1gegen3“ für Clutches. */
+  /** More spellings in comparison form, e.g. "1v3" or "1gegen3" for clutches. */
   patterns?: RegExp[];
   /**
-   * Für Ereignisse ohne eigenes Tag: Treffer im Titel oder in einer Zeitmarke. No-Scopes etwa
-   * stehen nur dort, bestätigt durch das Fortnite-Replay (agent/wording.ts).
+   * For events without their own tag: a match in the title or in a highlight. No-scopes, for
+   * example, only appear there, confirmed by the Fortnite replay (agent/wording.ts).
    */
   titles?: RegExp;
 }
 
-/** Vergleichsform eines Tags: klein, ohne Leer- und Satzzeichen. „No-Scope“ wird „noscope“. */
+/** Comparison form of a tag: lower case, no spaces or punctuation. "No-Scope" becomes "noscope". */
 export function tagKey(tag: string): string {
   return tag
     .toLocaleLowerCase('de')
@@ -32,27 +36,46 @@ export function tagKey(tag: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
+type RuleSpec = Omit<SmartRule, 'title' | 'description' | 'examples'> & {
+  /** Example tags shown per language. */
+  examples: { en: string[]; de: string[] };
+};
+
+/** Title and description are looked up when read, so they follow the current UI language. */
+function rule(spec: RuleSpec): SmartRule {
+  const { examples, ...rest } = spec;
+  return {
+    ...rest,
+    get title() {
+      return t(`stream.smart.${spec.id}.title` as MessageKey);
+    },
+    get description() {
+      return t(`stream.smart.${spec.id}.description` as MessageKey);
+    },
+    get examples() {
+      return examples[getLanguage()];
+    },
+  };
+}
+
 export const SMART_RULES: SmartRule[] = [
-  {
+  rule({
     id: 'aces',
-    title: 'Aces',
-    description: 'Das ganze gegnerische Team in einer Runde.',
-    examples: ['Ace'],
+    examples: { en: ['Ace'], de: ['Ace'] },
     tags: ['ace', 'aces', 'teamace'],
-  },
-  {
+  }),
+  rule({
     id: 'clutches',
-    title: 'Clutches',
-    description: 'Allein gegen mehrere, und trotzdem geschafft.',
-    examples: ['Clutch', '1v3'],
+    examples: { en: ['Clutch', '1v3'], de: ['Clutch', '1v3'] },
     tags: ['clutch', 'clutches'],
     patterns: [/^1(v|vs|gegen)[2-5]$/],
-  },
-  {
+  }),
+  rule({
     id: 'mehrfach-kills',
-    title: 'Mehrfach-Kills',
-    description: 'Mehrere Gegner kurz hintereinander.',
-    examples: ['Multikill', 'Doppel-Kill', 'Triple Kill'],
+    examples: {
+      en: ['Multikill', 'Double Kill', 'Triple Kill'],
+      de: ['Multikill', 'Doppel-Kill', 'Triple Kill'],
+    },
     tags: [
       'multikill',
       'multikills',
@@ -67,19 +90,18 @@ export const SMART_RULES: SmartRule[] = [
       'fünffachkill',
       'pentakill',
     ],
-  },
-  {
+  }),
+  rule({
     id: 'headshots',
-    title: 'Headshots',
-    description: 'Treffer, die sitzen.',
-    examples: ['Headshot', 'Kopfschuss'],
+    examples: { en: ['Headshot', 'One-Tap'], de: ['Headshot', 'Kopfschuss'] },
     tags: ['headshot', 'headshots', 'kopfschuss', 'kopfschüsse', 'onetap'],
-  },
-  {
+  }),
+  rule({
     id: 'trickshots',
-    title: 'Trickshots',
-    description: 'No-Scopes, Quickscopes und alles, was eigentlich nicht klappen sollte.',
-    examples: ['Trickshot', 'No-Scope', 'Quickscope'],
+    examples: {
+      en: ['Trickshot', 'No-Scope', 'Quickscope'],
+      de: ['Trickshot', 'No-Scope', 'Quickscope'],
+    },
     tags: [
       'trickshot',
       'trickshots',
@@ -93,12 +115,10 @@ export const SMART_RULES: SmartRule[] = [
       'wallbang',
     ],
     titles: /\b(no|quick|blind)[ -]?scope|\btrickshot/i,
-  },
-  {
+  }),
+  rule({
     id: 'lustige-momente',
-    title: 'Lustige Momente',
-    description: 'Fails, Chaos und alles, worüber ihr noch lacht.',
-    examples: ['Lustig', 'Funny', 'Fail'],
+    examples: { en: ['Funny', 'Fail', 'Chaos'], de: ['Lustig', 'Funny', 'Fail'] },
     tags: [
       'lustig',
       'witzig',
@@ -113,25 +133,21 @@ export const SMART_RULES: SmartRule[] = [
       'lol',
       'chaos',
     ],
-  },
-  {
-    // Nicht „Siege“: so heißt auch Rainbow Six Siege. Runden zählen nicht, sonst stünde fast alles hier.
+  }),
+  rule({
+    // Not "Siege": that is also Rainbow Six Siege. Rounds do not count, or almost everything would be here.
     id: 'gewonnen',
-    title: 'Gewonnene Matches',
-    description: 'Matches, die ihr am Ende gewonnen habt.',
-    examples: ['Sieg', 'Victory Royale'],
+    examples: { en: ['Victory', 'Victory Royale'], de: ['Sieg', 'Victory Royale'] },
     tags: ['sieg', 'matchsieg', 'matchgewonnen', 'victoryroyale', 'victory', 'champion'],
-  },
-  {
+  }),
+  rule({
     id: 'bosskaempfe',
-    title: 'Bosskämpfe',
-    description: 'Einmal noch. Diesmal klappt es.',
-    examples: ['Bossfight', 'Bosskampf'],
+    examples: { en: ['Bossfight', 'Boss'], de: ['Bossfight', 'Bosskampf'] },
     tags: ['boss', 'bossfight', 'bossfights', 'bosskampf', 'bosskämpfe'],
-  },
+  }),
 ];
 
-/** Ab so vielen Clips erscheint eine automatische Sammlung. */
+/** An automatic collection appears from this many clips on. */
 export const SMART_MIN = 2;
 
 export interface SmartCollection extends StreamCollection {
@@ -167,7 +183,7 @@ export function smartCollection(clips: StreamClip[], rule: SmartRule): SmartColl
   };
 }
 
-/** Alle automatischen Sammlungen mit mindestens `min` Clips, in der Reihenfolge der Regeln. */
+/** All automatic collections with at least `min` clips, in rule order. */
 export function smartCollections(clips: StreamClip[], min = SMART_MIN): SmartCollection[] {
   return SMART_RULES.map((rule) => smartCollection(clips, rule)).filter(
     (collection) => collection.clipIds.length >= min,

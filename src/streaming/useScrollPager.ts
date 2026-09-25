@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { prefersReducedMotion } from './links';
 
 /**
- * Seitenweises Blättern in einer waagrechten Leiste. `edges` sagt, ob links oder rechts noch
- * etwas liegt; die Pfeile blenden sich danach ein. `count` meldet geänderte Inhalte.
+ * Page-wise scrolling in a horizontal strip. `edges` tells whether there is more to the left or
+ * right; the arrows show accordingly. `count` signals changed content.
  */
 export function useScrollPager(count: number) {
   const trackRef = useRef<HTMLUListElement>(null);

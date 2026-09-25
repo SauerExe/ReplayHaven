@@ -13,6 +13,8 @@ import {
   X,
 } from 'lucide-react';
 import { useActions } from '../components/Actions';
+import { useIsAdmin } from '../components/AuthGate';
+import { t } from '../i18n';
 import { createId } from '../data/id';
 import { useVault } from '../data/store';
 import { ClipMenu } from './ClipMenu';
@@ -63,11 +65,12 @@ export function StreamingCollectionsPage() {
     <div className="stream stream-page stream-collections">
       <header className="stream-page-head">
         <div className="stream-page-intro">
-          <p className="stream-eyebrow">Gute Momente gehören zusammen</p>
+          <p className="stream-eyebrow">{t('collections.eyebrow')}</p>
           <h1 className="stream-page-title">
-            Sammlungen<span className="stream-count">{library.collections.length}</span>
+            {t('collections.title')}
+            <span className="stream-count">{library.collections.length}</span>
           </h1>
-          <p className="stream-page-lead">Deine Highlights, so sortiert wie du sie magst.</p>
+          <p className="stream-page-lead">{t('collections.lead')}</p>
         </div>
         <div className="stream-page-actions">
           <button
@@ -76,14 +79,14 @@ export function StreamingCollectionsPage() {
             onClick={() => action({ kind: 'create' })}
           >
             <Plus size={18} strokeWidth={2.4} aria-hidden="true" />
-            <span>Neue Sammlung</span>
+            <span>{t('collections.new')}</span>
           </button>
         </div>
       </header>
 
       <section className="stream-page-section" aria-labelledby={ownId}>
         <h2 id={ownId} className="stream-section-title">
-          Deine Sammlungen
+          {t('collections.own')}
         </h2>
         <ul className="stream-collection-grid">
           {library.collections.map((collection) => (
@@ -99,7 +102,7 @@ export function StreamingCollectionsPage() {
             >
               <span className="stream-tile-media">
                 <FolderPlus size={30} strokeWidth={1.8} aria-hidden="true" />
-                <span>Neue Sammlung anlegen</span>
+                <span>{t('collections.create')}</span>
               </span>
             </button>
           </li>
@@ -110,9 +113,9 @@ export function StreamingCollectionsPage() {
         <section className="stream-page-section" aria-labelledby={smartId}>
           <div className="stream-section-intro">
             <h2 id={smartId} className="stream-section-title">
-              Automatisch sortiert
+              {t('collections.smart.title')}
             </h2>
-            <p>Entstehen aus den Tags deiner Clips und halten sich von selbst aktuell.</p>
+            <p>{t('collections.smart.lead')}</p>
           </div>
           <ul className="stream-collection-grid">
             {smart.map((collection) => (
@@ -130,7 +133,7 @@ export function StreamingCollectionsPage() {
   );
 }
 
-/** Kopf einer Sammlung: Bild, Titel, Zahlen, Spiele und die Knöpfe der jeweiligen Seite. */
+/** Collection header: artwork, title, stats, games and the page's own buttons. */
 function CollectionHero({
   eyebrow,
   title,
@@ -162,7 +165,7 @@ function CollectionHero({
           onClick={linkHandler(navigate, '/collections')}
         >
           <ArrowLeft size={18} strokeWidth={2.4} aria-hidden="true" />
-          Alle Sammlungen
+          {t('collections.back')}
         </a>
         <p className="stream-eyebrow">{eyebrow}</p>
         <h1 id={titleId} className="stream-hero-title" data-size={titleSize(title)}>
@@ -182,7 +185,7 @@ function CollectionHero({
         </p>
         <p className="stream-collection-description">{description}</p>
         {summary.games.length > 0 && (
-          <ul className="stream-game-chips" aria-label="Spiele in dieser Sammlung">
+          <ul className="stream-game-chips" aria-label={t('collections.games')}>
             {summary.games.map((game) => (
               <li key={game.key}>
                 <a
@@ -214,12 +217,12 @@ function PlayButton({ clips, layers }: { clips: StreamClip[]; layers: ClipLayerC
       onClick={() => layers.open('play', first.id)}
     >
       <Play size={24} fill="currentColor" strokeWidth={0} aria-hidden="true" />
-      Abspielen
+      {t('collections.play')}
     </button>
   );
 }
 
-/** Clips einer Sammlung als Raster, mit Menü und optional einem Knopf unter jeder Kachel. */
+/** A collection's clips as a grid, with a menu and an optional button under each tile. */
 function CollectionGrid({
   clips,
   now,
@@ -234,6 +237,8 @@ function CollectionGrid({
   const { patchClip } = useVault();
   const action = useActions();
   const navigate = useNavigate();
+  // Plain accounts may not change clips; collections themselves live in this browser.
+  const admin = useIsAdmin();
 
   function toggleFavorite(clipId: string) {
     const clip = clips.find((c) => c.id === clipId);
@@ -250,7 +255,7 @@ function CollectionGrid({
             isNew={isNew(clip.recordedAt, now)}
             onOpen={(clipId) => layers.open('clip', clipId)}
             onPlay={(clipId) => layers.open('play', clipId)}
-            onToggleFavorite={toggleFavorite}
+            onToggleFavorite={admin ? toggleFavorite : undefined}
             menu={
               <ClipMenu
                 clip={clip}
@@ -258,13 +263,25 @@ function CollectionGrid({
                 onAddToCollection={(clipId, opener) =>
                   action({ kind: 'add', ids: [clipId] }, opener)
                 }
-                onRename={(clipId, opener) => action({ kind: 'rename', id: clipId }, opener)}
-                onEditTags={(clipId, opener) => action({ kind: 'tags', id: clipId }, opener)}
+                onRename={
+                  admin
+                    ? (clipId, opener) => action({ kind: 'rename', id: clipId }, opener)
+                    : undefined
+                }
+                onEditTags={
+                  admin
+                    ? (clipId, opener) => action({ kind: 'tags', id: clipId }, opener)
+                    : undefined
+                }
                 onShare={(clipId, opener) => action({ kind: 'share', id: clipId }, opener)}
                 download
                 pageHref={`/clips/${encodeURIComponent(clip.id)}`}
                 onNavigate={navigate}
-                onDelete={(clipId, opener) => action({ kind: 'delete', ids: [clipId] }, opener)}
+                onDelete={
+                  admin
+                    ? (clipId, opener) => action({ kind: 'delete', ids: [clipId] }, opener)
+                    : undefined
+                }
               />
             }
             footer={footer?.(clip)}
@@ -290,7 +307,7 @@ function NotFound({ title, text }: { title: string; text: string }) {
           href="/collections"
           onClick={linkHandler(navigate, '/collections')}
         >
-          Zu den Sammlungen
+          {t('collections.toCollections')}
         </a>
       </div>
     </div>
@@ -307,7 +324,7 @@ export function StreamingCollectionDetailPage() {
   const collection = library.collections.find((c) => c.id === id);
 
   if (!collection)
-    return <NotFound title="Sammlung nicht gefunden" text="Diese Sammlung existiert nicht mehr." />;
+    return <NotFound title={t('collections.notFound')} text={t('collections.notFound.text')} />;
 
   const collectionId = collection.id;
   const summary = summarizeCollection(library, collection);
@@ -335,9 +352,9 @@ export function StreamingCollectionDetailPage() {
   return (
     <div className="stream stream-page stream-collection-page">
       <CollectionHero
-        eyebrow="Sammlung"
+        eyebrow={t('collections.detail.eyebrow')}
         title={collection.title}
-        description={collection.description || 'Hier ist Platz für gute Momente.'}
+        description={collection.description || t('collections.detail.description')}
         meta={meta}
         summary={summary}
       >
@@ -348,13 +365,13 @@ export function StreamingCollectionDetailPage() {
           onClick={() => action({ kind: 'addClips', id: collectionId })}
         >
           <Plus size={22} strokeWidth={2.4} aria-hidden="true" />
-          Clips hinzufügen
+          {t('collections.detail.addClips')}
         </button>
         <button
           type="button"
           className="stream-round stream-round--large"
-          aria-label="Sammlung bearbeiten"
-          title="Sammlung bearbeiten"
+          aria-label={t('collections.detail.edit')}
+          title={t('collections.detail.edit')}
           onClick={() => action({ kind: 'editCollection', id: collectionId })}
         >
           <Pencil size={20} strokeWidth={2.2} aria-hidden="true" />
@@ -362,8 +379,8 @@ export function StreamingCollectionDetailPage() {
         <button
           type="button"
           className="stream-round stream-round--large"
-          aria-label="Sammlung löschen"
-          title="Sammlung löschen"
+          aria-label={t('collections.detail.delete')}
+          title={t('collections.detail.delete')}
           onClick={() => action({ kind: 'deleteCollection', id: collectionId })}
         >
           <Trash2 size={20} strokeWidth={2.2} aria-hidden="true" />
@@ -379,12 +396,12 @@ export function StreamingCollectionDetailPage() {
             <button
               type="button"
               className="stream-tile-remove"
-              aria-label={`${clip.title} aus Sammlung entfernen`}
+              aria-label={t('collections.detail.removeLabel', { title: clip.title })}
               onClick={() => remove(clip.id)}
             >
               <X size={14} strokeWidth={2.6} aria-hidden="true" />
-              <span className="stream-wide-only">Aus Sammlung entfernen</span>
-              <span className="stream-narrow-only">Entfernen</span>
+              <span className="stream-wide-only">{t('collections.detail.remove')}</span>
+              <span className="stream-narrow-only">{t('collections.detail.removeShort')}</span>
             </button>
           )}
         />
@@ -393,15 +410,15 @@ export function StreamingCollectionDetailPage() {
           <span className="stream-empty-icon">
             <Layers size={34} strokeWidth={1.5} aria-hidden="true" />
           </span>
-          <h2>Der Anfang einer guten Sammlung</h2>
-          <p>Füge die ersten Clips aus deiner Bibliothek hinzu.</p>
+          <h2>{t('collections.detail.emptyTitle')}</h2>
+          <p>{t('collections.detail.emptyText')}</p>
           <button
             type="button"
             className="stream-button stream-button--secondary stream-button--compact"
             onClick={() => action({ kind: 'addClips', id: collectionId })}
           >
             <Plus size={20} strokeWidth={2.4} aria-hidden="true" />
-            Clips hinzufügen
+            {t('collections.detail.addClips')}
           </button>
         </div>
       )}
@@ -411,7 +428,7 @@ export function StreamingCollectionDetailPage() {
   );
 }
 
-/** Eine automatische Sammlung: Inhalt folgt den Tags, speichern lässt sie sich als feste Kopie. */
+/** An automatic collection: its content follows the tags; it can be saved as a fixed copy. */
 export function StreamingSmartCollectionPage() {
   const { id } = useParams();
   const { setState } = useVault();
@@ -423,7 +440,7 @@ export function StreamingSmartCollectionPage() {
 
   if (!rule)
     return (
-      <NotFound title="Sammlung nicht gefunden" text="Diese automatische Sammlung gibt es nicht." />
+      <NotFound title={t('collections.notFound')} text={t('collections.notFound.smartText')} />
     );
 
   const { title, description, examples } = rule;
@@ -435,7 +452,7 @@ export function StreamingSmartCollectionPage() {
     count > 0 ? formatTotal(summary.duration) : '',
     smart.updatedAt ? formatUpdated(smart.updatedAt, now) : '',
   ].filter(Boolean);
-  const tags = examples.map((tag) => `„${tag}“`).join(', ');
+  const tags = examples.map((tag) => t('collections.smart.tag', { tag })).join(', ');
 
   const save = () => {
     const newId = createId();
@@ -458,7 +475,7 @@ export function StreamingSmartCollectionPage() {
   return (
     <div className="stream stream-page stream-collection-page">
       <CollectionHero
-        eyebrow="Automatische Sammlung"
+        eyebrow={t('collections.smart.eyebrow')}
         title={title}
         description={description}
         meta={meta}
@@ -468,7 +485,7 @@ export function StreamingSmartCollectionPage() {
         {count > 0 && (
           <button type="button" className="stream-button stream-button--secondary" onClick={save}>
             <FolderPlus size={22} strokeWidth={2.2} aria-hidden="true" />
-            Als Sammlung speichern
+            {t('collections.smart.save')}
           </button>
         )}
       </CollectionHero>
@@ -476,10 +493,10 @@ export function StreamingSmartCollectionPage() {
       <p className="stream-smart-note">
         <Sparkles size={18} strokeWidth={2.2} aria-hidden="true" />
         <span>
-          Hier landet jeder Clip mit dem Tag {tags} oder einer ähnlichen Schreibweise
-          {rule.titles ? ', dazu Clips, deren Titel oder Zeitmarken davon sprechen' : ''}. Die
-          Sammlung hält sich von selbst aktuell; einen Clip nimmst du über seine Tags hinein oder
-          heraus.
+          {t('collections.smart.note', {
+            tags,
+            titles: rule.titles ? t('collections.smart.noteTitles') : '',
+          })}
         </span>
       </p>
 
@@ -490,14 +507,14 @@ export function StreamingSmartCollectionPage() {
           <span className="stream-empty-icon">
             <Sparkles size={34} strokeWidth={1.5} aria-hidden="true" />
           </span>
-          <h2>Noch keine Clips</h2>
-          <p>Sobald ein Clip den Tag {tags} trägt, erscheint er hier.</p>
+          <h2>{t('collections.smart.emptyTitle')}</h2>
+          <p>{t('collections.smart.emptyText', { tags })}</p>
           <a
             className="stream-button stream-button--secondary stream-button--compact"
             href="/library"
             onClick={linkHandler(navigate, '/library')}
           >
-            Zur Bibliothek
+            {t('collections.smart.toLibrary')}
           </a>
         </div>
       )}

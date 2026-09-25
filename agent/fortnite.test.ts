@@ -15,7 +15,7 @@ import type { Elimination, Replay } from './replay';
 import { buildReplay, id } from './replay-fixture';
 import type { FixtureElim } from './replay-fixture';
 
-// Ortszeit zwei Stunden vor UTC, wie im Sommer in Deutschland.
+// Local time two hours ahead of UTC, as in German summer.
 const toUtc = (naive: number) => naive - 2 * 3600000;
 const OWNER = id('a1');
 const MATE = id('c3');
@@ -35,19 +35,19 @@ it('reads the local time from NVIDIA file names', () => {
 it('tells from the modification time whether the name marks the end or the start', () => {
   const name = 'Fortnite 2026.09.24 - 20.10.05.03.DVR.mp4';
   const named = Date.UTC(2026, 8, 24, 18, 10, 5);
-  // Gespeichert um 20:10:05 Ortszeit, drei Sekunden später fertig geschrieben.
+  // Saved at 20:10:05 local time, fully written three seconds later.
   expect(clipWindow(name, 60, named + 3000, toUtc)).toEqual({
     start: named - 60000,
     end: named,
     anchor: 'name-end',
   });
-  // Aufnahme ab 20:10:05, eine Minute lang, dann geschrieben.
+  // Recording from 20:10:05, one minute long, then written.
   expect(clipWindow(name, 60, named + 62000, toUtc)).toEqual({
     start: named,
     end: named + 60000,
     anchor: 'name-start',
   });
-  // Kopiert oder bearbeitet: keine Deutung passt. Sehr kurz: beide passen.
+  // Copied or edited: no reading fits. Very short: both fit.
   expect(clipWindow(name, 60, named + 86400000, toUtc)).toBeUndefined();
   expect(clipWindow(name, 8, named + 9000, toUtc)).toBeUndefined();
   expect(clipWindow('clip.mp4', 60, named, toUtc)).toBeUndefined();
@@ -106,18 +106,18 @@ it('finds the recording account by recurrence, its own elimination and its kill 
     },
     team: { time: 9000, placement: 4, totalPlayers: 25 },
   });
-  // Der Mitspieler kehrt wieder wie der Besitzer, scheidet aber nicht mit dem Match aus.
+  // The teammate recurs like the owner but is not eliminated when the match ends.
   const recurrence = new Map([
     [OWNER, 5],
     [MATE, 5],
   ]);
   const owner = resolveOwner(match, recurrence);
   expect(owner.id).toBe(OWNER);
-  expect(owner.basis.join(' ')).toMatch(/scheidet aus/);
-  // Mit Sieg fehlt das eigene Ausscheiden: dann ist es zwischen beiden offen, also keiner.
+  expect(owner.basis.join(' ')).toMatch(/eliminated when the own match ends/);
+  // With a victory there is no own elimination: then it is open between both, so neither.
   const won = { ...match, team: { time: 9000, placement: 1, totalPlayers: 25 } };
   expect(resolveOwner(won, recurrence).id).toBeUndefined();
-  // Ohne weitere Replays tragen Ausscheiden und Kill-Zahl gemeinsam, das Ausscheiden allein nicht.
+  // Without other replays, elimination and kill count together suffice, elimination alone does not.
   expect(resolveOwner(match, new Map()).id).toBe(OWNER);
   const miscounted = { ...match, stats: { ...match.stats!, eliminations: 5 } };
   expect(resolveOwner(miscounted, new Map()).id).toBeUndefined();
@@ -138,8 +138,8 @@ it('never takes a regular teammate for the owner in team matches', () => {
     [OWNER, 6],
     [MATE, 6],
   ]);
-  // Duo-Sieg ohne eigenen Kill und ohne eigenen Knock: Der Besitzer fehlt in den Ereignissen,
-  // der feste Mitspieler hat einen Kill. Wiederkehr allein reicht nicht.
+  // Duo win without an own kill or knock: the owner is missing from the events, the regular
+  // teammate has a kill. Recurrence alone is not enough.
   const carried = replayOf({
     eliminations: [
       elim(1000, id('b2'), id('d4'), 3, { knocked: true }),
@@ -149,8 +149,8 @@ it('never takes a regular teammate for the owner in team matches', () => {
     team: { time: 9000, placement: 1, totalPlayers: 50 },
   });
   expect(resolveOwner(carried, regulars).id).toBeUndefined();
-  // Beide im Match, der Besitzer führt klar. Im Teammodus kann ein fester Mitspieler trotzdem
-  // der sein, dessen Ausscheiden die Statistik auslöst; deshalb entscheidet hier nichts.
+  // Both in the match, the owner clearly leads. In team modes a regular teammate can still be
+  // the one whose elimination triggers the stats, so nothing decides here.
   const together = replayOf({
     eliminations: [
       elim(1000, id('b2'), OWNER, 3, { knocked: true }),
@@ -162,13 +162,15 @@ it('never takes a regular teammate for the owner in team matches', () => {
     stats: stats(9000, 2),
     team: { time: 9000, placement: 3, totalPlayers: 50 },
   });
-  expect(resolveOwner(together, regulars).basis[0]).toMatch(/Teammodus .* Konto-ID eintragen/);
+  expect(resolveOwner(together, regulars).basis[0]).toMatch(
+    /team mode .* enter your own account ID/,
+  );
   expect(resolveOwner(together, regulars).id).toBeUndefined();
-  // Kehrt der Mitspieler nicht wieder (zugeloste Gruppe), tragen die Hinweise des Besitzers.
+  // If the teammate does not recur (random squad), the owner's clues suffice.
   const alone = new Map([[OWNER, 6]]);
   expect(resolveOwner(together, alone).id).toBe(OWNER);
-  // Ein Gegner, den der Besitzer niedergeschlagen hat, blutet nach dessen Aus ohne Standort aus.
-  // Das schließt den Besitzer nicht aus.
+  // An enemy knocked down by the owner bleeds out without a position after the owner is out.
+  // That does not exclude the owner.
   const late = replayOf({
     ...together,
     eliminations: [
@@ -177,7 +179,7 @@ it('never takes a regular teammate for the owner in team matches', () => {
     ],
   });
   expect(resolveOwner(late, alone).id).toBe(OWNER);
-  // Ein Kill ohne Standort zu Lebzeiten schließt dagegen aus.
+  // A kill without a position while alive, however, excludes.
   const far = replayOf({
     ...together,
     eliminations: [
@@ -186,8 +188,8 @@ it('never takes a regular teammate for the owner in team matches', () => {
     ],
   });
   expect(resolveOwner(far, alone).id).toBeUndefined();
-  // Team Rumble: keine Knocks, aber Respawns. Der Mitspieler scheidet zum Matchende aus und hat so
-  // viele Kills wie die Statistik; als Solo gewertet gewänne er. Als Teammodus entscheidet nichts.
+  // Team Rumble: no knocks but respawns. The teammate is eliminated at match end and has as many
+  // kills as the stats; scored as solo he would win. As a team mode, nothing decides.
   const rumble = replayOf({
     eliminations: [
       elim(1000, id('b2'), OWNER),
@@ -229,10 +231,10 @@ it('excludes shooters whose position the replay never knew, and honours entered 
     [MATE, 3],
   ]);
   expect(resolveOwner(match, recurrence).id).toBe(OWNER);
-  // Eingetragene Konten entscheiden allein, auch gegen die Hinweise.
+  // Configured accounts decide alone, even against the clues.
   expect(resolveOwner(match, recurrence, [MATE.toUpperCase()]).id).toBe(MATE);
   expect(resolveOwner(match, recurrence, [id('99')])).toEqual({
-    basis: ['keine eingetragene Konto-ID in diesem Replay'],
+    basis: ['no configured account ID in this replay'],
   });
 });
 
@@ -247,7 +249,7 @@ it('lists the owner events of the clip window with weapon, distance and series',
   const match = replayOf({
     eliminations: [
       elim(90000, id('b2'), OWNER, 3),
-      // Knock mit dem Scharfschützengewehr knapp vor dem Clip, später ausgeblutet.
+      // Knock with the sniper rifle just before the clip, bled out later.
       elim(99500, id('d4'), OWNER, 6, { knocked: true, ...far }),
       elim(120000, id('d4'), OWNER, 17, near(40)),
       elim(140000, id('e5'), OWNER, 3, near(4)),
@@ -267,7 +269,7 @@ it('lists the owner events of the clip window with weapon, distance and series',
     ['death', 58, 'storm', undefined, undefined],
   ]);
   expect(events.every((e) => e.source === 'replay')).toBe(true);
-  // Namenlose Bots lassen sich nicht auseinanderhalten: kein geerbter Knock eines anderen Bots.
+  // Nameless bots cannot be told apart: no inherited knock from another bot.
   const bots = replayOf({
     eliminations: [
       {
@@ -283,7 +285,7 @@ it('lists the owner events of the clip window with weapon, distance and series',
       ['kill', undefined, undefined],
     ],
   );
-  // Platz 1: Das Match endet im Clip mit dem Sieg.
+  // First place: the match ends with the victory inside the clip.
   const won = replayOf({
     stats: {
       time: 150000,
@@ -309,7 +311,7 @@ afterEach(async () => {
     await rm(root, { recursive: true, force: true });
 });
 
-/** Ein Match mit dem Besitzer, beginnend zur angegebenen UTC-Zeit. */
+/** A match with the owner, starting at the given UTC time. */
 const match = (utcStart: number, elims: FixtureElim[], extra = {}) =>
   buildReplay({
     utcStart,
@@ -331,7 +333,7 @@ it('maps a finished replay onto a clip, waits for a running match and skips othe
     victimAt: [0, 5000, 100],
     killerAt: [0, 0, 100],
   });
-  // Drei frühere Matches desselben Kontos gegen jeweils andere Gegner: Nur es kehrt wieder.
+  // Three earlier matches of the same account against different enemies: only it recurs.
   for (const [i, begin] of [day, day + 3600000, day + 7200000].entries())
     await writeFile(
       join(root, `UnsavedReplay-${i}.replay`),
@@ -340,7 +342,7 @@ it('maps a finished replay onto a clip, waits for a running match and skips othe
         { time: 590000, victim: OWNER, killer: id(`f${i + 6}`), cause: 4 },
       ]),
     );
-  // Das Match des Clips: zwei schnelle Kills kurz vor dem Speichern um 21:10:00 Ortszeit.
+  // The clip's match: two quick kills shortly before saving at 21:10:00 local time.
   const begin = Date.UTC(2026, 8, 24, 19, 0, 0);
   await writeFile(
     join(root, 'UnsavedReplay-3.replay'),
@@ -369,30 +371,30 @@ it('maps a finished replay onto a clip, waits for a running match and skips othe
     ['multikill', 15, 2],
     ['death', 20, undefined],
   ]);
-  // Ein Clip außerhalb aller Replays bleibt ohne Replay-Ereignisse, ebenso andere Spiele.
+  // A clip outside all replays gets no replay events, and neither do other games.
   const earlier = join(root, 'Fortnite 2026.09.23 - 21.10.00.02.DVR.mp4');
   expect(await replays.lookup(earlier, 30, saved - 86400000 + 2000)).toMatchObject({
     status: 'none',
     events: [],
-    trace: { reason: 'kein Replay deckt die Aufnahmezeit ab' },
+    trace: { reason: 'no replay covers the recording time' },
   });
   expect(await replays.forClip(clip, 'VALORANT', 30)).toBeUndefined();
 
-  // Ein Replay, das ein Absturz vor einer Woche offen ließ, hält nichts auf.
+  // A replay left open by a crash a week ago holds nothing up.
   const live = join(root, 'UnsavedReplay-4.replay');
   await writeFile(live, buildReplay({ live: true, localStart: saved - 60000 + 2 * 3600000 }));
   const week = new Date(saved - 7 * 86400000);
   await utimes(live, week, week);
   expect((await replays.lookup(clip, 30, saved + 2000)).status).toBe('ok');
-  // Ein Match, das vor dem Clipende begann und noch aufnimmt: warten.
+  // A match that began before the clip end and is still recording: wait.
   await utimes(live, new Date(saved + 60000), new Date(saved + 60000));
   expect((await replays.lookup(clip, 30, saved + 2000)).status).toBe('wait');
   expect((await replays.forClip(clip, 'Fortnite', 30, saved + 2000 + 60000))?.status).toBe('wait');
-  // Nach 45 Minuten zählen die Bilder allein.
+  // After 45 minutes, the frames alone count.
   expect(await replays.forClip(clip, 'Fortnite', 30, saved + 2000 + MAX_WAIT_MS + 1)).toMatchObject(
     {
       status: 'none',
-      trace: { reason: 'Match nach 45 Minuten nicht beendet' },
+      trace: { reason: 'match not finished after 45 minutes' },
     },
   );
 });

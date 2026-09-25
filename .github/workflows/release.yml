@@ -2,7 +2,7 @@ name: Release
 
 # Tag a commit as vX.Y.Z and push the tag. This builds the Windows installer,
 # publishes the multi-arch server image to GHCR and creates the GitHub release.
-# „Run workflow“ startet einen Probelauf: baut dasselbe, veröffentlicht aber nichts.
+# "Run workflow" starts a dry run: it builds the same things but publishes nothing.
 on:
   push:
     tags: ['v*.*.*']
@@ -13,7 +13,7 @@ permissions:
   packages: write
 
 env:
-  # Nur ein Versions-Tag veröffentlicht Image und Release.
+  # Only a version tag publishes the image and the release.
   PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
@@ -31,7 +31,7 @@ jobs:
         if: env.PUBLISH == 'true'
         shell: bash
         run: echo "REPLAYHAVEN_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-      # Hochladen erledigt der Release-Job; electron-builder soll nie selbst veröffentlichen.
+      # The release job does the upload; electron-builder must never publish on its own.
       - run: npm run client:build -- --publish never
       - uses: actions/upload-artifact@v7
         with:
@@ -89,7 +89,7 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
-          # Der Probelauf nimmt die Version aus package.json und tut so, als gäbe es ihren Tag.
+          # The dry run takes the version from package.json and pretends its tag exists.
           if [ "$PUBLISH" = true ]; then TAG="${GITHUB_REF_NAME}"; else TAG="v$(node -p "require('./package.json').version")"; fi
           VERSION="${TAG#v}"
           # Ready-to-run compose file, pinned to this release's image, plus the env template.
@@ -98,7 +98,7 @@ jobs:
           cp .env.example assets/env.example
           cp setup-server.sh assets/setup-server.sh
           (cd assets && sha256sum ReplayHaven-Client-Setup.exe compose.yaml env.example setup-server.sh > SHA256SUMS.txt)
-          # Der Abschnitt dieser Version aus CHANGELOG.md steht oben in den Release-Notizen.
+          # This version's section from CHANGELOG.md goes at the top of the release notes.
           awk -v version="${VERSION}" '
             index($0, "## [" version "]") == 1 { found = 1; next }
             found && /^## \[/ { exit }

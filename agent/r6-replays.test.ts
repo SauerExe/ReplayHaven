@@ -19,13 +19,13 @@ import {
 } from './r6-replays';
 import type { DissectRound, OwnKill, OwnRound } from './r6-replays';
 
-const mates = ['SpielerEins', 'SpielerZwei', 'SpielerDrei', 'SpielerVier', 'SpielerFünf'];
-const enemies = ['GegnerEins', 'GegnerZwei', 'GegnerDrei', 'GegnerVier', 'GegnerFünf'];
+const mates = ['PlayerOne', 'PlayerTwo', 'PlayerThree', 'PlayerFour', 'PlayerFive'];
+const enemies = ['EnemyOne', 'EnemyTwo', 'EnemyThree', 'EnemyFour', 'EnemyFive'];
 const utc = (text: string) => Date.parse(text);
-/** Ortszeit UTC+2, wie im Sommer in Deutschland. */
+/** Local time UTC+2, as in German summer. */
 const summer = (naive: number) => naive - 2 * 3600000;
 
-/** Eine Runde, wie r6-dissect sie ausgibt: SpielerEins nimmt auf, Team 0 greift an und gewinnt. */
+/** A round as r6-dissect outputs it: PlayerOne records, team 0 attacks and wins. */
 function round(
   feedback: [string, string, string | undefined, number, boolean?][],
   patch: Partial<DissectRound> = {},
@@ -37,7 +37,7 @@ function round(
     map: { name: 'Oregon' },
     gamemode: { name: 'Bomb' },
     recordingPlayerID: '9007199254740993',
-    recordingProfileID: 'profil-eins',
+    recordingProfileID: 'profile-one',
     roundNumber: 2,
     teams: [
       { won: true, winCondition: 'KilledOpponents', role: 'Attack' },
@@ -46,14 +46,14 @@ function round(
     players: [
       ...mates.map((username, i) => ({
         id: String(9007199254740993n + BigInt(i)),
-        profileID: i === 0 ? 'profil-eins' : `profil-${i}`,
+        profileID: i === 0 ? 'profile-one' : `profile-${i}`,
         username,
         teamIndex: 0,
         operator: { name: i === 0 ? 'Sledge' : 'Ash' },
       })),
       ...enemies.map((username, i) => ({
         id: String(100 + i),
-        profileID: `gegner-${i}`,
+        profileID: `enemy-${i}`,
         username,
         teamIndex: 1,
       })),
@@ -83,10 +83,10 @@ it('keeps 64-bit ids exact when reading the JSON', () => {
 });
 
 it('finds the recording player by profile, else by player id, and nobody for spectators', () => {
-  expect(recorder(round([]))?.username).toBe('SpielerEins');
-  expect(recorder(round([], { recordingProfileID: '' }))?.username).toBe('SpielerEins');
+  expect(recorder(round([]))?.username).toBe('PlayerOne');
+  expect(recorder(round([], { recordingProfileID: '' }))?.username).toBe('PlayerOne');
   expect(
-    recorder(round([], { recordingProfileID: 'zuschauer', recordingPlayerID: '1' })),
+    recorder(round([], { recordingProfileID: 'spectator', recordingPlayerID: '1' })),
   ).toBeUndefined();
   expect(
     recorder(round([], { recordingProfileID: undefined, recordingPlayerID: '0' })),
@@ -97,13 +97,13 @@ it('lists own kills with clock and headshot, knocks, the win and the series', ()
   const r = ownRound(
     round([
       ['Other', '', undefined, 179],
-      ['Kill', 'SpielerZwei', 'GegnerEins', 160],
-      ['DBNO', 'SpielerEins', 'GegnerZwei', 150],
-      ['Kill', 'SpielerEins', 'GegnerZwei', 148, false],
-      ['Kill', 'SpielerEins', 'GegnerDrei', 140, true],
-      ['Kill', 'GegnerVier', 'SpielerDrei', 120],
-      ['Kill', 'SpielerEins', 'GegnerVier', 90, true],
-      ['Kill', 'SpielerZwei', 'GegnerFünf', 60],
+      ['Kill', 'PlayerTwo', 'EnemyOne', 160],
+      ['DBNO', 'PlayerOne', 'EnemyTwo', 150],
+      ['Kill', 'PlayerOne', 'EnemyTwo', 148, false],
+      ['Kill', 'PlayerOne', 'EnemyThree', 140, true],
+      ['Kill', 'EnemyFour', 'PlayerThree', 120],
+      ['Kill', 'PlayerOne', 'EnemyFour', 90, true],
+      ['Kill', 'PlayerTwo', 'EnemyFive', 60],
     ]),
     file,
   );
@@ -114,7 +114,7 @@ it('lists own kills with clock and headshot, knocks, the win and the series', ()
     side: 'attack',
     operator: 'Sledge',
     won: true,
-    condition: 'Gegner ausgeschaltet',
+    condition: 'opponents eliminated',
     knocks: [150],
     series: [2],
     ace: false,
@@ -127,13 +127,13 @@ it('lists own kills with clock and headshot, knocks, the win and the series', ()
   ]);
   expect(r.death).toBeUndefined();
   expect(r.clutch).toBeUndefined();
-  // Fremde Namen tauchen im Ergebnis nicht auf.
-  expect(JSON.stringify(r)).not.toMatch(/Gegner(Eins|Zwei|Drei|Vier|Fünf)|SpielerZwei/);
+  // Other players' names do not appear in the result.
+  expect(JSON.stringify(r)).not.toMatch(/Enemy(One|Two|Three|Four|Five)|PlayerTwo/);
 });
 
 it('names the winning condition also for a lost round and records the own death', () => {
   const r = ownRound(
-    round([['Kill', 'GegnerEins', 'SpielerEins', 101, true]], {
+    round([['Kill', 'EnemyOne', 'PlayerOne', 101, true]], {
       teams: [
         { won: false, role: 'Attack' },
         { won: true, winCondition: 'Time', role: 'Defense' },
@@ -141,26 +141,26 @@ it('names the winning condition also for a lost round and records the own death'
     }),
     file,
   );
-  expect(r).toMatchObject({ won: false, condition: 'Zeit abgelaufen', death: 101, kills: [] });
+  expect(r).toMatchObject({ won: false, condition: 'time ran out', death: 101, kills: [] });
 });
 
 it('recognises a clutch only when the recorder was last alive and the round was won', () => {
   const lastAlive: [string, string, string | undefined, number][] = [
-    ['Kill', 'GegnerEins', 'SpielerZwei', 150],
-    ['Kill', 'GegnerEins', 'SpielerDrei', 140],
-    ['Kill', 'SpielerEins', 'GegnerZwei', 130],
-    ['Kill', 'GegnerEins', 'SpielerVier', 120],
-    ['PlayerLeave', 'SpielerFünf', undefined, 118],
-    ['Kill', 'SpielerEins', 'GegnerEins', 100],
-    ['Kill', 'SpielerEins', 'GegnerDrei', 80],
-    ['Kill', 'SpielerEins', 'GegnerVier', 70],
-    ['Kill', 'SpielerEins', 'GegnerFünf', 50],
+    ['Kill', 'EnemyOne', 'PlayerTwo', 150],
+    ['Kill', 'EnemyOne', 'PlayerThree', 140],
+    ['Kill', 'PlayerOne', 'EnemyTwo', 130],
+    ['Kill', 'EnemyOne', 'PlayerFour', 120],
+    ['PlayerLeave', 'PlayerFive', undefined, 118],
+    ['Kill', 'PlayerOne', 'EnemyOne', 100],
+    ['Kill', 'PlayerOne', 'EnemyThree', 80],
+    ['Kill', 'PlayerOne', 'EnemyFour', 70],
+    ['Kill', 'PlayerOne', 'EnemyFive', 50],
   ];
   const won = ownRound(round(lastAlive), file);
-  // Als SpielerFünf ging, lebten noch vier Gegner; fünf eigene Kills sind ein Ace, 80 und 70 eine Serie.
+  // When PlayerFive left, four enemies were alive; five own kills are an ace, 80 and 70 a streak.
   expect(won).toMatchObject({ clutch: 4, ace: true, series: [2] });
   const died = ownRound(
-    round([...lastAlive.slice(0, 5), ['Kill', 'GegnerEins', 'SpielerEins', 110]]),
+    round([...lastAlive.slice(0, 5), ['Kill', 'EnemyOne', 'PlayerOne', 110]]),
     file,
   );
   expect(died.clutch).toBeUndefined();
@@ -175,7 +175,7 @@ it('breaks a series when the clock jumps or the defuser is planted', () => {
   });
   expect(series([k(100), k(95), k(84), k(60)])).toEqual([3]);
   expect(series([k(100), k(95), k(40, true), k(35, true)])).toEqual([2, 2]);
-  // Vorbereitung und Aktionsphase zählen je von vorn herunter.
+  // Preparation and action phase each count down from the start.
   expect(series([k(10), k(178)])).toEqual([]);
 });
 
@@ -183,50 +183,50 @@ it('marks kills after the plant and warns about disagreements and newer seasons'
   const r = ownRound(
     round(
       [
-        ['DefuserPlantComplete', 'SpielerZwei', undefined, 40],
-        ['Kill', 'SpielerEins', 'GegnerEins', 30],
-        ['Kill', 'SpielerEins', 'Unbekannt', 20],
+        ['DefuserPlantComplete', 'PlayerTwo', undefined, 40],
+        ['Kill', 'PlayerOne', 'EnemyOne', 30],
+        ['Kill', 'PlayerOne', 'Unknown', 20],
       ],
-      { gameVersion: 'Y11S3', stats: [{ username: 'SpielerEins', kills: 1 }] },
+      { gameVersion: 'Y11S3', stats: [{ username: 'PlayerOne', kills: 1 }] },
     ),
     file,
   );
   expect(r.kills.every((kill) => kill.afterPlant)).toBe(true);
   expect(r.warnings).toEqual([
-    'Season Y11S3 ist neuer als der Parserstand (Y11S2)',
-    'Kill mit unbekanntem Spieler',
-    'Kills laut Killfeed 2, laut Statistik 1',
+    'Season Y11S3 is newer than the parser revision (Y11S2)',
+    'kill with unknown player',
+    'kills per killfeed 2, per stats 1',
   ]);
   expect(newerSeason('Y12S1')).toBe(true);
   expect(newerSeason('Y11S2')).toBe(false);
   expect(newerSeason('Y10S4')).toBe(false);
-  expect(newerSeason('unbekannt')).toBe(false);
+  expect(newerSeason('unknown')).toBe(false);
 });
 
 it('keeps kills without a usable clock in the count of the living and warns about them', () => {
   const r = ownRound(
     round([
-      ['Kill', 'GegnerEins', 'SpielerZwei', -1],
-      ['Kill', 'GegnerEins', 'SpielerDrei', 140],
-      ['Kill', 'GegnerEins', 'SpielerVier', 130],
-      ['Kill', 'GegnerEins', 'SpielerFünf', 120],
-      ['Kill', 'SpielerEins', 'GegnerEins', 110],
+      ['Kill', 'EnemyOne', 'PlayerTwo', -1],
+      ['Kill', 'EnemyOne', 'PlayerThree', 140],
+      ['Kill', 'EnemyOne', 'PlayerFour', 130],
+      ['Kill', 'EnemyOne', 'PlayerFive', 120],
+      ['Kill', 'PlayerOne', 'EnemyOne', 110],
     ]),
     file,
   );
-  // Ohne den ersten Kill wäre SpielerEins nie als Letzter übrig gewesen.
-  expect(r).toMatchObject({ clutch: 5, warnings: ['Rundenuhr unplausibel'] });
+  // Without the first kill, PlayerOne would never have been the last one left.
+  expect(r).toMatchObject({ clutch: 5, warnings: ['round clock implausible'] });
 });
 
 it('explains rounds without an own player instead of guessing one', () => {
   const r = ownRound(
-    round([['Kill', 'SpielerEins', 'GegnerEins', 100]], {
-      recordingProfileID: 'zuschauer',
+    round([['Kill', 'PlayerOne', 'EnemyOne', 100]], {
+      recordingProfileID: 'spectator',
       recordingPlayerID: '1',
     }),
     file,
   );
-  expect(r.problem).toMatch(/Zuschauer/);
+  expect(r.problem).toMatch(/spectator/);
   expect(r.kills).toEqual([]);
 });
 
@@ -235,7 +235,7 @@ it('decides between UTC and local time by the file creation time, else by the ch
   expect(
     roundStart('2026-09-24T18:00:00Z', { mtime: created + 200000, birthtime: created }, summer),
   ).toBe(utc('2026-09-24T18:00:00Z'));
-  // Schreibt das Spiel Ortszeit, passt nur die umgerechnete Zeit zur Anlagezeit.
+  // If the game writes local time, only the converted time matches the creation time.
   expect(
     roundStart('2026-09-24T20:00:00Z', { mtime: created + 200000, birthtime: created }, summer),
   ).toBe(utc('2026-09-24T18:00:00Z'));
@@ -292,9 +292,9 @@ it('assigns a clip to the round it overlaps, and to none when two rounds share i
     overlap: 50,
     candidates: [{ number: 1, overlap: 50 }],
   });
-  // Je 20 s aus zwei Runden: offen lassen statt raten.
+  // 20 s from each of two rounds: leave it open instead of guessing.
   expect(roundForClip(clip('2026-09-24T18:03:40Z', 60), rounds)).toMatchObject({
-    reason: 'mehrere Runden im Clip',
+    reason: 'several rounds in the clip',
     candidates: [
       { number: 1, overlap: 20 },
       { number: 2, overlap: 20 },
@@ -305,7 +305,7 @@ it('assigns a clip to the round it overlaps, and to none when two rounds share i
     overlap: 35,
   });
   expect(roundForClip(clip('2026-09-24T19:00:00Z', 60), rounds)).toMatchObject({
-    reason: 'keine Runde im Clipfenster',
+    reason: 'no round in the clip window',
   });
 });
 
@@ -313,9 +313,9 @@ it('finds match folders, or treats a folder with rounds as one match', async () 
   const root = await mkdtemp(join(tmpdir(), 'r6-replays-'));
   try {
     for (const [folder, names] of [
-      ['Match-2026-09-24_20-00-00-1', ['Match-R02.rec', 'Match-R01.rec', 'notiz.txt']],
+      ['Match-2026-09-24_20-00-00-1', ['Match-R02.rec', 'Match-R01.rec', 'note.txt']],
       ['Match-2026-09-24_20-40-00-2', ['Match-R01.rec']],
-      ['Leer', []],
+      ['Empty', []],
     ] as const) {
       await mkdir(join(root, folder));
       for (const name of names) await writeFile(join(root, folder, name), '');
@@ -342,18 +342,18 @@ it('finds match folders, or treats a folder with rounds as one match', async () 
 it('runs programs without a shell and reports the end of stderr on failure', async () => {
   expect(await execute(process.execPath, ['-e', 'process.stdout.write("ok")'])).toBe('ok');
   await expect(
-    execute(process.execPath, ['-e', 'console.error("kaputt"); process.exit(3)']),
-  ).rejects.toThrow(/endete mit 3: kaputt/);
-  await expect(execute('replayhaven-gibt-es-nicht', [])).rejects.toMatchObject({ code: 'ENOENT' });
-  expect(dissectFile('/werkzeuge', 'win32')).toMatch(/r6-dissect-e360e2b\.exe$/);
-  expect(dissectFile('/werkzeuge', 'linux')).toMatch(/r6-dissect-e360e2b$/);
+    execute(process.execPath, ['-e', 'console.error("broken"); process.exit(3)']),
+  ).rejects.toThrow(/exited with 3: broken/);
+  await expect(execute('replayhaven-does-not-exist', [])).rejects.toMatchObject({ code: 'ENOENT' });
+  expect(dissectFile('/tools', 'win32')).toMatch(/r6-dissect-e360e2b\.exe$/);
+  expect(dissectFile('/tools', 'linux')).toMatch(/r6-dissect-e360e2b$/);
 });
 
 it('keeps the match a clip was saved in and adds rounds written later', async () => {
   const root = await mkdtemp(join(tmpdir(), 'r6-keep-'));
   try {
     const replays = join(root, 'MatchReplay');
-    const archive = join(root, 'archiv');
+    const archive = join(root, 'archive');
     const name = 'Match-2026-07-12_20-41-13-36588';
     const started = matchStarted(name)!;
     expect(new Date(started).getHours()).toBe(20);
@@ -367,7 +367,7 @@ it('keeps the match a clip was saved in and adds rounds written later', async ()
     };
     await round(1, 4);
     await round(2, 8);
-    // Ein Clip aus Runde 2, gesichert, während das Match noch läuft.
+    // A clip from round 2, saved while the match is still running.
     const saved = started + 7 * 60000;
     const first = await keepMatchForClip(saved, [replays], archive, started + 9 * 60000);
     expect(first).toMatchObject({ target: join(archive, name), running: true });
@@ -380,17 +380,17 @@ it('keeps the match a clip was saved in and adds rounds written later', async ()
       `${name}-R02.rec`,
       `${name}-R03.rec`,
     ]);
-    // Ein früheres Match, das kurz vorher endete, verliert gegen das laufende.
+    // An earlier match that ended shortly before loses to the running one.
     const earlier = join(replays, 'Match-2026-07-12_20-25-52-36588');
     await mkdir(earlier);
     await writeFile(join(earlier, 'x-R01.rec'), 'x');
     const ended = new Date(started - 2 * 60000);
     await utimes(join(earlier, 'x-R01.rec'), ended, ended);
     expect((await keepMatchForClip(saved, [replays], archive))?.target).toBe(join(archive, name));
-    // Ein Clip lange nach dem Match oder davor gehört zu keinem.
+    // A clip long after or before the match belongs to none.
     expect(await keepMatchForClip(started + 60 * 60000, [replays], archive)).toBeUndefined();
     expect(await keepMatchForClip(started - 60 * 60000, [replays], archive)).toBeUndefined();
-    expect(await keepMatchForClip(saved, [join(root, 'fehlt')], archive)).toBeUndefined();
+    expect(await keepMatchForClip(saved, [join(root, 'missing')], archive)).toBeUndefined();
   } finally {
     await rm(root, { recursive: true, force: true });
   }

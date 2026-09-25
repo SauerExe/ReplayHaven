@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { AlertCircle, ExternalLink, PictureInPicture2, RotateCcw } from 'lucide-react';
 import type { Clip } from '../domain/models';
 import { useVault } from '../data/store';
 import { canContinue, time } from '../data/repository';
+import { t } from '../i18n';
+import { bufferedEnd } from '../streaming/buffer';
 export default function Player({
   clip,
   shared = false,
@@ -23,6 +26,10 @@ export default function Player({
   });
   const [speed, setSpeed] = useState(state.preferences.speed);
   const [pip, setPip] = useState(false);
+  /** Played and loaded share of the video in percent, for the strip below the video. */
+  const [bar, setBar] = useState({ played: 0, buffered: 0 });
+  /** Playback stalled while waiting for data. */
+  const [waiting, setWaiting] = useState(false);
   const lastSave = useRef(0);
   useEffect(() => {
     const video = videoRef.current;
@@ -47,23 +54,18 @@ export default function Player({
         .then(({ default: Hls }) => {
           if (cancelled) return;
           if (!Hls.isSupported()) {
-            setError(
-              'Dieser Browser unterstützt den Videostream nicht. Öffne das Original oder verwende einen aktuellen Browser.',
-            );
+            setError(t('pages.player.hlsUnsupported'));
             return;
           }
           const hls = new Hls({ maxBufferLength: 20, maxMaxBufferLength: 30, startLevel: 0 });
           hls.loadSource(source);
           hls.attachMedia(video);
           hls.on(Hls.Events.ERROR, (_event, data) => {
-            if (data.fatal)
-              setError(
-                'Der Videostream ist gerade nicht erreichbar. Prüfe deine Verbindung oder öffne das Original.',
-              );
+            if (data.fatal) setError(t('pages.player.streamUnavailable'));
           });
           cleanup = () => hls.destroy();
         })
-        .catch(() => setError('Der Videoplayer konnte nicht geladen werden. Versuche es erneut.'));
+        .catch(() => setError(t('pages.player.loadFailed')));
     } else video.src = source;
     return () => {
       cancelled = true;
@@ -112,6 +114,13 @@ export default function Player({
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [loaded]);
+  function updateBar() {
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+    const played = Math.min(100, (video.currentTime / video.duration) * 100);
+    const loaded = (bufferedEnd(video.buffered, video.currentTime) / video.duration) * 100;
+    setBar({ played, buffered: Math.min(100, Math.max(played, loaded)) });
+  }
   function save(force = false) {
     const video = videoRef.current;
     if (!video || shared || !Number.isFinite(video.duration) || video.duration <= 0) return;
@@ -135,15 +144,15 @@ export default function Player({
         <AlertCircle size={36} />
         <h2>
           {clip.status === 'processing'
-            ? 'Clip wird verarbeitet'
+            ? t('pages.player.processing')
             : clip.status === 'error'
-              ? 'Dieser Clip konnte nicht verarbeitet werden'
-              : 'Keine Videodatei vorhanden'}
+              ? t('pages.player.failed')
+              : t('pages.player.noVideo')}
         </h2>
         <p>
           {clip.status === 'processing'
-            ? 'Der Clip steht nach der Verarbeitung zur Verfügung.'
-            : 'Füge über „Clip hochladen“ eine lokale Videodatei hinzu.'}
+            ? t('pages.player.processingText')
+            : t('pages.player.noVideoText')}
         </p>
       </div>
     );
@@ -166,31 +175,56 @@ export default function Player({
                 resolution: video.videoHeight ? `${video.videoHeight}p` : clip.resolution,
               });
           }}
-          onTimeUpdate={() => save()}
+          onTimeUpdate={() => {
+            updateBar();
+            save();
+          }}
+          onProgress={updateBar}
+          onLoadStart={() => {
+            setBar({ played: 0, buffered: 0 });
+            setWaiting(false);
+          }}
+          // 'waiting' fires when playback stalls for data; 'playing' or 'canplay' mean it moves on.
+          onWaiting={() => setWaiting(true)}
+          onPlaying={() => setWaiting(false)}
+          onCanPlay={() => setWaiting(false)}
           onResize={() => {
             const height = videoRef.current?.videoHeight;
             if (height && !shared && clip.resolution !== `${height}p`)
               patchClip(clip.id, { resolution: `${height}p` });
           }}
           onPause={() => save(true)}
-          onSeeked={() => save(true)}
-          onEnded={() => save(true)}
+          onSeeked={() => {
+            updateBar();
+            save(true);
+          }}
+          onEnded={() => {
+            setWaiting(false);
+            save(true);
+          }}
           onError={() => {
-            if (videoRef.current?.getAttribute('src'))
-              setError(
-                'Das Video kann nicht abgespielt werden. Prüfe das Format oder versuche es erneut.',
-              );
+            if (videoRef.current?.getAttribute('src')) setError(t('pages.player.playbackFailed'));
           }}
         />
+        {waiting && !error && (
+          <div
+            className="stream stream-player-spinner"
+            role="status"
+            data-testid="player-buffering"
+          >
+            <span className="stream-player-spinner-ring" aria-hidden="true" />
+            <span className="stream-sr-only">{t('stream.player.buffering')}</span>
+          </div>
+        )}
         {error && (
           <div className="player-error" role="alert">
             <AlertCircle size={30} />
-            <h3>Der Moment muss kurz warten.</h3>
+            <h3>{t('pages.player.errorTitle')}</h3>
             <p>{error}</p>
             <div className="button-row">
               <button className="button primary" onClick={() => setRetry((n) => n + 1)}>
                 <RotateCcw size={16} />
-                Erneut versuchen
+                {t('common.retry')}
               </button>
               {clip.sourcePage && (
                 <a
@@ -199,7 +233,7 @@ export default function Player({
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Original öffnen
+                  {t('pages.player.openOriginal')}
                   <ExternalLink size={16} />
                 </a>
               )}
@@ -208,7 +242,7 @@ export default function Player({
         )}
         {!error && resume > 0 && loaded && (
           <div className="resume-prompt">
-            <span>Bei {time(resume)} weiterschauen?</span>
+            <span>{t('pages.player.resumeAt', { time: time(resume) })}</span>
             <button
               className="button primary"
               onClick={() => {
@@ -219,29 +253,41 @@ export default function Player({
                 setResume(0);
               }}
             >
-              Fortsetzen
+              {t('pages.player.resume')}
             </button>
             <button className="text-button" onClick={() => setResume(0)}>
-              Von vorne
+              {t('pages.player.restart')}
             </button>
           </div>
         )}
+      </div>
+      {/* Display only: the native controls stay the seek bar, so no extra focus stop. */}
+      <div
+        className="stream player-buffer"
+        aria-hidden="true"
+        data-testid="seek-buffer"
+        style={{ '--played': `${bar.played}%`, '--buffered': `${bar.buffered}%` } as CSSProperties}
+      >
+        <div className="stream-seek-track">
+          <div className="stream-seek-buffer" />
+          <div className="stream-seek-fill" />
+        </div>
       </div>
       <div className="player-toolbar">
         <span className="player-quality">
           <span className="tiny-dot" />
           {clip.local
-            ? 'Lokale Aufnahme'
+            ? t('pages.player.localRecording')
             : clip.server
-              ? 'Deine Aufnahme'
-              : 'Offizielles Spielvideo'}
+              ? t('pages.player.yourRecording')
+              : t('pages.player.officialVideo')}
           <span className="player-resolution">{clip.resolution}</span>
         </span>
         <div>
           <label className="speed-control">
-            <span>Tempo</span>
+            <span>{t('pages.player.speed')}</span>
             <select
-              aria-label="Wiedergabegeschwindigkeit"
+              aria-label={t('pages.player.speedLabel')}
               value={speed}
               onChange={(e) => setSpeed(Number(e.target.value))}
             >
@@ -256,13 +302,13 @@ export default function Player({
             <button
               className="icon-button"
               disabled={!loaded}
-              aria-label="Bild-in-Bild"
+              aria-label={t('pages.player.pip')}
               onClick={async () => {
                 try {
                   if (document.pictureInPictureElement) await document.exitPictureInPicture();
                   else await videoRef.current?.requestPictureInPicture();
                 } catch {
-                  toast('Bild-in-Bild ist für dieses Video nicht verfügbar.');
+                  toast(t('pages.player.pipUnavailable'));
                 }
               }}
             >

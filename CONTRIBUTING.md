@@ -34,7 +34,7 @@ CI runs the same checks plus a container smoke test and an unpacked client build
 - **The product brief is [`docs/DESIGN.md`](docs/DESIGN.md).** It describes the interface, its states, texts and quality bar. User-facing changes should follow it; propose changes to the brief in the pull request when the brief itself needs to move.
 - **Originals are sacred.** Nothing may rename, move or delete a user's recording on the gaming PC, and removing a clip from the library must keep the original on the server.
 - **Be honest in the UI.** No success messages for things that did not happen, no fake progress, no features that only pretend to work without a server.
-- **Interface texts are German**, short and concrete. Code comments and the guides in `docs/` are German too; identifiers, commit messages, the README and the changelog are English.
+- **Everything is English**: interface texts (short and concrete), code comments, identifiers, commit messages, the guides in `docs/`, the README and the changelog. The only exception for now is product content the AI generates: clip titles and tags are German.
 - **Keep dependencies lean.** Do not add a library for something a few lines of code can do.
 - **No secrets, personal addresses or hardware names** in code or docs. Use placeholders and environment variables.
 

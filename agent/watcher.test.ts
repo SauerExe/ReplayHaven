@@ -36,10 +36,10 @@ it('waits for stable files and reuses cached analysis after an interrupted metad
     result: {
       title: 'Test',
       description: 'Test',
-      game: 'Erkanntes Spiel',
+      game: 'Detected game',
       tags: [],
       confidence: 'low' as const,
-      uncertainty: 'Testdaten',
+      uncertainty: 'Test data',
       highlights: [],
     },
     duration: 2,
@@ -50,7 +50,7 @@ it('waits for stable files and reuses cached analysis after an interrupted metad
   const fetcher = vi.fn(async (url: string, request: RequestInit) => {
     if (url.endsWith('/client-analysis'))
       return new Response('{}', { status: ++metadataAttempts === 1 ? 503 : 200 });
-    // Der Ordnername gewinnt gegen die Schaetzung der KI; nur Auffangprofile weichen ihr.
+    // The folder name beats the AI's guess; only catch-all profiles give way to it.
     expect((request.headers as Record<string, string>)['x-game-name']).toBe(
       encodeURIComponent(basename(options.folder)),
     );
@@ -102,24 +102,24 @@ it('skips existing recordings by default and leaves new recordings queued while 
 });
 
 it('takes the game only from the folder or the explicit setting, and tidies spacing', () => {
-  // Gemessen 2026-09-22: jede KI-Schätzung war falsch ("Sieg", "Steam", "Kein Ereignis"),
-  // deshalb ist sie keine Quelle mehr. Doppelte Leerzeichen aus NVIDIA-Ordnern fallen weg.
+  // Measured 2026-09-22: every AI guess was wrong ("Sieg", "Steam", "Kein Ereignis"),
+  // so it is no longer a source. Double spaces from NVIDIA folders are dropped.
   expect(gameLabel('', join('G:', 'Clips', 'Valorant', 'a.mp4'))).toBe('Valorant');
   expect(gameLabel('', join('G:', 'Clips', 'Call of Duty  Black Ops 7', 'a.mp4'))).toBe(
     'Call of Duty Black Ops 7',
   );
   expect(gameLabel('', join('G:', 'Clips', 'Desktop', 'a.mp4'))).toBe('Desktop');
-  expect(gameLabel('  Mein Spiel ', join('G:', 'Clips', 'Valorant', 'a.mp4'))).toBe('Mein Spiel');
+  expect(gameLabel('  My Game ', join('G:', 'Clips', 'Valorant', 'a.mp4'))).toBe('My Game');
 });
 
 it('suggests the games of existing recordings by the folder the analysis sees', async () => {
   await mkdir(join(options.folder, 'Call of Duty  Black Ops 7'));
-  await mkdir(join(options.folder, 'Fortnite', 'Unterordner'), { recursive: true });
-  await mkdir(join(options.folder, 'Leer'));
+  await mkdir(join(options.folder, 'Fortnite', 'Subfolder'), { recursive: true });
+  await mkdir(join(options.folder, 'Empty'));
   await writeFile(join(options.folder, 'Call of Duty  Black Ops 7', 'a.mp4'), 'x');
   await writeFile(join(options.folder, 'Fortnite', 'b.mp4'), 'x');
   await writeFile(join(options.folder, 'Fortnite', 'c.mkv'), 'x');
-  await writeFile(join(options.folder, 'Fortnite', 'Unterordner', 'd.txt'), 'x');
+  await writeFile(join(options.folder, 'Fortnite', 'Subfolder', 'd.txt'), 'x');
   expect(await recordedGames(options.folder)).toEqual(['Call of Duty Black Ops 7', 'Fortnite']);
 });
 
@@ -141,7 +141,7 @@ it('keeps a deferred recording queued without reporting an error', async () => {
   };
   const analyze = vi
     .fn()
-    .mockRejectedValueOnce(new DeferredError('Wartet auf das Ende des Fortnite-Matches …'))
+    .mockRejectedValueOnce(new DeferredError('Waiting for the Fortnite match to end …'))
     .mockResolvedValue(analysis);
   vi.stubGlobal(
     'fetch',
@@ -156,8 +156,8 @@ it('keeps a deferred recording queued without reporting an error', async () => {
   await agent.scan(111);
   expect(agent.error).toBe('');
   expect(agent.state.uploaded).toBe(0);
-  expect(statuses.at(-1)).toMatch(/Wartet/);
-  // Vor Ablauf der Minute wird nicht erneut gefragt, danach schon.
+  expect(statuses.at(-1)).toMatch(/Waiting/);
+  // No new attempt before the minute is up, but one after it.
   await agent.scan(30000);
   expect(analyze).toHaveBeenCalledTimes(1);
   await agent.scan(60200);
@@ -178,7 +178,7 @@ it('names the game of a Desktop recording from the foreground and reports the up
       return Response.json({ clip: { id: 'test-id' } });
     }),
   );
-  const analyze = vi.fn().mockRejectedValue(new Error('nur der Spielname zählt'));
+  const analyze = vi.fn().mockRejectedValue(new Error('only the game name matters'));
   const gameFor = vi.fn(() => "Tom Clancy's Rainbow Six Siege");
   const onUploaded = vi.fn();
   const uploader = new FolderUploader({ ...options, gameFor, onUploaded });
@@ -193,7 +193,7 @@ it('names the game of a Desktop recording from the foreground and reports the up
     expect.any(Number),
   );
   expect(analyze).not.toHaveBeenCalled();
-  // Ein Spielordner bleibt, wie er ist.
+  // A game folder stays as it is.
   expect(gameFor).toHaveBeenCalledTimes(1);
 });
 
@@ -234,7 +234,7 @@ it('reports the queue, the clip in work and the archived clips with their titles
   });
   await uploader.initialize();
   await uploader.scan(100);
-  // Beim ersten Blick werden beide Dateien noch geschrieben.
+  // At first sight both files are still being written.
   expect(seen[0]).toEqual({ queue: ['a.mp4:settling', 'b.mp4:settling'] });
   await uploader.scan(111);
   expect(seen).toContainEqual({ queue: ['b.mp4:waiting'], active: 'a.mp4', stage: 'analyzing' });
@@ -247,7 +247,7 @@ it('reports the queue, the clip in work and the archived clips with their titles
 });
 
 it('notices new recordings during a game and uploads them right after it without waiting again', async () => {
-  const file = join(options.folder, 'im-spiel.mp4');
+  const file = join(options.folder, 'in-game.mp4');
   await writeFile(file, 'test-only bytes');
   const upload = vi.fn(async () => Response.json({ clip: { id: 'test-id' } }));
   vi.stubGlobal('fetch', upload);
@@ -260,12 +260,12 @@ it('notices new recordings during a game and uploads them right after it without
     onQueue: (queue) => seen.push(queue.map((e) => `${e.name}:${e.state}`)),
   });
   await uploader.initialize();
-  // Während des Spiels: in der Warteschlange, beobachtet, aber nicht hochgeladen.
+  // During the game: queued and watched, but not uploaded.
   await uploader.scan(0);
   await uploader.scan(30_000);
-  expect(seen.at(-1)).toEqual(['im-spiel.mp4:waiting']);
+  expect(seen.at(-1)).toEqual(['in-game.mp4:waiting']);
   expect(upload).not.toHaveBeenCalled();
-  // Nach dem Spiel ist die Datei längst fertig: Der erste Blick lädt sie hoch.
+  // After the game the file is long finished: the first look uploads it.
   gaming = false;
   await uploader.scan(31_000);
   expect(upload).toHaveBeenCalledTimes(1);

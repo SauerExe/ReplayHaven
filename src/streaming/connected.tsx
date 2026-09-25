@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { Clip } from '../domain/models';
 import { useActions } from '../components/Actions';
+import { useIsAdmin } from '../components/AuthGate';
 import { canContinue } from '../data/repository';
 import { useVault } from '../data/store';
 import { ClipMenu } from './ClipMenu';
@@ -14,7 +15,7 @@ import { StreamingHeader } from './StreamingHeader';
 import { StreamingHome } from './StreamingHome';
 
 type Layer = 'clip' | 'play';
-/** Wie viele Ebenen diese Seite selbst in den Verlauf gelegt hat; nur die schließt „Zurück“. */
+/** How many layers this page pushed onto the history itself; only those are closed by "Back". */
 type LayerState = { streamLayers?: number; streamStart?: number } | null;
 
 export function useMinuteClock() {
@@ -26,7 +27,7 @@ export function useMinuteClock() {
   return now;
 }
 
-/** Clips, Sammlungen und Spielinfos im Modell der Streaming-Seiten. */
+/** Clips, collections and game info in the model of the streaming pages. */
 export function useStreamLibrary(): StreamLibrary {
   const { state, gameInfo } = useVault();
   return useMemo(
@@ -39,7 +40,7 @@ export function useStreamLibrary(): StreamLibrary {
   );
 }
 
-/** Details und Player hängen an `?clip=` und `?play=`, damit „Zurück“ sie schließt. */
+/** Details and player hang on `?clip=` and `?play=`, so that "Back" closes them. */
 export function useClipLayers() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -69,14 +70,14 @@ export function useClipLayers() {
   }
 
   function close(key: Layer) {
-    // Doppeltes Escape darf nicht zwei Schritte zurück und womöglich aus der App springen.
+    // A double Escape must not go back two steps and possibly leave the app.
     if (closing.current) return;
     closing.current = true;
     if ((layer?.streamLayers ?? 0) > 0) {
       navigate(-1);
       return;
     }
-    // Direkt aufgerufener Link: nichts im Verlauf, das wir zurücknehmen könnten.
+    // Link opened directly: nothing in the history that we could take back.
     const next = new URLSearchParams(location.search);
     next.delete(key);
     const search = next.toString();
@@ -96,9 +97,8 @@ export function useClipLayers() {
 export type ClipLayerControls = ReturnType<typeof useClipLayers>;
 
 /**
- * Detaildialog und Player einer Streaming-Seite. `queue` gibt die Reihenfolge für „Nächster
- * Clip“ vor, etwa die der Sammlung; ohne sie oder für Clips außerhalb geht es wie auf der
- * Startseite weiter.
+ * Detail dialog and player of a streaming page. `queue` sets the order for "Next clip", e.g. that
+ * of the collection; without it, or for clips outside it, playback continues as on the home page.
  */
 export function ClipLayers({
   layers,
@@ -114,6 +114,8 @@ export function ClipLayers({
   const { state, setState, patchClip } = useVault();
   const action = useActions();
   const navigate = useNavigate();
+  // Plain accounts only watch: no favorites, tags, renaming or deleting (the server refuses them).
+  const admin = useIsAdmin();
   const find = (id: string | null) => library.clips.find((c) => c.id === id) ?? null;
   const detail = find(layers.detailId);
   const playing = find(layers.playId);
@@ -154,19 +156,21 @@ export function ClipLayers({
         onClose={() => layers.close('clip')}
         onPlay={(id, start) => layers.open('play', id, start)}
         onOpenClip={(id) => layers.replace('clip', id)}
-        onToggleFavorite={toggleFavorite}
+        onToggleFavorite={admin ? toggleFavorite : undefined}
         onAddToCollection={(id) => action({ kind: 'add', ids: [id] })}
-        onEditTags={(id) => action({ kind: 'tags', id })}
+        onEditTags={admin ? (id) => action({ kind: 'tags', id }) : undefined}
         menu={
           detail && (
             <ClipMenu
               clip={detail}
               variant="round"
-              onRename={(id, opener) => action({ kind: 'rename', id }, opener)}
+              onRename={admin ? (id, opener) => action({ kind: 'rename', id }, opener) : undefined}
               onShare={(id, opener) => action({ kind: 'share', id }, opener)}
               pageHref={`/clips/${encodeURIComponent(detail.id)}`}
               onNavigate={navigate}
-              onDelete={(id, opener) => action({ kind: 'delete', ids: [id] }, opener)}
+              onDelete={
+                admin ? (id, opener) => action({ kind: 'delete', ids: [id] }, opener) : undefined
+              }
             />
           )
         }
@@ -182,7 +186,7 @@ export function ClipLayers({
           onNext={(id) => layers.replace('play', id)}
           onProgress={saveProgress}
           onMetadata={(id, { duration, height }) => {
-            // Wie im bisherigen Player: echte Länge und Auflösung aus dem Video übernehmen.
+            // As in the previous player: take the real length and resolution from the video.
             const patch: Partial<Clip> = {};
             if (duration && Math.abs(duration - playing.duration) > 0.5) patch.duration = duration;
             if (height && `${height}p` !== playing.resolution) patch.resolution = `${height}p`;
@@ -198,6 +202,7 @@ export function StreamingHeaderContainer() {
   const action = useActions();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const admin = useIsAdmin();
   const active =
     pathname === '/'
       ? '/'
@@ -207,7 +212,7 @@ export function StreamingHeaderContainer() {
       active={active}
       onNavigate={navigate}
       onSearch={(query) => navigate(`/library?q=${encodeURIComponent(query)}`)}
-      onAddClip={() => action({ kind: 'upload' })}
+      onAddClip={admin ? () => action({ kind: 'upload' }) : undefined}
     />
   );
 }
@@ -219,6 +224,7 @@ export function StreamingHomeContainer({ header = false }: { header?: boolean })
   const now = useMinuteClock();
   const library = useStreamLibrary();
   const layers = useClipLayers();
+  const admin = useIsAdmin();
 
   function toggleFavorite(id: string) {
     const clip = library.clips.find((c) => c.id === id);
@@ -234,9 +240,9 @@ export function StreamingHomeContainer({ header = false }: { header?: boolean })
         status={serverStatus(server, now)}
         onOpenClip={(id) => layers.open('clip', id)}
         onPlayClip={(id) => layers.open('play', id)}
-        onToggleFavorite={toggleFavorite}
+        onToggleFavorite={admin ? toggleFavorite : undefined}
         onNavigate={navigate}
-        onAddClip={() => action({ kind: 'upload' })}
+        onAddClip={admin ? () => action({ kind: 'upload' }) : undefined}
         onCreateCollection={() => action({ kind: 'create' })}
         connectHref="/devices"
       />

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { setLanguage } from '../i18n';
 import type { StreamClip, StreamCollection } from './model';
 import {
   formatDuration,
@@ -10,6 +11,10 @@ import {
   DAY_MS,
 } from './format';
 import { buildRows, moreFromGame, nextClipAfter, pickHero, ROW_LIMIT } from './rows';
+
+// These expectations use the German wording; English is covered in i18n.test.ts.
+beforeAll(() => setLanguage('de', false));
+afterAll(() => setLanguage('en', false));
 
 // Ortszeit statt UTC, damit „Heute“ und „Gestern“ in jeder Zeitzone gleich ausfallen.
 const NOW = new Date(2026, 8, 24, 21, 40).getTime();
@@ -45,20 +50,41 @@ const collection = (id: string, clipIds: string[]): StreamCollection => ({
 });
 
 describe('pickHero', () => {
-  it('nimmt den neuesten fertigen Clip mit KI-Ergebnis', () => {
+  it('features the most recently recorded playable clip, analyzed or not', () => {
     const hero = pickHero([
-      clip('ohne-analyse', { recordedAt: at(0, 21) }),
-      clip('in-arbeit', { recordedAt: at(0, 20), hasAnalysis: true, status: 'processing' }),
-      clip('alt', { recordedAt: at(3, 20), hasAnalysis: true }),
-      clip('treffer', { recordedAt: at(0, 19), hasAnalysis: true }),
+      clip('analyzed-older', { recordedAt: at(3, 20), hasAnalysis: true }),
+      clip('processing', { recordedAt: at(0, 21), hasAnalysis: true, status: 'processing' }),
+      clip('newest-ready', { recordedAt: at(0, 20) }),
+      clip('analyzed', { recordedAt: at(0, 19), hasAnalysis: true }),
     ]);
-    expect(hero?.id).toBe('treffer');
+    expect(hero?.id).toBe('newest-ready');
   });
 
-  it('fällt ohne KI-Ergebnis auf den neuesten Clip zurück', () => {
+  it('orders by recording time, not by list or upload order', () => {
+    // Dec 2025 first in the list (e.g. uploaded last), newer recordings after it.
+    const clips = [
+      clip('december', { recordedAt: '2025-12-15T19:12:44.766Z', hasAnalysis: true }),
+      clip('september', { recordedAt: '2026-09-16T17:35:07.309Z' }),
+      clip('july', { recordedAt: '2026-07-19T11:25:29.478Z', hasAnalysis: true }),
+      clip('broken-date', { recordedAt: 'not a date' }),
+    ];
+    expect(pickHero(clips)?.id).toBe('september');
+    const newRow = buildRows({ clips, collections: [] }, NOW).find((row) => row.id === 'neu');
+    expect(newRow?.kind === 'clips' && newRow.items.map((item) => item.clip.id)).toEqual([
+      'september',
+      'july',
+      'december',
+      'broken-date',
+    ]);
+  });
+
+  it('falls back to the newest clip when none is playable', () => {
     expect(
-      pickHero([clip('alt', { recordedAt: at(2, 9) }), clip('neu', { recordedAt: at(0, 9) })])?.id,
-    ).toBe('neu');
+      pickHero([
+        clip('old', { recordedAt: at(2, 9), status: 'error' }),
+        clip('new', { recordedAt: at(0, 9), status: 'processing' }),
+      ])?.id,
+    ).toBe('new');
     expect(pickHero([])).toBeNull();
   });
 });

@@ -2,10 +2,10 @@ import { MediaProcessor } from '../server/media';
 import { ensureSpeechModels, ParakeetSpeech } from './parakeet';
 
 /**
- * Einstieg des Hintergrundprozesses für die Spracherkennung (Electron utilityProcess, siehe
- * desktop/speech.ts). Ein eigener Prozess, weil sherpa-onnx eine eigene ONNX Runtime mitbringt
- * und ein nativer Absturz den Client nicht mitreißen soll. Nachrichten: prepare lädt die Modelle,
- * clip transkribiert einen Clip, abort bricht eine Anfrage ab.
+ * Entry point of the background process for speech recognition (Electron utilityProcess, see
+ * desktop/speech.ts). A separate process because sherpa-onnx brings its own ONNX Runtime and a
+ * native crash should not take the client down with it. Messages: prepare loads the models,
+ * clip transcribes a clip, abort cancels a request.
  */
 
 export interface SpeechWorkerData {

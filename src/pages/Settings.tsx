@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   Check,
+  ChevronDown,
   BookOpen,
   Database,
   FolderOpen,
@@ -24,28 +25,33 @@ import { GameMetadataSettings } from '../components/GameMetadataSettings';
 import { SettingsSection, type SettingsArea } from '../components/SettingsSection';
 import { PageHeading } from '../components/PageHeading';
 import { useActiveSection } from '../components/useActiveSection';
-const areas: SettingsArea[] = [
-  { id: 'analysis', label: 'KI & Server', icon: Sparkles },
-  { id: 'games', label: 'Spielinfos', icon: Gamepad2 },
-  { id: 'profile', label: 'Profil', icon: User },
-  { id: 'playback', label: 'Wiedergabe', icon: Play },
-  { id: 'appearance', label: 'Erscheinungsbild', icon: Palette },
-  { id: 'storage', label: 'Speicher', icon: Database },
-  { id: 'devices', label: 'Geräte', icon: Monitor },
+import { LANGUAGES, isLanguage, setLanguage, t, tp, useLanguage, type MessageKey } from '../i18n';
+const areas: (Omit<SettingsArea, 'label'> & { label: MessageKey })[] = [
+  { id: 'analysis', label: 'pages.settings.area.analysis', icon: Sparkles },
+  { id: 'games', label: 'pages.settings.area.games', icon: Gamepad2 },
+  { id: 'profile', label: 'pages.settings.area.profile', icon: User },
+  { id: 'playback', label: 'pages.settings.area.playback', icon: Play },
+  { id: 'appearance', label: 'pages.settings.area.appearance', icon: Palette },
+  { id: 'storage', label: 'pages.settings.area.storage', icon: Database },
+  { id: 'devices', label: 'pages.settings.area.devices', icon: Monitor },
 ];
 const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const areaIds = areas.map((area) => area.id);
 function length(seconds: number) {
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} Min`;
+  if (minutes < 60) return t('pages.settings.minutes', { minutes });
   const rest = minutes % 60;
-  return rest ? `${Math.floor(minutes / 60)} Std ${rest} Min` : `${Math.floor(minutes / 60)} Std`;
+  const hours = Math.floor(minutes / 60);
+  return rest
+    ? t('pages.settings.hoursMinutes', { hours, minutes: rest })
+    : t('pages.settings.hours', { hours });
 }
 export default function Settings() {
   const { state, setState, toast, server } = useVault();
   const action = useActions();
   const [name, setName] = useState(state.preferences.name);
   const prefs = state.preferences;
+  const language = useLanguage();
   const current = useActiveSection(areaIds);
   const navigationRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -73,18 +79,22 @@ export default function Settings() {
   return (
     <div className="page settings-page">
       <PageHeading
-        eyebrow="GANZ WIE DU ES MAGST"
-        title="Einstellungen"
-        description="Dein Vault, deine Gewohnheiten."
+        eyebrow={t('pages.settings.eyebrow')}
+        title={t('pages.settings.title')}
+        description={t('pages.settings.description')}
       >
         <Link className="button secondary" to="/setup">
           <BookOpen size={17} />
-          Setup-Guide
+          {t('pages.settings.setupGuide')}
         </Link>
       </PageHeading>
       <div className="settings-layout">
-        <nav className="settings-nav" aria-label="Einstellungsbereiche" ref={navigationRef}>
-          <span className="settings-nav-label">Bereiche</span>
+        <nav
+          className="settings-nav"
+          aria-label={t('pages.settings.nav.label')}
+          ref={navigationRef}
+        >
+          <span className="settings-nav-label">{t('pages.settings.nav.title')}</span>
           {areas.map((area) => (
             <a
               key={area.id}
@@ -92,31 +102,35 @@ export default function Settings() {
               aria-current={current === area.id ? 'location' : undefined}
             >
               <area.icon size={16} />
-              {area.label}
+              {t(area.label)}
             </a>
           ))}
           <div className="settings-nav-note">
             <span className="settings-note-icon">
               <BookOpen size={19} />
             </span>
-            <strong>Neu bei ReplayHaven?</strong>
-            <p>Vom ersten Start bis zu deinem ersten archivierten Clip.</p>
+            <strong>{t('pages.settings.nav.newTitle')}</strong>
+            <p>{t('pages.settings.nav.newText')}</p>
             <Link to="/setup">
-              Zur Einrichtung <ArrowRight size={14} />
+              {t('pages.settings.nav.newLink')} <ArrowRight size={14} />
             </Link>
           </div>
         </nav>
         <div className="settings-sections">
           <ServerSettings />
           <GameMetadataSettings />
-          <SettingsSection id="profile" title="Profil" description="Ein bisschen persönlicher.">
+          <SettingsSection
+            id="profile"
+            title={t('pages.settings.profile.title')}
+            description={t('pages.settings.profile.description')}
+          >
             <form
               className="settings-card profile-form"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (name.trim()) {
                   update({ name: name.trim() });
-                  toast('Profil gespeichert');
+                  toast(t('pages.settings.profile.saved'));
                 }
               }}
             >
@@ -125,7 +139,7 @@ export default function Settings() {
               </div>
               <div className="profile-fields">
                 <label className="field">
-                  Dein Name
+                  {t('pages.settings.profile.name')}
                   <input
                     value={name}
                     required
@@ -133,27 +147,33 @@ export default function Settings() {
                     onChange={(e) => setName(e.target.value)}
                   />
                 </label>
-                <p className="profile-hint">
-                  Erscheint im Profilmenü. Bleibt in diesem Browser gespeichert.
-                </p>
+                <p className="profile-hint">{t('pages.settings.profile.hint')}</p>
               </div>
               <button
                 className="button secondary"
                 disabled={!name.trim() || name.trim() === prefs.name}
               >
                 <Check size={16} />
-                Speichern
+                {t('common.save')}
               </button>
             </form>
           </SettingsSection>
-          <SettingsSection id="playback" title="Wiedergabe" description="Wie deine Clips starten.">
+          <SettingsSection
+            id="playback"
+            title={t('pages.settings.playback.title')}
+            description={t('pages.settings.playback.description')}
+          >
             <div className="settings-card">
               <div className="setting-row">
                 <div>
-                  <h3>Standardgeschwindigkeit</h3>
-                  <p>Gilt beim Öffnen eines Videos.</p>
+                  <h3>{t('pages.settings.playback.speed')}</h3>
+                  <p>{t('pages.settings.playback.speedHint')}</p>
                 </div>
-                <div className="segmented" role="radiogroup" aria-label="Standardgeschwindigkeit">
+                <div
+                  className="segmented"
+                  role="radiogroup"
+                  aria-label={t('pages.settings.playback.speed')}
+                >
                   {speeds.map((s) => (
                     <label className="segment" key={s}>
                       <input
@@ -171,11 +191,11 @@ export default function Settings() {
               </div>
               <div className="setting-row">
                 <div>
-                  <h3>Gemerkter Fortschritt</h3>
+                  <h3>{t('pages.settings.playback.progress')}</h3>
                   <p>
                     {continuing
-                      ? `${continuing} Clips kannst du gerade weiterschauen.`
-                      : 'Gerade lässt sich kein Clip weiterschauen.'}
+                      ? tp('pages.settings.playback.continuing', continuing)
+                      : t('pages.settings.playback.nothingToContinue')}
                   </p>
                 </div>
                 <button
@@ -183,35 +203,60 @@ export default function Settings() {
                   disabled={!continuing}
                   onClick={() => {
                     setState((s) => ({ ...s, progress: {} }));
-                    toast('Fortschritt zurückgesetzt');
+                    toast(t('pages.settings.playback.progressReset'));
                   }}
                 >
                   <RotateCcw size={15} />
-                  Zurücksetzen
+                  {t('pages.settings.playback.reset')}
                 </button>
               </div>
             </div>
-            <p className="settings-footnote">
-              Vorschaubilder bleiben statisch. Videos laden erst auf der Clip-Seite.
-            </p>
+            <p className="settings-footnote">{t('pages.settings.playback.footnote')}</p>
           </SettingsSection>
           <SettingsSection
             id="appearance"
-            title="Erscheinungsbild"
-            description="Ruhe oder Dichte, ganz wie du magst."
+            title={t('pages.settings.appearance.title')}
+            description={t('pages.settings.appearance.description')}
           >
             <div className="settings-card">
               <div className="setting-row">
                 <div>
-                  <h3>Bewegung reduzieren</h3>
-                  <p>Animationen und sanftes Scrollen ausschalten.</p>
+                  <h3>
+                    <label htmlFor="settings-language">{t('language.label')}</label>
+                  </h3>
+                  <p id="settings-language-hint">{t('language.hint')}</p>
+                </div>
+                <div className="filter-select">
+                  <select
+                    id="settings-language"
+                    aria-describedby="settings-language-hint"
+                    value={language}
+                    onChange={(e) => {
+                      if (isLanguage(e.target.value)) setLanguage(e.target.value);
+                    }}
+                  >
+                    {LANGUAGES.map((option) => (
+                      <option key={option.id} value={option.id} lang={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} aria-hidden="true" />
+                </div>
+              </div>
+              <div className="setting-row">
+                <div>
+                  <h3>{t('pages.settings.appearance.reducedMotion')}</h3>
+                  <p>{t('pages.settings.appearance.reducedMotionHint')}</p>
                 </div>
                 <div className="switch-field">
-                  <span className="switch-state">{prefs.reducedMotion ? 'An' : 'Aus'}</span>
+                  <span className="switch-state">
+                    {prefs.reducedMotion ? t('pages.settings.on') : t('pages.settings.off')}
+                  </span>
                   <button
                     className="switch"
                     role="switch"
-                    aria-label="Bewegung reduzieren"
+                    aria-label={t('pages.settings.appearance.reducedMotion')}
                     aria-checked={prefs.reducedMotion}
                     onClick={() => update({ reducedMotion: !prefs.reducedMotion })}
                   >
@@ -221,8 +266,8 @@ export default function Settings() {
               </div>
               <div className="setting-row">
                 <div>
-                  <h3>Kompakte Bibliothek</h3>
-                  <p>Mehr Clips pro Reihe auf großen Bildschirmen.</p>
+                  <h3>{t('pages.settings.appearance.compact')}</h3>
+                  <p>{t('pages.settings.appearance.compactHint')}</p>
                   <div
                     className={`density-preview${prefs.compact ? ' compact' : ''}`}
                     aria-hidden="true"
@@ -233,11 +278,13 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="switch-field">
-                  <span className="switch-state">{prefs.compact ? 'An' : 'Aus'}</span>
+                  <span className="switch-state">
+                    {prefs.compact ? t('pages.settings.on') : t('pages.settings.off')}
+                  </span>
                   <button
                     className="switch"
                     role="switch"
-                    aria-label="Kompakte Bibliothek"
+                    aria-label={t('pages.settings.appearance.compact')}
                     aria-checked={prefs.compact}
                     onClick={() => update({ compact: !prefs.compact })}
                   >
@@ -249,74 +296,77 @@ export default function Settings() {
           </SettingsSection>
           <SettingsSection
             id="storage"
-            title="Speicher"
-            description="Was dein Vault gerade hält."
-            aside={sampleClips > 0 ? <span className="demo-label">Beispieldaten</span> : undefined}
+            title={t('pages.settings.storage.title')}
+            description={t('pages.settings.storage.description')}
+            aside={
+              sampleClips > 0 ? (
+                <span className="demo-label">{t('pages.settings.storage.sampleData')}</span>
+              ) : undefined
+            }
           >
             <p className="storage-headline">
-              <strong>{serverClips.length ? bytes(serverSize) : 'Nichts archiviert'}</strong>
+              <strong>
+                {serverClips.length ? bytes(serverSize) : t('pages.settings.storage.nothing')}
+              </strong>
               <span>
                 {serverClips.length
-                  ? `in ${serverClips.length} Originalen auf deinem Server`
-                  : 'Dein Vault liegt bisher nur in diesem Browser.'}
+                  ? tp('pages.settings.storage.originals', serverClips.length)
+                  : t('pages.settings.storage.browserOnly')}
               </span>
             </p>
             <dl className="storage-ledger">
               <div>
-                <dt>Auf dem Server</dt>
+                <dt>{t('pages.settings.storage.onServer')}</dt>
                 <dd>{serverClips.length ? `${serverClips.length} · ${bytes(serverSize)}` : '—'}</dd>
               </div>
               <div>
-                <dt>Lokale Vorschauen</dt>
+                <dt>{t('pages.settings.storage.localPreviews')}</dt>
                 <dd>{localClips.length ? `${localClips.length} · ${bytes(localSize)}` : '—'}</dd>
               </div>
               <div>
-                <dt>Beispiel-Clips</dt>
+                <dt>{t('pages.settings.storage.sampleClips')}</dt>
                 <dd>{sampleClips || '—'}</dd>
               </div>
               <div>
-                <dt>Sammlungen</dt>
+                <dt>{t('pages.settings.storage.collections')}</dt>
                 <dd>{state.collections.length}</dd>
               </div>
               <div>
-                <dt>Favoriten</dt>
+                <dt>{t('pages.settings.storage.favorites')}</dt>
                 <dd>{favorites}</dd>
               </div>
               <div>
-                <dt>Gesamtlänge</dt>
+                <dt>{t('pages.settings.storage.totalLength')}</dt>
                 <dd>{length(total)}</dd>
               </div>
             </dl>
-            <p className="settings-footnote">
-              Lokale Videos liegen nur als Vorschau in dieser Sitzung vor. Einstellungen und
-              Änderungen an Beispiel-Cards werden im Browser gespeichert. Die Serverangabe zählt
-              sichtbare Originale; zusätzliche Wiedergabekopien und entfernte Einträge sind darin
-              nicht enthalten.
-            </p>
+            <p className="settings-footnote">{t('pages.settings.storage.footnote')}</p>
             <button className="text-button destructive" onClick={() => action({ kind: 'reset' })}>
-              Beispieldaten und Einstellungen zurücksetzen
+              {t('pages.settings.storage.reset')}
             </button>
           </SettingsSection>
           <SettingsSection
             id="devices"
-            title="Geräte & Server"
-            description="Woher deine Aufnahmen kommen."
+            title={t('pages.settings.devices.title')}
+            description={t('pages.settings.devices.description')}
           >
             <div className="settings-card">
               <div className="setting-row">
                 <div>
                   <h3>
                     {server.connected ? <Wifi size={16} /> : <WifiOff size={16} />}
-                    {server.connected ? 'Archiv-Server verbunden' : 'Kein Server verbunden'}
+                    {server.connected
+                      ? t('pages.settings.devices.connected')
+                      : t('pages.settings.devices.disconnected')}
                   </h3>
                   <p>
                     {server.connected
-                      ? 'NVIDIA-Aufnahmen können automatisch archiviert werden.'
-                      : 'Dein Archiv ist derzeit nur lokal verfügbar.'}
+                      ? t('pages.settings.devices.connectedText')
+                      : t('pages.settings.devices.disconnectedText')}
                   </p>
                 </div>
                 <Link className="button secondary" to="/devices">
-                  Geräte <ArrowRight size={16} />
+                  {t('pages.settings.devices.link')} <ArrowRight size={16} />
                 </Link>
               </div>
               {server.devices.length > 0 && (
@@ -329,7 +379,9 @@ export default function Settings() {
                           <FolderOpen size={12} /> {device.folder}
                         </span>
                       </div>
-                      <span className="device-uploads">{device.uploaded} Uploads</span>
+                      <span className="device-uploads">
+                        {tp('pages.settings.devices.uploads', device.uploaded)}
+                      </span>
                     </li>
                   ))}
                 </ul>

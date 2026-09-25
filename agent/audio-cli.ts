@@ -7,8 +7,8 @@ import { MediaProcessor } from '../server/media';
 import { loadConfig } from '../server/config';
 
 /**
- * Prüfwerkzeug für Tonspuren: listet je Aufnahme die Spuren mit Pegel und die erkannte
- * Mikrofonspur. Mit --out schreibt es jede Spur als WAV (mono, 16 kHz) zum Anhören.
+ * Audio track checker: lists the tracks of each recording with their levels and the detected
+ * microphone track. With --out it writes each track as WAV (mono, 16 kHz) for listening.
  */
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -19,7 +19,7 @@ const { values, positionals } = parseArgs({
 });
 if (values.help || !positionals.length) {
   console.log(
-    'Tonspuren prüfen:\nnpm run audio -- "D:\\Clips\\Fortnite\\clip.mp4" ["D:\\Clips\\Valorant"] [--out "D:\\Tonspuren"]\nOrdner werden mit Unterordnern durchsucht. --out schreibt jede Spur als WAV zum Anhören.',
+    'Check audio tracks:\nnpm run audio -- "D:\\Clips\\Fortnite\\clip.mp4" ["D:\\Clips\\Valorant"] [--out "D:\\AudioTracks"]\nFolders are searched including subfolders. --out writes each track as WAV for listening.',
   );
   process.exit(values.help ? 0 : 1);
 }
@@ -38,27 +38,27 @@ for (const file of files) {
     for (const t of audio) levels.set(t.index, await media.audioLevels(file, t.index));
     const mic = micTrack(audio, levels);
     if (mic.track !== undefined) separate++;
-    console.log(`${basename(file)} (${duration.toFixed(1)} s): ${audio.length} Tonspur(en)`);
+    console.log(`${basename(file)} (${duration.toFixed(1)} s): ${audio.length} audio track(s)`);
     for (const t of audio) {
       const level = levels.get(t.index)!;
       console.log(
-        `  Spur ${t.index + 1}: ${t.codec}, ${t.channels} Kanal/Kanäle, ${t.sampleRate} Hz${t.title ? `, "${t.title}"` : ''}, Pegel Mittel ${level.mean} dB, Spitze ${level.max} dB${t.index === mic.track ? '  ← Mikrofon' : ''}`,
+        `  Track ${t.index + 1}: ${t.codec}, ${t.channels} channel(s), ${t.sampleRate} Hz${t.title ? `, "${t.title}"` : ''}, level mean ${level.mean} dB, peak ${level.max} dB${t.index === mic.track ? '  ← microphone' : ''}`,
       );
       if (values.out)
         await media.extractAudio(
           file,
           join(
             resolve(values.out),
-            `${basename(file, extname(file))}.spur${t.index + 1}${t.index === mic.track ? '.mikrofon' : ''}.wav`,
+            `${basename(file, extname(file))}.track${t.index + 1}${t.index === mic.track ? '.mic' : ''}.wav`,
           ),
           t.index,
         );
     }
     console.log(
-      `  Mikrofon: ${mic.track === undefined ? '—' : `Spur ${mic.track + 1}`} (${mic.basis})`,
+      `  Microphone: ${mic.track === undefined ? '—' : `track ${mic.track + 1}`} (${mic.basis})`,
     );
   } catch (error) {
-    console.log(`${basename(file)}: ${error instanceof Error ? error.message : 'nicht lesbar'}`);
+    console.log(`${basename(file)}: ${error instanceof Error ? error.message : 'not readable'}`);
   }
 }
-console.log(`\n${files.length} Aufnahmen, ${separate} mit eigener Mikrofonspur.`);
+console.log(`\n${files.length} recordings, ${separate} with a separate microphone track.`);

@@ -26,10 +26,10 @@ const windows = (laugh: number[]): WindowScore[] =>
   }));
 
 it('counts a laugh only where two of three windows agree, and merges close hits', () => {
-  // Ein einzelnes Fenster über der Schwelle (Sekunde 3,36) reicht nicht.
+  // A single window above the threshold (second 3.36) is not enough.
   const moments = findMoments(windows([0.1, 0.5, 0.2, 0.6, 0.1, 0.1, 0.1, 0.9, 0.1]), 'laugh', 0.3);
   expect(moments).toEqual([{ kind: 'laugh', start: 0.48, end: 2.4, peak: 0.6 }]);
-  // Zwei Treffer mit einem Fenster Lücke bilden einen Moment, drei Fenster Lücke zwei.
+  // Two hits with a one-window gap form one moment, a three-window gap makes two.
   const split = findMoments(windows([0.5, 0.5, 0, 0, 0, 0.5, 0.5]), 'laugh', 0.3);
   expect(split.map((m) => [m.start, m.end])).toEqual([
     [0, 1.44],
@@ -42,19 +42,19 @@ it('counts a laugh only where two of three windows agree, and merges close hits'
 it('takes the loud channel of a one-sided microphone instead of halving it', () => {
   const tone = Float32Array.from({ length: 1600 }, (_, i) => 0.5 * Math.sin(i / 3));
   const quiet = new Float32Array(1600).fill(0.001);
-  expect(monoFrom([tone, quiet])).toMatchObject({ channel: 'links', samples: tone });
-  expect(monoFrom([quiet, tone])).toMatchObject({ channel: 'rechts', samples: tone });
+  expect(monoFrom([tone, quiet])).toMatchObject({ channel: 'left', samples: tone });
+  expect(monoFrom([quiet, tone])).toMatchObject({ channel: 'right', samples: tone });
   const both = monoFrom([tone, tone]);
-  expect(both.channel).toBe('beide');
+  expect(both.channel).toBe('both');
   expect(both.samples[5]).toBeCloseTo(tone[5]);
   expect(monoFrom([tone])).toMatchObject({ channel: 'mono', samples: tone });
 });
 
 it('knows how many windows YAMNet returns', () => {
   expect(windowCount(0)).toBe(0);
-  // Kürzer als ein Fenster: aufgefüllt auf eines.
+  // Shorter than one window: padded to one.
   expect(windowCount(8000)).toBe(1);
-  // Ein Fenster liest 0,975 s: 0,96 s plus den Rest des letzten STFT-Rahmens.
+  // A window reads 0.975 s: 0.96 s plus the rest of the last STFT frame.
   expect(windowCount(WINDOW + 240)).toBe(1);
   expect(windowCount(WINDOW + 241)).toBe(2);
   expect(windowCount(WINDOW + 240 + HOP + 1)).toBe(3);
@@ -64,7 +64,7 @@ it('knows how many windows YAMNet returns', () => {
 it('loads the model once, checks its hash and keeps a broken download away', async () => {
   const root = await mkdtemp(join(tmpdir(), 'replayhaven-laughs-'));
   try {
-    const bytes = Buffer.from('kein echtes Modell, nur Bytes für den Test');
+    const bytes = Buffer.from('not a real model, just bytes for the test');
     const model: ModelFile = {
       url: 'https://example.invalid/model/yamnet.onnx',
       bytes: bytes.length,
@@ -80,14 +80,14 @@ it('loads the model once, checks its hash and keeps a broken download away', asy
     const path = await ensureModel(root, model, serve(bytes));
     expect(path).toBe(join(root, 'yamnet.onnx'));
     expect(await readFile(path)).toEqual(bytes);
-    // Liegt es schon richtig da, wird nichts geladen.
+    // If it is already in place, nothing is downloaded.
     await ensureModel(root, model, serve(bytes));
     expect(calls).toBe(1);
-    // Eine falsche Datei landet nicht im Ordner, auch keine halbe.
+    // A wrong file never lands in the folder, not even half of one.
     const other = await mkdtemp(join(tmpdir(), 'replayhaven-laughs-'));
     try {
-      await expect(ensureModel(other, model, serve(Buffer.from('manipuliert')))).rejects.toThrow(
-        /Prüfsumme/,
+      await expect(ensureModel(other, model, serve(Buffer.from('tampered')))).rejects.toThrow(
+        /checksum/,
       );
       expect(await readdir(other)).toEqual([]);
     } finally {
@@ -99,7 +99,7 @@ it('loads the model once, checks its hash and keeps a broken download away', asy
   }
 });
 
-// Mit dem echten Modell nur, wenn es schon geladen ist; der Test lädt nichts aus dem Netz.
+// With the real model only if it is already downloaded; the test downloads nothing.
 const yamnet = process.env.REPLAYHAVEN_YAMNET ?? join(modelFolder(), 'yamnet.onnx');
 it.skipIf(!existsSync(yamnet))(
   'scores long tracks in pieces exactly like in one run',
@@ -120,7 +120,7 @@ it.skipIf(!existsSync(yamnet))(
         expect(b[i].laugh).toBeCloseTo(a[i].laugh, 4);
         expect(b[i].speech).toBeCloseTo(a[i].speech, 4);
       }
-      // Ein Ton ist kein Lachen.
+      // A tone is not laughter.
       expect(findMoments(a, 'laugh', 0.3)).toEqual([]);
     } finally {
       await whole.close();

@@ -13,7 +13,7 @@ it('labels every sampled frame with the moment it actually shows', async () => {
   try {
     const media = new MediaProcessor({});
     const video = join(root, 'test-only.mp4');
-    // Die Helligkeit steigt gleichmäßig mit der Zeit, jedes Bild verrät so seine Videozeit.
+    // Brightness rises steadily with time, so every frame reveals its video time.
     await runFile(media.ffmpeg, [
       '-nostdin',
       '-v',
@@ -31,13 +31,13 @@ it('labels every sampled frame with the moment it actually shows', async () => {
     ]);
     const frames = await media.frames(video, root, 60, 12);
     expect(frames).toHaveLength(12);
-    // Vier Bilder im Vorlauf (7,5 s Abstand), acht im Schluss (3,75 s). Ein halber Schritt
-    // daneben wären 11 bzw. 6 Helligkeitsstufen; die Beschriftung muss auf dasselbe Bild zeigen.
+    // Four frames in the lead-in (7.5 s apart), eight at the end (3.75 s). Half a step off would
+    // be 11 or 6 brightness levels; the label must point to the same frame.
     for (const frame of frames) {
       const labelled = await brightness(await media.frameAt(video, root, frame.seconds));
       expect(Math.abs((await brightness(frame.base64)) - labelled)).toBeLessThan(2.5);
     }
-    // Ganzer Clip: ein Bild alle 3 s, gleichmäßig verteilt; ein kurzer Clip behält die Mindestzahl.
+    // Whole clip: one frame every 3 s, evenly spread; a short clip keeps the minimum count.
     const even = await media.frames(video, join(root, 'even'), 60, 12, 3);
     expect(even).toHaveLength(20);
     expect(even[1].seconds - even[0].seconds).toBeCloseTo(3, 1);
@@ -53,7 +53,7 @@ it('lists audio tracks, mixes them for playback and extracts one as 16 kHz mono 
   try {
     const media = new MediaProcessor({});
     const video = join(root, 'test-only.mp4');
-    // Wie mit „Mikrofon als separate Spur“: Spielton, dann Mikrofon, dazu eine stumme Spur.
+    // As with "microphone as a separate track": game audio, then microphone, plus a silent track.
     await runFile(media.ffmpeg, [
       '-nostdin',
       '-v',
@@ -110,13 +110,13 @@ it('lists audio tracks, mixes them for playback and extracts one as 16 kHz mono 
     const wav = await readFile(
       await media.extractAudio(video, join(root, 'mic.wav'), 1, { start: 1, duration: 2 }),
     );
-    // RIFF-Kopf: PCM, ein Kanal, 16 kHz, 16 Bit; zwei Sekunden sind 64 000 Byte Daten.
+    // RIFF header: PCM, one channel, 16 kHz, 16 bit; two seconds are 64,000 bytes of data.
     expect(wav.toString('ascii', 0, 4)).toBe('RIFF');
     expect(wav.readUInt16LE(22)).toBe(1);
     expect(wav.readUInt32LE(24)).toBe(16000);
     expect(Math.abs(wav.length - 44 - 64000)).toBeLessThan(2000);
 
-    // Ein Browser spielt nur die erste Tonspur; die Wiedergabekopie mischt alle, das Bild bleibt.
+    // A browser plays only the first audio track; the playback copy mixes all of them, the video stays.
     const prepared = await media.prepare(video, root, '.mp4');
     expect(prepared.playbackFile).toBe(join(root, 'playback.mp4'));
     const playback = await media.probe(prepared.playbackFile);
@@ -162,7 +162,7 @@ it('streams raw RGB frames labelled with the middle of their interval', async ()
       [2.25, 160, 90],
       [2.75, 160, 90],
     ]);
-    // Die Helligkeit steigt mit der Zeit: Die Bilder kommen in der richtigen Reihenfolge.
+    // Brightness rises with time: the frames arrive in the right order.
     expect(frames.every((f, i) => i === 0 || f.mean > frames[i - 1].mean)).toBe(true);
   } finally {
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
@@ -196,19 +196,19 @@ it.skipIf(process.platform === 'win32')(
         return frames;
       };
       expect(await count(new MediaProcessor({}))).toBe(2);
-      // Fehlt FFmpeg, kommt der Fehler beim Aufrufer an statt als ungefangene Ausnahme.
+      // If FFmpeg is missing, the error reaches the caller instead of being an uncaught exception.
       await expect(count(new MediaProcessor({ ffmpeg: join(root, 'fehlt') }))).rejects.toThrow(
         /ENOENT/,
       );
-      // Bricht FFmpeg ab, sieht das nicht aus wie ein Clip ohne Text.
+      // If FFmpeg aborts, that must not look like a clip without text.
       const failing = join(root, 'bricht-ab.sh');
       await writeFile(failing, '#!/bin/sh\necho "Invalid data found" >&2\nexit 3\n', {
         mode: 0o755,
       });
       await expect(count(new MediaProcessor({ ffmpeg: failing }))).rejects.toThrow(
-        /brach beim Lesen der Bilder ab: Invalid data found/,
+        /stopped while reading frames: Invalid data found/,
       );
-      // Ein schon abgebrochener Aufruf endet still und ohne Bild.
+      // An already aborted call ends quietly and without frames.
       expect(await count(new MediaProcessor({}), AbortSignal.abort())).toBe(0);
     } finally {
       if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
@@ -223,7 +223,7 @@ it('decodes a track as 16 kHz samples, channel by channel', async () => {
   try {
     const media = new MediaProcessor({});
     const video = join(root, 'test-only.mp4');
-    // Ein Ton nur auf dem linken Kanal, wie ein Mono-Mikrofon in einer Stereospur.
+    // A tone only on the left channel, like a mono microphone in a stereo track.
     await runFile(media.ffmpeg, [
       '-nostdin',
       '-v',
@@ -261,7 +261,7 @@ it('decodes a track as 16 kHz samples, channel by channel', async () => {
     expect(rms(right)).toBeLessThan(0.001);
     const mono = await media.pcm(video, 0, 1);
     expect(mono).toHaveLength(1);
-    await expect(media.pcm(video, 3, 1)).rejects.toThrow(/FFmpeg brach beim Lesen des Tons ab/);
+    await expect(media.pcm(video, 3, 1)).rejects.toThrow(/FFmpeg stopped while reading audio/);
   } finally {
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
       await rm(root, { recursive: true, force: true });
@@ -273,7 +273,7 @@ it('puts a microphone that sits on one channel in the middle of the playback mix
   try {
     const media = new MediaProcessor({});
     const video = join(root, 'test-only.mp4');
-    // Spielton als stille Stereospur, das Mikrofon nur auf dem linken Kanal der zweiten Spur.
+    // Game audio as a silent stereo track, the microphone only on the left channel of the second track.
     await runFile(media.ffmpeg, [
       '-nostdin',
       '-v',

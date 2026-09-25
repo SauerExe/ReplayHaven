@@ -29,12 +29,100 @@ async function run(action) {
 let config = null;
 let status = null;
 
-/* ---------- Anzeigehilfen ---------- */
+/* ---------- Language ---------- */
 
-/** "Valorant 2026.09.25 - 21.14.02.03.DVR.mp4" → "25.09.2026 · 21:14 Uhr" */
+// Dictionaries live in i18n.js, loaded before this file.
+const I18N = window.I18N;
+const LOCALES = { en: 'en-US', de: 'de-DE' };
+let language = 'en';
+
+/** Text for a key in the current language, with {placeholders} filled from params. */
+function t(key, params = {}) {
+  let text = I18N[language]?.[key] ?? I18N.en[key] ?? key;
+  if (typeof text === 'object') text = params.count === 1 ? text.one : text.other;
+  return text.replace(/\{(\w+)\}/g, (match, name) =>
+    params[name] === undefined ? match : String(params[name]),
+  );
+}
+function locale() {
+  return LOCALES[language] || LOCALES.en;
+}
+/** Sets the static texts marked with data-i18n* inside root. */
+function applyLanguage(root = document) {
+  for (const node of root.querySelectorAll('[data-i18n]')) node.textContent = t(node.dataset.i18n);
+  for (const [attribute, data] of [
+    ['placeholder', 'i18nPlaceholder'],
+    ['title', 'i18nTitle'],
+    ['aria-label', 'i18nAriaLabel'],
+  ])
+    for (const node of root.querySelectorAll(`[data-i18n-${attribute}]`))
+      node.setAttribute(attribute, t(node.dataset[data]));
+}
+/** Switches the window language; everything visible is redrawn without a restart. */
+function setLanguage(lang) {
+  language = I18N[lang] ? lang : 'en';
+  document.documentElement.lang = language;
+  $('language').value = language;
+  applyLanguage();
+  if (config) {
+    fillTokenPlaceholder();
+    if (!$('settings').hidden) void describeFolder();
+  }
+  $('save-result').textContent = '';
+  if (status) {
+    render(status);
+    renderSettingsPairing(status.pairing);
+  }
+  if (!$('wizard').hidden) renderWizard();
+}
+/** Saves only the language, which the main process allows even while the client is running. */
+async function saveLanguage(lang) {
+  setLanguage(lang);
+  if (!config) return;
+  const values = { ...config, token: '', language };
+  delete values.hasToken;
+  config = await call('save', values);
+}
+$('language').onchange = () => run(() => saveLanguage($('language').value));
+
+/**
+ * Progress messages come from the analysis in the main process (agent/ollama.ts). Older builds
+ * wrote them in German, newer ones in English; both are recognized and shown in the window
+ * language. Anything unknown is shown as is.
+ */
+const PROGRESS = [
+  [/(?:Abschnitt|section|part|batch) (\d+) (?:von|of) (\d+)/i, 'progress.section'],
+  [/(?:Modell wird geladen|downloading model|pulling model)\D*(\d+)\s*%/i, 'progress.download'],
+  [/Aufnahme werden vorbereitet|preparing (?:the )?frames/i, 'progress.prepare'],
+  [/Texterkennung liest|text recognition is reading/i, 'progress.texts'],
+  [/Spracherkennung schreibt|speech recognition is transcribing/i, 'progress.speech'],
+  [/zusammengefasst|summari[sz]ing|writing (?:the )?title, description/i, 'progress.summary'],
+  [/Titel wird überarbeitet|revising the title/i, 'progress.revise'],
+];
+function localizeMessage(message) {
+  for (const [pattern, key] of PROGRESS) {
+    const match = pattern.exec(message || '');
+    if (!match) continue;
+    return key === 'progress.section'
+      ? t(key, { current: match[1], total: match[2] })
+      : key === 'progress.download'
+        ? t(key, { percent: match[1] })
+        : t(key);
+  }
+  return message;
+}
+
+/* ---------- Display helpers ---------- */
+
+/** "Valorant 2026.09.25 - 21.14.02.03.DVR.mp4" → "Sep 25, 2026 · 9:14 PM" */
 function clipName(file) {
   const m = /(\d{4})\.(\d{2})\.(\d{2}) - (\d{2})\.(\d{2})/.exec(file);
-  return m ? `${m[3]}.${m[2]}.${m[1]} · ${m[4]}:${m[5]} Uhr` : file.replace(/\.[^.]+$/, '');
+  if (!m) return file.replace(/\.[^.]+$/, '');
+  const at = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
+  return t('clip.when', {
+    date: at.toLocaleDateString(locale(), { dateStyle: 'medium' }),
+    time: at.toLocaleTimeString(locale(), { timeStyle: 'short' }),
+  });
 }
 const SHORT = [
   [/rainbow six/i, 'R6'],
@@ -79,17 +167,19 @@ function duration(seconds) {
 }
 function ago(at) {
   const minutes = Math.round((Date.now() - at) / 60000);
-  if (minutes < 1) return 'gerade eben';
-  if (minutes < 60) return `vor ${minutes} Min.`;
+  if (minutes < 1) return t('ago.now');
+  if (minutes < 60) return t('ago.minutes', { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `vor ${hours} Std.`;
+  if (hours < 24) return t('ago.hours', { count: hours });
   const date = new Date(at);
-  return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  return date.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit' });
 }
 function megabytes(bytes) {
-  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.round(bytes / 1e6)} MB`;
+  return bytes >= 1e9
+    ? `${(bytes / 1e9).toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} GB`
+    : `${Math.round(bytes / 1e6)} MB`;
 }
-/** Median der letzten Bearbeitungszeiten, für Restzeit und Kennzahl. */
+/** Median of the latest processing times, for the remaining time and the key figure. */
 function averageSeconds(recent) {
   const times = recent
     .slice(0, 10)
@@ -107,7 +197,7 @@ function fraction(active) {
   return 0.97;
 }
 
-/* ---------- Übersicht ---------- */
+/* ---------- Overview ---------- */
 
 function mode(s) {
   if (!config?.onboarded) return 'setup';
@@ -116,46 +206,31 @@ function mode(s) {
   if (s.paused) return 'paused';
   return s.active ? 'working' : 'running';
 }
-const MODES = {
-  setup: {
-    pill: 'Nicht eingerichtet',
-    eyebrow: 'Willkommen',
-    title: 'Noch nicht eingerichtet',
-    action: 'Einrichten',
-  },
-  off: { pill: 'Nicht gestartet', eyebrow: 'Bereit', title: 'Nicht gestartet', action: 'Starten' },
-  running: { pill: 'Läuft', eyebrow: 'Läuft', title: 'Wartet auf neue Clips', action: 'Pausieren' },
-  working: {
-    pill: 'Analysiert',
-    eyebrow: 'Läuft',
-    title: 'Arbeitet an deinem Clip',
-    action: 'Pausieren',
-  },
-  paused: { pill: 'Pausiert', eyebrow: 'Pausiert', title: 'Pausiert', action: 'Fortsetzen' },
-  gaming: {
-    pill: 'Spiel läuft',
-    eyebrow: 'Wartet',
-    title: 'Pause, während du spielst',
-    action: 'Pausieren',
-  },
-};
+/** Pill, eyebrow, title and button label per mode, from the dictionary (mode.<mode>.<part>). */
+function modeText(m) {
+  return Object.fromEntries(
+    ['pill', 'eyebrow', 'title', 'action'].map((part) => [part, t(`mode.${m}.${part}`)]),
+  );
+}
 
 function renderOverview(s) {
   const m = mode(s);
-  const text = MODES[m];
+  const text = modeText(m);
   const pill = $('pill');
   pill.dataset.state = m === 'setup' ? 'off' : m;
   pill.lastElementChild.textContent =
-    m === 'gaming' ? `Spiel läuft · ${gameName(s.gaming)}` : text.pill;
+    m === 'gaming' ? t('pill.gaming', { game: gameName(s.gaming) }) : text.pill;
   $('hero-orb').dataset.state = m === 'setup' ? 'off' : m;
   $('hero-eyebrow').textContent = text.eyebrow;
   $('hero-title').textContent = text.title;
   $('hero-message').textContent =
     m === 'setup'
-      ? 'Der Assistent führt dich in wenigen Schritten durch Server, Aufnahmeordner und lokale KI.'
+      ? t('hero.setup')
       : m === 'gaming'
-        ? `${gameName(s.gaming)} läuft. ${s.queue.length ? `${s.queue.length === 1 ? 'Ein neuer Clip wartet' : `${s.queue.length} Clips warten`} und ${s.queue.length === 1 ? 'wird' : 'werden'} eine Minute nach dem Spielen verarbeitet` : 'Neue Clips merkt sich der Client und verarbeitet sie eine Minute nach dem Spielen'}, damit Grafikkarte und Leitung dem Spiel gehören.`
-        : s.message;
+        ? s.queue.length
+          ? t('hero.gamingQueue', { game: gameName(s.gaming), count: s.queue.length })
+          : t('hero.gamingNone', { game: gameName(s.gaming) })
+        : localizeMessage(s.message);
   const action = $('primary-action');
   action.textContent = text.action;
   action.className = ['running', 'working', 'gaming'].includes(m)
@@ -168,22 +243,26 @@ function renderOverview(s) {
   $('stat-queue').textContent = String(open);
   $('stat-queue-eta').textContent =
     s.gaming && open
-      ? 'starten nach dem Spielen'
+      ? t('stat.afterGaming')
       : open
         ? average
-          ? `noch etwa ${duration(open * average)}`
-          : `${open === 1 ? 'Ein Clip' : `${open} Clips`} offen`
-        : 'Nichts offen';
+          ? t('stat.eta', { time: duration(open * average) })
+          : t('stat.open', { count: open })
+        : t('stat.none');
   const midnight = new Date().setHours(0, 0, 0, 0);
   const today = s.recent.filter((r) => r.at >= midnight);
   $('stat-today').textContent = String(today.length);
-  $('stat-today-note').textContent = today[0] ? `zuletzt ${ago(today[0].at)}` : ' ';
+  $('stat-today-note').textContent = today[0] ? t('stat.last', { ago: ago(today[0].at) }) : ' ';
   $('stat-total').textContent = String(s.uploaded);
-  $('stat-average').textContent = average ? `Ø ${duration(average)} je Clip` : ' ';
+  $('stat-average').textContent = average ? t('stat.average', { time: duration(average) }) : ' ';
 
   renderActive(s.active);
-  // Was wartet, weil gerade gespielt wird oder pausiert ist, sagt die Markierung.
-  const hold = s.gaming ? 'Nach dem Spielen' : s.running && s.paused ? 'Pausiert' : '';
+  // What waits because a game is running or the client is paused is told by the marker.
+  const hold = s.gaming
+    ? t('queue.afterGaming')
+    : s.running && s.paused
+      ? t('mode.paused.pill')
+      : '';
   renderQueue(s.queue, average, !!s.active, hold);
   renderRecent(s.recent);
 }
@@ -207,7 +286,7 @@ function renderActive(active) {
     $('now-thumb').hidden = false;
   }
   $('now-game').textContent = gameName(active.game);
-  $('now-name').textContent = `Clip vom ${clipName(active.name)}`;
+  $('now-name').textContent = t('clip.from', { when: clipName(active.name) });
   $('now-name').title = active.name;
   const order = ['prepare', 'view', 'summary', 'upload'];
   const current = order.indexOf(active.step);
@@ -220,14 +299,14 @@ function renderActive(active) {
   $('now-bar').parentElement.setAttribute('aria-valuenow', String(percent));
   $('now-detail').textContent =
     active.step === 'prepare'
-      ? 'Bilder und Ton werden vorbereitet'
+      ? t('detail.prepare')
       : active.step === 'view'
         ? active.total
-          ? `Die KI sichtet Abschnitt ${active.current} von ${active.total}`
-          : 'Die KI sichtet die Bilder'
+          ? t('detail.viewOf', { current: active.current, total: active.total })
+          : t('detail.view')
         : active.step === 'summary'
-          ? 'Titel, Beschreibung und Zeitmarken entstehen'
-          : 'Wird in dein Archiv hochgeladen';
+          ? t('detail.summary')
+          : t('detail.upload');
   tickElapsed();
 }
 function tickElapsed() {
@@ -236,22 +315,23 @@ function tickElapsed() {
 }
 setInterval(tickElapsed, 1000);
 
+/** Queue entry state → dictionary key and chip tone. */
 const STATES = {
-  waiting: ['Wartet', ''],
-  settling: ['Wird gespeichert', 'accent'],
-  retry: ['Neuer Versuch', 'bad'],
-  deferred: ['Wartet aufs Match', 'warn'],
+  waiting: ['state.waiting', ''],
+  settling: ['state.settling', 'accent'],
+  retry: ['state.retry', 'bad'],
+  deferred: ['state.deferred', 'warn'],
 };
 function renderQueue(queue, average, busy, hold) {
   $('queue-count').textContent = String(queue.length);
   $('queue-empty').hidden = queue.length > 0;
   $('queue-list').replaceChildren(
     ...queue.slice(0, 100).map((entry, i) => {
-      const [label, tone] =
-        hold && entry.state === 'waiting' ? [hold, 'warn'] : STATES[entry.state] || STATES.waiting;
+      const [key, color] = STATES[entry.state] || STATES.waiting;
+      const [label, tone] = hold && entry.state === 'waiting' ? [hold, 'warn'] : [t(key), color];
       const eta =
         average && !hold && entry.state === 'waiting'
-          ? ` · in etwa ${duration((i + (busy ? 1 : 0)) * average)}`
+          ? t('queue.eta', { time: duration((i + (busy ? 1 : 0)) * average) })
           : '';
       const chip = el('span', { className: 'chip', textContent: label });
       if (tone) chip.dataset.tone = tone;
@@ -280,7 +360,7 @@ function renderRecent(recent) {
     ...recent.slice(0, 20).map((clip) => {
       const item = el(
         'li',
-        { className: 'clickable', tabIndex: 0, title: 'Im Archiv öffnen' },
+        { className: 'clickable', tabIndex: 0, title: t('recent.open') },
         badge(clip.game),
         el(
           'span',
@@ -296,7 +376,7 @@ function renderRecent(recent) {
           { className: 'item-end' },
           ...(clip.tags || [])
             .slice(0, 2)
-            .map((t) => el('span', { className: 'tag', textContent: t })),
+            .map((tag) => el('span', { className: 'tag', textContent: tag })),
         ),
       );
       const open = () => run(() => call('open-clip', clip.clipId));
@@ -329,33 +409,32 @@ function showView(view) {
 }
 for (const tab of document.querySelectorAll('.tab')) tab.onclick = () => showView(tab.dataset.view);
 
-/* ---------- Spielernamen ---------- */
+/* ---------- Player names ---------- */
 
 function nameRows(container, entries) {
   const add = (entry = { name: '', game: '' }) => {
+    // The texts come from data-i18n-* so a language switch also reaches existing rows.
     const name = el('input', {
       className: 'player-name',
       maxLength: 60,
-      placeholder: 'Name im Spiel',
       value: entry.name,
+      dataset: { i18nPlaceholder: 'names.placeholder', i18nAriaLabel: 'names.aria' },
     });
-    name.setAttribute('aria-label', 'Spielername');
     const game = el('input', {
       className: 'player-game',
       maxLength: 100,
-      placeholder: 'Alle Spiele',
       value: entry.game,
+      dataset: { i18nPlaceholder: 'names.gamePlaceholder', i18nAriaLabel: 'names.gameAria' },
     });
-    game.setAttribute('aria-label', 'Spiel zu diesem Namen');
     game.setAttribute('list', 'game-suggestions');
     const remove = el('button', {
       type: 'button',
       className: 'secondary remove-name',
       textContent: '×',
-      title: 'Namen entfernen',
+      dataset: { i18nTitle: 'names.remove', i18nAriaLabel: 'names.remove' },
     });
-    remove.setAttribute('aria-label', 'Namen entfernen');
     const row = el('div', { className: 'name-row' }, name, game, remove);
+    applyLanguage(row);
     remove.onclick = () => {
       row.remove();
       if (!container.children.length) add();
@@ -381,7 +460,7 @@ function suggestGames(games) {
   $('game-suggestions').replaceChildren(...games.map((game) => el('option', { value: game })));
 }
 
-/* ---------- Einstellungen ---------- */
+/* ---------- Settings ---------- */
 
 let settingsNames;
 const CHECKS = {
@@ -396,16 +475,18 @@ const CHECKS = {
   notify: 'notify',
   'include-existing': 'includeExisting',
 };
+function fillTokenPlaceholder() {
+  $('token').placeholder = config.hasToken ? t('token.saved') : t('token.new');
+}
 function fillSettings() {
   if (!config) return;
   $('server').value = config.server;
   $('token').value = '';
-  $('token').placeholder = config.hasToken
-    ? 'Gespeichert · leer lassen, um ihn zu behalten'
-    : 'Schlüssel vom Archiv-Server';
+  fillTokenPlaceholder();
   $('folder').value = config.folder;
   $('game').value = config.game;
   $('frames').value = String(config.frames);
+  $('language').value = language;
   $('epic-accounts').value = config.epicAccounts.join(', ');
   for (const [id, key] of Object.entries(CHECKS)) $(id).checked = !!config[key];
   settingsNames = nameRows($('player-names'), config.playerNames);
@@ -422,6 +503,7 @@ function readSettings() {
     folder: $('folder').value,
     game: $('game').value.trim(),
     frames: Number($('frames').value),
+    language,
     playerNames: settingsNames.read(),
     epicAccounts: $('epic-accounts')
       .value.split(/[\s,;]+/)
@@ -436,7 +518,11 @@ function renderSettingsLock(s) {
   const locked = s.running && !s.paused;
   $('settings-lock').hidden = !locked;
   $('save').disabled = locked;
-  $('model-state').textContent = s.model ? 'Bereit' : s.ollama ? 'Modell fehlt' : 'Ungeprüft';
+  $('model-state').textContent = s.model
+    ? t('model.ready')
+    : s.ollama
+      ? t('model.missing')
+      : t('model.unchecked');
   $('model-state').dataset.tone = s.model ? 'ok' : s.ollama ? 'warn' : '';
   $('download-model').disabled = s.downloading || s.model;
   $('cancel-download').hidden = !s.downloading;
@@ -447,10 +533,14 @@ function renderSettingsLock(s) {
 async function describeFolder() {
   const info = await call('folder-info').catch(() => ({ clips: 0, games: [] }));
   $('folder-info').textContent = info.clips
-    ? `${info.clips} Clips in ${info.games.length} ${info.games.length === 1 ? 'Spiel' : 'Spielen'}: ${info.games
-        .slice(0, 5)
-        .map((g) => gameName(g.game))
-        .join(', ')}${info.games.length > 5 ? ' …' : ''}`
+    ? t('folder.info', {
+        clips: t('count.clips', { count: info.clips }),
+        games: t('count.games', { count: info.games.length }),
+        list: `${info.games
+          .slice(0, 5)
+          .map((g) => gameName(g.game))
+          .join(', ')}${info.games.length > 5 ? ' …' : ''}`,
+      })
     : '';
   suggestGames(info.games.map((g) => g.game));
   return info;
@@ -461,21 +551,23 @@ $('settings-form').onsubmit = (event) => {
     config = await call('save', readSettings());
     await call('open-at-login', config.openAtLogin);
     $('token').value = '';
-    $('save-result').textContent = 'Gespeichert';
+    $('save-result').textContent = t('result.saved');
     $('save-result').dataset.tone = 'ok';
   });
 };
 $('settings-pause').onclick = () => run(() => call('pause'));
 $('test-server').onclick = () =>
   run(async () => {
-    $('server-result').textContent = 'Prüfe …';
+    $('server-result').textContent = t('result.checking');
     $('server-result').dataset.tone = '';
     try {
       const result = await call('test-server', {
         server: $('server').value.trim(),
         token: $('token').value,
       });
-      $('server-result').textContent = `Verbunden · ${result.clips} Clips im Archiv`;
+      $('server-result').textContent = t('result.connected', {
+        clips: t('count.clips', { count: result.clips }),
+      });
       $('server-result').dataset.tone = 'ok';
     } catch (e) {
       $('server-result').textContent = e.message;
@@ -495,13 +587,19 @@ $('download-model').onclick = () => run(() => call('download'));
 $('cancel-download').onclick = () => run(() => call('cancel-download'));
 $('rerun-setup').onclick = () => openWizard();
 
-/* ---------- Assistent ---------- */
+/* ---------- Setup wizard ---------- */
 
 let draft = null;
 let step = 0;
 const wizard = { serverOk: false, clips: 0, games: [], ai: null, names: null };
-const RECOMMENDED = 'Empfohlen';
 
+function recommendedChip() {
+  return el('span', {
+    className: 'chip',
+    textContent: t('recommended'),
+    dataset: { tone: 'accent' },
+  });
+}
 function option(key, title, text, { recommended = false, checked } = {}) {
   const input = el('input', { type: 'checkbox', checked: checked ?? !!draft[key] });
   input.onchange = () => (draft[key] = input.checked);
@@ -512,14 +610,7 @@ function option(key, title, text, { recommended = false, checked } = {}) {
     el(
       'span',
       {},
-      el(
-        'b',
-        {},
-        title,
-        recommended
-          ? el('span', { className: 'chip', textContent: RECOMMENDED, dataset: { tone: 'accent' } })
-          : null,
-      ),
+      el('b', {}, title, recommended ? recommendedChip() : null),
       el('small', { textContent: text }),
     ),
   );
@@ -539,82 +630,89 @@ function hasGame(pattern) {
   return wizard.games.some((g) => pattern.test(g.game));
 }
 
+/**
+ * The wizard steps. Name, eyebrow, title and lead come from the dictionary under w.<key>.*;
+ * `next` and `skip` mark steps with their own button labels (w.<key>.next, w.<key>.skip).
+ */
 const STEPS = [
   {
-    name: 'Willkommen',
-    eyebrow: 'Willkommen bei ReplayHaven',
-    title: 'Aus jedem Clip ein Highlight mit Namen.',
-    lead: 'Der Client beobachtet deinen NVIDIA-Aufnahmeordner, lässt eine KI auf deinem PC jeden neuen Clip ansehen und legt ihn mit Titel, Tags und Zeitmarken in deinem Archiv ab. Die Einrichtung dauert zwei Minuten.',
-    next: 'Einrichtung beginnen',
-    render: () =>
-      el(
+    key: 'welcome',
+    next: true,
+    render: () => {
+      const choice = el(
+        'select',
+        {},
+        el('option', { value: 'en', textContent: 'English' }),
+        el('option', { value: 'de', textContent: 'Deutsch' }),
+      );
+      choice.value = language;
+      choice.onchange = () =>
+        run(async () => {
+          draft.language = choice.value;
+          await saveLanguage(choice.value);
+        });
+      return el(
         'div',
-        { className: 'features' },
-        ...[
-          [
-            '◉',
-            'Aufnahmen',
-            'Neue Clips aus der NVIDIA App werden automatisch erkannt. Originale bleiben, wo sie sind.',
-          ],
-          [
-            '✦',
-            'Lokale KI',
-            'Kills, Rundensiege, Karten und Gespräche werden auf deiner Grafikkarte erkannt, nicht in der Cloud.',
-          ],
-          [
-            '▶',
-            'Dein Archiv',
-            'Alles landet auf deinem eigenen Server, durchsuchbar und im Browser abspielbar.',
-          ],
-        ].map(([icon, title, text]) =>
-          el(
-            'div',
-            { className: 'feature' },
-            el('span', { className: 'feature-icon', textContent: icon }),
-            el('b', { textContent: title }),
-            el('p', { textContent: text }),
+        { className: 'wizard-content' },
+        el(
+          'div',
+          { className: 'features' },
+          ...[
+            ['◉', 'recordings'],
+            ['✦', 'ai'],
+            ['▶', 'archive'],
+          ].map(([icon, feature]) =>
+            el(
+              'div',
+              { className: 'feature' },
+              el('span', { className: 'feature-icon', textContent: icon }),
+              el('b', { textContent: t(`w.feature.${feature}`) }),
+              el('p', { textContent: t(`w.feature.${feature}Text`) }),
+            ),
           ),
         ),
-      ),
+        el('label', { className: 'field language-field' }, t('field.language'), choice),
+      );
+    },
   },
   {
-    name: 'Archiv-Server',
-    eyebrow: 'Schritt 1 · Verbindung',
-    title: 'Mit deinem Archiv koppeln.',
-    lead: 'Gib die Adresse deines ReplayHaven-Servers ein, etwa replay.deine-domain.de. Der PC fragt dort an, und du gibst ihn in der Web-Oberfläche mit einem Klick frei.',
+    key: 'server',
     render: () => {
       const box = el('div', { className: 'wizard-content' });
       const address = el('input', {
         type: 'text',
         value: draft.server,
-        placeholder: 'replay.deine-domain.de',
+        placeholder: t('w.server.placeholder'),
         spellcheck: false,
       });
       const token = el('input', {
         type: 'password',
         autocomplete: 'off',
-        placeholder: 'Zugangsschlüssel aus der Server-Einrichtung',
+        placeholder: t('w.server.tokenPlaceholder'),
       });
       const keyResult = el('div');
       address.oninput = () => (wizard.serverOk = false);
       const paint = () => {
         const p = status?.pairing;
-        const children = [field('Serveradresse', address)];
+        const children = [field(t('field.server'), address)];
         if (wizard.useKey) {
           const test = el('button', {
             type: 'button',
             className: 'primary',
-            textContent: 'Verbindung prüfen',
+            textContent: t('w.server.check'),
           });
           test.onclick = async () => {
             draft.server = address.value.trim();
             draft.token = token.value;
-            keyResult.replaceChildren(checkLine('', 'Prüfe die Verbindung …'));
+            keyResult.replaceChildren(checkLine('', t('w.server.checking')));
             try {
               const info = await call('test-server', { server: draft.server, token: draft.token });
               wizard.serverOk = true;
               keyResult.replaceChildren(
-                checkLine('ok', `Verbunden · ${info.clips} Clips im Archiv`),
+                checkLine(
+                  'ok',
+                  t('result.connected', { clips: t('count.clips', { count: info.clips }) }),
+                ),
               );
             } catch (e) {
               wizard.serverOk = false;
@@ -624,14 +722,14 @@ const STEPS = [
           const back = el('button', {
             type: 'button',
             className: 'link',
-            textContent: 'Lieber koppeln',
+            textContent: t('w.server.pairInstead'),
           });
           back.onclick = () => {
             wizard.useKey = false;
             paint();
           };
           children.push(
-            field('Zugangsschlüssel', token),
+            field(t('field.token'), token),
             el('div', { className: 'row' }, test, back),
             keyResult,
           );
@@ -639,28 +737,25 @@ const STEPS = [
           const open = el('button', {
             type: 'button',
             className: 'primary',
-            textContent: 'Geräteseite öffnen ↗',
+            textContent: t('w.server.openDevices'),
           });
           open.onclick = () => run(() => call('open-devices'));
           const cancel = el('button', {
             type: 'button',
             className: 'ghost',
-            textContent: 'Abbrechen',
+            textContent: t('btn.cancel'),
           });
           cancel.onclick = () => run(() => call('pair-cancel'));
           children.push(
             el(
               'div',
               { className: 'pair-card' },
-              el('span', { className: 'eyebrow', textContent: 'Dein Kontrollcode' }),
+              el('span', { className: 'eyebrow', textContent: t('w.server.code') }),
               el('strong', {
                 className: 'pair-code',
                 textContent: `${p.code.slice(0, 3)} ${p.code.slice(3)}`,
               }),
-              el('p', {
-                textContent:
-                  'Öffne deine Web-Oberfläche unter „Geräte“ und klick bei diesem PC auf „Freigeben“. Dort steht derselbe Code.',
-              }),
+              el('p', { textContent: t('w.server.codeText') }),
               el('div', { className: 'row' }, open, cancel),
             ),
             checkLine('', p.message),
@@ -669,13 +764,13 @@ const STEPS = [
           if (p?.state === 'approved') draft.server = p.server;
           wizard.serverOk = true;
           children.push(
-            checkLine('ok', p?.state === 'approved' ? p.message : 'Dieser PC ist schon gekoppelt.'),
+            checkLine('ok', p?.state === 'approved' ? p.message : t('w.server.paired')),
           );
         } else {
           const connect = el('button', {
             type: 'button',
             className: 'primary',
-            textContent: 'Verbinden',
+            textContent: t('w.server.connect'),
           });
           connect.onclick = () =>
             run(async () => {
@@ -690,7 +785,7 @@ const STEPS = [
           const useKey = el('button', {
             type: 'button',
             className: 'link',
-            textContent: 'Stattdessen mit Zugangsschlüssel',
+            textContent: t('w.server.useKey'),
           });
           useKey.onclick = () => {
             wizard.useKey = true;
@@ -710,24 +805,21 @@ const STEPS = [
         draft.server = status.pairing.server;
         wizard.serverOk = true;
       }
-      if (!wizard.serverOk) throw new Error('Koppel den PC zuerst mit deinem Server.');
+      if (!wizard.serverOk) throw new Error(t('w.server.error'));
     },
   },
   {
-    name: 'Aufnahmen',
-    eyebrow: 'Schritt 2 · Aufnahmen',
-    title: 'Wo speichert die NVIDIA App deine Clips?',
-    lead: 'Meist ist das der Ordner „Videos“ oder „Videos\\NVIDIA“. Unterordner je Spiel werden mitgelesen.',
+    key: 'rec',
     render: () => {
       const folder = el('input', {
         readOnly: true,
         value: draft.folder,
-        placeholder: 'Ordner auswählen',
+        placeholder: t('w.rec.placeholder'),
       });
       const pick = el('button', {
         type: 'button',
         className: 'secondary',
-        textContent: 'Ordner wählen',
+        textContent: t('w.rec.pick'),
       });
       const info = el('div', { className: 'wizard-content' });
       const existing = el('input', { type: 'checkbox', checked: draft.includeExisting });
@@ -738,13 +830,16 @@ const STEPS = [
         wizard.clips = result.clips;
         wizard.games = result.games;
         suggestGames(result.games.map((g) => g.game));
-        existingLabel.textContent = `${result.clips} vorhandene Clips werden dann nach und nach analysiert und hochgeladen. Sonst nur neue.`;
+        existingLabel.textContent = t('w.rec.existingNote', { count: result.clips });
         info.replaceChildren(
           checkLine(
             result.clips ? 'ok' : 'warn',
             result.clips
-              ? `${result.clips} Clips in ${result.games.length} ${result.games.length === 1 ? 'Spiel' : 'Spielen'} gefunden`
-              : 'In diesem Ordner liegen noch keine Clips.',
+              ? t('w.rec.found', {
+                  clips: t('count.clips', { count: result.clips }),
+                  games: t('count.games', { count: result.games.length }),
+                })
+              : t('w.rec.none'),
           ),
           el(
             'div',
@@ -775,31 +870,28 @@ const STEPS = [
           'label',
           { className: 'option toggle' },
           existing,
-          el('span', {}, el('b', { textContent: 'Vorhandene Clips mitnehmen' }), existingLabel),
+          el('span', {}, el('b', { textContent: t('w.rec.existing') }), existingLabel),
         ),
       );
     },
     validate: () => {
-      if (!draft.folder) throw new Error('Wähle den Ordner, in dem deine Clips liegen.');
+      if (!draft.folder) throw new Error(t('w.rec.error'));
     },
   },
   {
-    name: 'Lokale KI',
-    eyebrow: 'Schritt 3 · Lokale KI',
-    title: 'Die KI läuft auf deiner Grafikkarte.',
-    lead: 'ReplayHaven nutzt Ollama mit dem Modell Qwen3.5 (9B, etwa 6,6 GB). Ab etwa 10 GB Grafikspeicher läuft es flüssig.',
+    key: 'ai',
     render: () => {
       const box = el('div', { className: 'wizard-content' });
       const paint = () => {
         const s = status;
         const ai = wizard.ai;
         const lines = [];
-        if (!ai) lines.push(checkLine('', 'Prüfe, ob Ollama läuft …'));
+        if (!ai) lines.push(checkLine('', t('w.ai.checking')));
         else {
           lines.push(
             checkLine(
               ai.running ? 'ok' : 'bad',
-              ai.running ? 'Ollama läuft' : 'Ollama ist nicht installiert oder nicht gestartet',
+              ai.running ? t('w.ai.running') : t('w.ai.notRunning'),
             ),
           );
           if (ai.running)
@@ -807,10 +899,10 @@ const STEPS = [
               checkLine(
                 ai.installed ? 'ok' : s.downloading ? '' : 'warn',
                 ai.installed
-                  ? 'Modell Qwen3.5 · 9B ist bereit'
+                  ? t('w.ai.ready')
                   : s.downloading
-                    ? s.message
-                    : 'Das Modell fehlt noch',
+                    ? localizeMessage(s.message)
+                    : t('w.ai.missing'),
               ),
             );
         }
@@ -819,7 +911,7 @@ const STEPS = [
           const install = el('button', {
             type: 'button',
             className: 'primary',
-            textContent: 'Ollama herunterladen ↗',
+            textContent: t('w.ai.downloadOllama'),
           });
           install.onclick = () => run(() => call('ollama-install'));
           buttons.push(install);
@@ -828,7 +920,7 @@ const STEPS = [
           const download = el('button', {
             type: 'button',
             className: 'primary',
-            textContent: 'Modell laden · 6,6 GB',
+            textContent: t('btn.downloadModel'),
           });
           download.onclick = () =>
             run(async () => {
@@ -841,7 +933,7 @@ const STEPS = [
           const cancel = el('button', {
             type: 'button',
             className: 'secondary',
-            textContent: 'Abbrechen',
+            textContent: t('btn.cancel'),
           });
           cancel.onclick = () => run(() => call('cancel-download'));
           buttons.push(cancel);
@@ -849,7 +941,7 @@ const STEPS = [
         const again = el('button', {
           type: 'button',
           className: 'ghost',
-          textContent: 'Erneut prüfen',
+          textContent: t('w.ai.again'),
         });
         again.onclick = () => recheck();
         buttons.push(again);
@@ -871,19 +963,15 @@ const STEPS = [
       void recheck();
       return box;
     },
-    skip: 'Ohne KI weiter',
+    skip: true,
     onSkip: () => (draft.analyze = false),
     validate: () => {
-      if (!wizard.ai?.installed)
-        throw new Error('Das Modell fehlt noch. Lade es oder mach ohne KI weiter.');
+      if (!wizard.ai?.installed) throw new Error(t('w.ai.error'));
       draft.analyze = true;
     },
   },
   {
-    name: 'Spielernamen',
-    eyebrow: 'Schritt 4 · Du im Spiel',
-    title: 'Wie heißt du in deinen Spielen?',
-    lead: 'Mit deinem Namen erkennt die KI im Killfeed, welche Kills deine sind und wann du ausgeschaltet wurdest. Leer lassen geht auch.',
+    key: 'names',
     render: () => {
       const container = el('div', { className: 'name-rows' });
       const known = new Set(draft.playerNames.map((n) => n.game.toLowerCase()));
@@ -898,7 +986,7 @@ const STEPS = [
       const add = el('button', {
         type: 'button',
         className: 'link',
-        textContent: '+ Weiteren Namen',
+        textContent: t('names.add'),
       });
       add.onclick = () => wizard.names.add().focus();
       return el('div', { className: 'wizard-content' }, container, el('div', {}, add));
@@ -908,10 +996,7 @@ const STEPS = [
     },
   },
   {
-    name: 'Erkennung',
-    eyebrow: 'Schritt 5 · Feinschliff',
-    title: 'Was soll der Client können?',
-    lead: 'Die Empfehlungen passen für die meisten. Alles lässt sich später in den Einstellungen ändern.',
+    key: 'detect',
     render: () => {
       const whole = el('input', { type: 'checkbox', checked: draft.frames === 0 });
       whole.onchange = () => (draft.frames = whole.checked ? 0 : 24);
@@ -926,90 +1011,73 @@ const STEPS = [
           el(
             'span',
             {},
-            el(
-              'b',
-              {},
-              'Ganzen Clip ansehen',
-              el('span', {
-                className: 'chip',
-                textContent: RECOMMENDED,
-                dataset: { tone: 'accent' },
-              }),
-            ),
-            el('small', {
-              textContent: 'Ein Bild alle 3 Sekunden, damit keine Kill-Meldung durchrutscht.',
-            }),
+            el('b', {}, t('w.detect.whole'), recommendedChip()),
+            el('small', { textContent: t('w.detect.wholeNote') }),
           ),
         ),
-        option(
-          'r6Texts',
-          'Texterkennung',
-          'Karte und Rundenausgang in R6, Kills und Kopfschüsse aus dem Valorant-Killfeed.',
-          { recommended: r6 || hasGame(/valorant/i) },
-        ),
-        option(
-          'pauseWhileGaming',
-          'Beim Spielen pausieren',
-          'Keine Last auf Grafikkarte und Leitung, solange du spielst.',
-          { recommended: true },
-        ),
-        option(
-          'speech',
-          'Voice-Chat mitschreiben',
-          'Titel nach dem Gespräch, wenn im Clip nichts Spielerisches passiert. Lädt einmalig 670 MB.',
-        ),
-        option(
-          'keepR6Replays',
-          'R6-Replays aufbewahren',
-          'Sichert das Match zu jedem R6-Clip für spätere genaue Kills.',
-          { recommended: r6 },
-        ),
-        option(
-          'fortniteReplays',
-          'Fortnite-Replays',
-          'Kills, Waffe und Entfernung exakt aus den Replays.',
-          { recommended: hasGame(/fortnite/i) },
-        ),
-        option('autoStart', 'Beim Öffnen weiterarbeiten', 'Kein Klick auf „Starten“ nötig.', {
+        option('r6Texts', t('opt.texts'), t('w.detect.textsNote'), {
+          recommended: r6 || hasGame(/valorant/i),
+        }),
+        option('pauseWhileGaming', t('opt.pauseGaming'), t('w.detect.pauseNote'), {
           recommended: true,
         }),
-        option('openAtLogin', 'Mit Windows starten', 'Läuft unauffällig im Infobereich.'),
-        option(
-          'notify',
-          'Mitteilungen',
-          'Kurze Meldung, wenn ein Clip archiviert ist. Nie während eines Spiels.',
-        ),
+        option('speech', t('opt.speech'), t('w.detect.speechNote')),
+        option('keepR6Replays', t('w.detect.keepR6'), t('w.detect.keepR6Note'), {
+          recommended: r6,
+        }),
+        option('fortniteReplays', t('opt.fortnite'), t('w.detect.fortniteNote'), {
+          recommended: hasGame(/fortnite/i),
+        }),
+        option('autoStart', t('w.detect.autoStart'), t('w.detect.autoStartNote'), {
+          recommended: true,
+        }),
+        option('openAtLogin', t('opt.openAtLogin'), t('w.detect.openAtLoginNote')),
+        option('notify', t('w.detect.notify'), t('w.detect.notifyNote')),
       );
     },
   },
   {
-    name: 'Fertig',
-    eyebrow: 'Geschafft',
-    title: 'Alles bereit.',
-    lead: 'So arbeitet der Client ab jetzt. Die Übersicht zeigt dir, welcher Clip gerade dran ist und was noch wartet.',
-    next: 'Speichern und starten',
+    key: 'done',
+    next: true,
     render: () => {
-      const on = (value) => (value ? 'an' : 'aus');
+      const on = (value) => (value ? t('w.done.on') : t('w.done.off'));
       const items = [
-        ['Archiv-Server', draft.server],
-        ['Aufnahmen', `${draft.folder}${wizard.clips ? ` · ${wizard.clips} Clips` : ''}`],
+        [t('w.server.name'), draft.server],
         [
-          'Lokale KI',
+          t('w.rec.name'),
+          `${draft.folder}${wizard.clips ? ` · ${t('count.clips', { count: wizard.clips })}` : ''}`,
+        ],
+        [
+          t('w.ai.name'),
           draft.analyze
-            ? `Qwen3.5 · ${draft.frames === 0 ? 'ganzer Clip' : `${draft.frames} Bilder`}`
-            : 'aus, Clips werden nur hochgeladen',
+            ? t('w.done.ai', {
+                scope:
+                  draft.frames === 0
+                    ? t('w.done.whole')
+                    : t('w.done.frames', { count: draft.frames }),
+              })
+            : t('w.done.noAi'),
         ],
         [
-          'Spielernamen',
-          draft.playerNames.length ? draft.playerNames.map((n) => n.name).join(', ') : 'keine',
+          t('w.names.name'),
+          draft.playerNames.length
+            ? draft.playerNames.map((n) => n.name).join(', ')
+            : t('w.done.noNames'),
         ],
         [
-          'Erkennung',
-          `Texte ${on(draft.r6Texts)} · Voice-Chat ${on(draft.speech)} · Replays ${on(draft.keepR6Replays || draft.fortniteReplays)}`,
+          t('w.detect.name'),
+          t('w.done.detection', {
+            texts: on(draft.r6Texts),
+            speech: on(draft.speech),
+            replays: on(draft.keepR6Replays || draft.fortniteReplays),
+          }),
         ],
         [
-          'Verhalten',
-          `Pause beim Spielen ${on(draft.pauseWhileGaming)} · mit Windows ${on(draft.openAtLogin)}`,
+          t('card.behavior'),
+          t('w.done.behavior', {
+            pause: on(draft.pauseWhileGaming),
+            login: on(draft.openAtLogin),
+          }),
         ],
       ];
       return el(
@@ -1019,7 +1087,7 @@ const STEPS = [
       );
     },
     validate: async () => {
-      const saved = { ...draft, onboarded: true };
+      const saved = { ...draft, language, onboarded: true };
       delete saved.hasToken;
       config = await call('save', saved);
       await call('open-at-login', config.openAtLogin);
@@ -1031,7 +1099,7 @@ const STEPS = [
 function openWizard() {
   draft = { ...config, token: '' };
   if (!config.onboarded) {
-    // Empfehlungen für die Ersteinrichtung.
+    // Recommendations for the first setup.
     Object.assign(draft, {
       frames: 0,
       r6Texts: true,
@@ -1055,25 +1123,26 @@ function closeWizard() {
 }
 function renderWizard() {
   const current = STEPS[step];
+  const text = (part) => t(`w.${current.key}.${part}`);
   $('wizard-steps').replaceChildren(
     ...STEPS.map((s, i) =>
       el('li', {
-        textContent: s.name,
+        textContent: t(`w.${s.key}.name`),
         dataset: { state: i < step ? 'done' : i === step ? 'current' : 'todo' },
       }),
     ),
   );
-  $('wizard-eyebrow').textContent = current.eyebrow;
-  $('wizard-title').textContent = current.title;
-  $('wizard-lead').textContent = current.lead;
+  $('wizard-eyebrow').textContent = text('eyebrow');
+  $('wizard-title').textContent = text('title');
+  $('wizard-lead').textContent = text('lead');
   $('wizard-error').textContent = '';
   const content = current.render();
   $('wizard-content').replaceChildren(content);
   $('wizard-back').hidden = step === 0;
-  $('wizard-back').textContent = 'Zurück';
-  $('wizard-next').textContent = current.next || 'Weiter';
+  $('wizard-back').textContent = t('btn.back');
+  $('wizard-next').textContent = current.next ? text('next') : t('btn.next');
   $('wizard-skip').hidden = !current.skip;
-  $('wizard-skip').textContent = current.skip || '';
+  $('wizard-skip').textContent = current.skip ? text('skip') : '';
   $('wizard-title').focus();
 }
 async function advance(skip = false) {
@@ -1125,18 +1194,19 @@ window.vault.onStatus(render);
 void run(async () => {
   const loaded = await call('load');
   config = loaded.config;
+  setLanguage(config.language);
   render(loaded.status);
   if (!config.onboarded) openWizard();
 });
 
-/* ---------- Kopplung in den Einstellungen ---------- */
+/* ---------- Pairing in the settings ---------- */
 
 function renderSettingsPairing(pairing) {
   if (!pairing) return;
   const result = $('server-result');
   result.textContent =
     pairing.state === 'waiting'
-      ? `Code ${pairing.code.slice(0, 3)} ${pairing.code.slice(3)} · in der Web-Oberfläche unter „Geräte“ freigeben`
+      ? t('pair.settings', { code: `${pairing.code.slice(0, 3)} ${pairing.code.slice(3)}` })
       : pairing.message;
   result.dataset.tone =
     pairing.state === 'approved' ? 'ok' : pairing.state === 'waiting' ? '' : 'bad';

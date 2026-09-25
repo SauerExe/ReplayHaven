@@ -1,22 +1,19 @@
 import { ArrowRight, Monitor, Play, Server } from 'lucide-react';
+import { t } from '../i18n';
 
 export function VaultConnection() {
   return (
-    <div
-      className="vault-connection"
-      role="img"
-      aria-label="Dein Aufnahme-PC überträgt Clips an deinen persönlichen Archiv-Server."
-    >
+    <div className="vault-connection" role="img" aria-label={t('app.vault.label')}>
       <div className="connection-orbit orbit-outer" />
       <div className="connection-orbit orbit-inner" />
       <div className="connection-topline">
-        <span /> DEIN PERSÖNLICHES ARCHIV
+        <span /> {t('app.vault.topline')}
       </div>
       <div className="connection-map">
         <div className="connection-node pc-node">
           <Monitor size={34} strokeWidth={1.3} />
-          <span>Dein PC</span>
-          <small>Aufnehmen</small>
+          <span>{t('app.vault.pc')}</span>
+          <small>{t('app.vault.record')}</small>
         </div>
         <div className="connection-path">
           <ArrowRight size={16} />
@@ -29,14 +26,14 @@ export function VaultConnection() {
         </div>
         <div className="connection-node vault-node">
           <Server size={34} strokeWidth={1.3} />
-          <span>Dein Vault</span>
-          <small>Aufbewahren</small>
+          <span>{t('app.vault.vault')}</span>
+          <small>{t('app.vault.keep')}</small>
         </div>
       </div>
       <div className="connection-bottomline">
-        DEINE AUFNAHMEN
+        {t('app.vault.recordings')}
         <span />
-        DEIN SERVER
+        {t('app.vault.server')}
       </div>
     </div>
   );

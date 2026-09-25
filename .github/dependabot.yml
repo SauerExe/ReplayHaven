@@ -5,11 +5,11 @@ updates:
     schedule:
       interval: weekly
     groups:
-      # Kleine Updates gebündelt; große Versionssprünge kommen einzeln, weil sie oft Codeänderungen brauchen.
+      # Small updates grouped; major version jumps come one at a time because they often need code changes.
       dev-dependencies:
         dependency-type: development
         update-types: [minor, patch]
-    # Große npm-Versionen erst nach dem Umbau der Weboberfläche: Sie verlangen Änderungen an deren Dateien.
+    # Major npm versions only after the web UI rework: they require changes to its files.
     ignore:
       - dependency-name: '*'
         update-types: ['version-update:semver-major']

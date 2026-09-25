@@ -1,8 +1,8 @@
 /**
- * Spielinfos von Steam, ersatzweise IGDB: Name, Kurzbeschreibung und Titelbild zu einem Spielnamen.
+ * Game info from Steam, with IGDB as fallback: name, short description and cover for a game name.
  *
- * Die Steam-Endpunkte sind öffentlich und brauchen keinen Schlüssel, IGDB eine eigene
- * Twitch-Anwendung. Abgefragt wird nur der Spielname, nie etwas über die Aufnahme oder den Nutzer.
+ * The Steam endpoints are public and need no key; IGDB needs its own Twitch application. Only the
+ * game name is sent, never anything about the recording or the user.
  */
 import { gameKey } from '../src/domain/gameKey';
 export { gameKey } from '../src/domain/gameKey';
@@ -23,15 +23,15 @@ export interface GameInfo {
 }
 
 /**
- * NVIDIA benennt Aufnahmen ohne erkanntes Spiel nach seinen Auffangprofilen. Für die gibt es
- * kein Spiel nachzuschlagen, und die Suche liefert dazu irreführende Treffer.
+ * NVIDIA names recordings without a detected game after its catch-all profiles. There is no game
+ * to look up for those, and the search returns misleading hits for them.
  */
 const NOT_GAMES = new Set(['desktop', 'base profile', 'nvidia share', 'game bar', 'steam']);
 
 /**
- * Wählt aus den Suchtreffern nur einen **exakt** passenden aus. Bewusst streng: die Suche
- * liefert zu "Call of Duty Black Ops 7" das nie erschienene "Black Ops III" und zu "Minecraft"
- * das "Minecraft Dungeons". Ein falsches Cover im Archiv ist schlimmer als gar keines.
+ * Picks only an **exact** match from the search hits. Deliberately strict: for "Call of Duty
+ * Black Ops 7" the search returns the unreleased "Black Ops III", and for "Minecraft" it returns
+ * "Minecraft Dungeons". A wrong cover in the archive is worse than none.
  */
 export function pickExact<T extends { appid: string | number; name: string }>(
   query: string,
@@ -46,13 +46,13 @@ async function json(url: string, signal?: AbortSignal) {
     headers: { 'accept-language': 'de' },
     signal: signal ?? AbortSignal.timeout(15000),
   });
-  if (!response.ok) throw new Error(`Steam antwortet mit HTTP ${response.status}.`);
+  if (!response.ok) throw new Error(`Steam responded with HTTP ${response.status}.`);
   return response.json();
 }
 
 /**
- * Sucht ein Spiel und liefert seine Infos, oder undefined, wenn es keinen exakten Treffer gibt.
- * Zuerst Steam (ohne Schlüssel); kennt Steam das Spiel nicht, IGDB, sofern eingerichtet.
+ * Looks up a game and returns its info, or undefined if there is no exact match.
+ * Steam first (no key needed); if Steam does not know the game, IGDB, when set up.
  */
 export async function lookupGame(
   name: string,
@@ -81,12 +81,12 @@ async function lookupSteam(
     string,
     { success?: boolean; data?: Record<string, unknown> }
   >;
-  // Steam leitet umbenannte Spiele auf eine neue ID um und antwortet dann unter dieser: nach
-  // 359550 (Rainbow Six Siege) kam am 2026-09-24 ein Eintrag unter 5290420 zurück.
+  // Steam redirects renamed games to a new ID and then answers under that one: a request for
+  // 359550 (Rainbow Six Siege) returned an entry under 5290420 on 2026-09-24.
   const entries = Object.values(details ?? {});
   const entry = details?.[String(appId)] ?? (entries.length === 1 ? entries[0] : undefined);
   const data = entry?.success ? entry.data : undefined;
-  if (!data) throw new Error('Steam liefert gerade keine Spieldetails.');
+  if (!data) throw new Error('Steam is not returning game details right now.');
   if (data.type && data.type !== 'game') return undefined;
   const genres = (data.genres as { description: string }[] | undefined) || [];
   return {
@@ -99,7 +99,7 @@ async function lookupSteam(
       .slice(0, 3)
       .join(', '),
     released: String((data.release_date as { date?: string } | undefined)?.date || ''),
-    // Das Hochformat der Bibliothek passt zu den Kacheln; header_image ist der Rückfall.
+    // The library portrait image fits the tiles; header_image is the fallback.
     coverUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900_2x.jpg`,
     fallbackCoverUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`,
     source: `https://store.steampowered.com/app/${appId}/`,
@@ -115,10 +115,10 @@ const TWITCH_TOKEN = 'https://id.twitch.tv/oauth2/token';
 const IGDB_GAMES = 'https://api.igdb.com/v4/games';
 
 /**
- * IGDB (Twitch) als zweite Quelle für Spiele, die es auf Steam nicht gibt, etwa Valorant oder
- * Fortnite. Braucht eine eigene Twitch-Anwendung (Client-ID und Secret); das Zugriffstoken wird
- * per Client-Credentials geholt und bis kurz vor Ablauf wiederverwendet. Kostenlos für
- * nicht-kommerzielle Nutzung. Abgefragt wird nur der Spielname.
+ * IGDB (Twitch) as a second source for games that are not on Steam, such as Valorant or
+ * Fortnite. Needs its own Twitch application (client ID and secret); the access token is fetched
+ * via client credentials and reused until shortly before it expires. Free for non-commercial
+ * use. Only the game name is sent.
  */
 export class Igdb {
   private token?: { value: string; until: number };
@@ -138,11 +138,10 @@ export class Igdb {
       })}`,
       { method: 'POST', signal: signal ?? AbortSignal.timeout(15000) },
     );
-    if (!response.ok)
-      throw new Error(`Twitch lehnt die IGDB-Anmeldung ab (HTTP ${response.status}).`);
+    if (!response.ok) throw new Error(`Twitch rejected the IGDB login (HTTP ${response.status}).`);
     const body = (await response.json()) as { access_token?: string; expires_in?: number };
-    if (!body.access_token) throw new Error('Twitch liefert kein IGDB-Token.');
-    // Eine Minute Puffer, damit ein Token nicht mitten in einer Anfrage abläuft.
+    if (!body.access_token) throw new Error('Twitch returned no IGDB token.');
+    // One minute of headroom so a token does not expire in the middle of a request.
     this.token = {
       value: body.access_token,
       until: Date.now() + Math.max(0, (body.expires_in ?? 0) - 60) * 1000,
@@ -164,7 +163,7 @@ export class Igdb {
       signal: signal ?? AbortSignal.timeout(15000),
     });
     if (response.status === 401) this.token = undefined;
-    if (!response.ok) throw new Error(`IGDB antwortet mit HTTP ${response.status}.`);
+    if (!response.ok) throw new Error(`IGDB responded with HTTP ${response.status}.`);
     const results = (await response.json()) as {
       id: number;
       name: string;
@@ -180,9 +179,9 @@ export class Igdb {
     const exact = Array.isArray(results)
       ? results.filter((r) => r.name && gameKey(r.name) === key)
       : [];
-    // Gleichnamige Einträge gibt es: zu "Fortnite" das Hauptspiel und die chinesische Fassung
-    // (Portierung mit Elternspiel, 2026-09-24). Das Hauptspiel ohne Elternspiel gewinnt, dann das
-    // bekanntere; ohne Cover nur, wenn keiner eins hat.
+    // Entries with the same name exist: for "Fortnite" the main game and the Chinese version
+    // (a port with a parent game, 2026-09-24). The main game without a parent wins, then the
+    // better-known one; one without a cover only if none has one.
     const rank = (r: (typeof exact)[number]) =>
       Number(r.game_type === 0 && !r.parent_game) * 1e9 +
       Number(Boolean(r.cover?.image_id)) * 1e8 +
@@ -208,7 +207,7 @@ export class Igdb {
             timeZone: 'UTC',
           }).format(new Date(hit.first_release_date * 1000))
         : '',
-      // Hochformat wie die Bibliothekskacheln; das kleinere Format ist der Rückfall.
+      // Portrait like the library tiles; the smaller size is the fallback.
       coverUrl: image
         ? `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${image}.jpg`
         : '',

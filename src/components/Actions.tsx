@@ -30,10 +30,12 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVault } from '../data/store';
+import { useCanEdit } from './AuthGate';
 import { createSeed, games } from '../data/seed';
 import type { Clip } from '../domain/models';
 import { filterClips, time } from '../data/repository';
 import { Artwork } from './Artwork';
+import { locale, t, tp, tx } from '../i18n';
 type Action =
   | { kind: 'add' | 'delete'; ids: string[] }
   | { kind: 'rename' | 'share' | 'tags'; id: string }
@@ -106,35 +108,8 @@ function ActionDialog({
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState('');
   const dragDepth = useRef(0);
-  const titles = {
-    add: 'Zur Sammlung hinzufügen',
-    delete: 'Clips löschen?',
-    rename: 'Clip umbenennen',
-    share: 'Clip teilen',
-    tags: 'Tags bearbeiten',
-    create: 'Neue Sammlung',
-    upload: 'Clips hinzufügen',
-    editCollection: 'Sammlung bearbeiten',
-    deleteCollection: 'Sammlung löschen?',
-    addClips: 'Clips auswählen',
-    reset: 'Beispieldaten zurücksetzen?',
-  };
-  const descriptions: Record<Action['kind'], string> = {
-    add: 'Wähle die Sammlungen, in denen du diese Momente wiederfinden möchtest.',
-    addClips: 'Finde die passenden Clips. Deine Auswahl bleibt beim Suchen erhalten.',
-    create:
-      'Ein eigener Platz für deine Lieblingsmomente. Clips fügst du im nächsten Schritt hinzu.',
-    editCollection: 'Passe Titel und Beschreibung deiner Sammlung an.',
-    rename: 'So heißt dieser Moment in deinem Archiv. Die Originaldatei bleibt unverändert.',
-    tags: 'Mit Tags findest du deine Clips später schneller wieder.',
-    upload: 'Bring deine Aufnahmen in deinen Vault.',
-    share: 'Sieh dir an, wie dein Clip in der reduzierten Freigabeansicht aussieht.',
-    delete:
-      'Die ausgewählten Einträge werden aus der Bibliothek und allen Sammlungen entfernt. Originaldateien bleiben erhalten.',
-    deleteCollection: 'Die Sammlung wird entfernt. Deine Clips bleiben in der Bibliothek.',
-    reset:
-      'Titel, Favoriten, Sammlungen und Einstellungen werden zurückgesetzt. Lokale Vorschauen werden entfernt.',
-  };
+  const title = t(`app.actions.title.${action.kind}`);
+  const dialogDescription = t(`app.actions.description.${action.kind}`);
   const symbols = {
     add: FolderPlus,
     addClips: Film,
@@ -160,8 +135,8 @@ function ActionDialog({
       ? filterClips(availableClips, { query })
       : selectable.filter((item) =>
           `${item.title} ${item.description || ''}`
-            .toLocaleLowerCase('de')
-            .includes(query.trim().toLocaleLowerCase('de')),
+            .toLocaleLowerCase(locale())
+            .includes(query.trim().toLocaleLowerCase(locale())),
         );
   const pickedIds = picked.filter((id) => selectable.some((item) => item.id === id));
   const allVisiblePicked =
@@ -253,10 +228,12 @@ function ActionDialog({
         }));
       close();
       toast(
-        action.kind === 'delete' || action.kind === 'deleteCollection' ? 'Gelöscht' : 'Gespeichert',
+        action.kind === 'delete' || action.kind === 'deleteCollection'
+          ? t('app.actions.toast.deleted')
+          : t('app.actions.toast.saved'),
       );
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'Speichern fehlgeschlagen.');
+      toast(error instanceof Error ? error.message : t('app.actions.toast.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -276,15 +253,15 @@ function ActionDialog({
             <Symbol size={23} strokeWidth={1.5} />
           </span>
           <div>
-            <span className="eyebrow">DEIN REPLAYHAVEN</span>
-            <Dialog.Title>{titles[action.kind]}</Dialog.Title>
+            <span className="eyebrow">{t('app.actions.eyebrow')}</span>
+            <Dialog.Title>{title}</Dialog.Title>
           </div>
-          <Dialog.Close className="icon-button" aria-label="Dialog schließen">
+          <Dialog.Close className="icon-button" aria-label={t('app.actions.closeDialog')}>
             <X size={21} />
           </Dialog.Close>
         </div>
         <Dialog.Description className="muted dialog-description">
-          {descriptions[action.kind]}
+          {dialogDescription}
         </Dialog.Description>
         {['rename', 'tags', 'create', 'editCollection'].includes(action.kind) && (
           <form
@@ -305,18 +282,20 @@ function ActionDialog({
                     <Folder size={22} strokeWidth={1.5} />
                   </span>
                   <div>
-                    <span className="eyebrow">DEINE SAMMLUNG</span>
-                    <strong>{value.trim() || 'Name deiner Sammlung'}</strong>
+                    <span className="eyebrow">{t('app.actions.draft.eyebrow')}</span>
+                    <strong>{value.trim() || t('app.actions.draft.namePlaceholder')}</strong>
                     <small>
                       {collectionClips.length
-                        ? `${collectionClips.length} Clips`
-                        : 'Platz für neue Momente'}
+                        ? tp('common.clips', collectionClips.length)
+                        : t('app.actions.draft.empty')}
                     </small>
                   </div>
                 </div>
               )}
               <label className="field">
-                {action.kind === 'tags' ? 'Tags, durch Kommas getrennt' : 'Titel'}
+                {action.kind === 'tags'
+                  ? t('app.actions.field.tags')
+                  : t('app.actions.field.title')}
                 <input
                   autoFocus
                   value={value}
@@ -325,28 +304,29 @@ function ActionDialog({
                   onChange={(e) => setValue(e.target.value)}
                   placeholder={
                     action.kind === 'tags'
-                      ? 'Clutch, Mit Freunden, Highlight'
-                      : 'Zum Beispiel: Unsere besten Runden'
+                      ? t('app.actions.field.tagsPlaceholder')
+                      : t('app.actions.field.titlePlaceholder')
                   }
                 />
               </label>
               {['create', 'editCollection'].includes(action.kind) && (
                 <label className="field">
                   <span>
-                    Beschreibung <span className="muted">(optional)</span>
+                    {t('app.actions.field.description')}{' '}
+                    <span className="muted">{t('app.actions.field.optional')}</span>
                   </span>
                   <textarea
                     value={description}
                     maxLength={400}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Was gehört hier rein?"
+                    placeholder={t('app.actions.field.descriptionPlaceholder')}
                   />
                 </label>
               )}
             </div>
             <div className="dialog-footer">
               <button type="button" className="button secondary" onClick={close}>
-                Abbrechen
+                {t('common.cancel')}
               </button>
               <button
                 className="button primary"
@@ -354,10 +334,10 @@ function ActionDialog({
               >
                 {saving && <LoaderCircle className="saving-spinner" size={16} />}
                 {saving
-                  ? 'Wird gespeichert …'
+                  ? t('app.actions.saving')
                   : action.kind === 'create'
-                    ? 'Sammlung erstellen'
-                    : 'Speichern'}
+                    ? t('app.actions.createCollection')
+                    : t('common.save')}
               </button>
             </div>
           </form>
@@ -371,12 +351,14 @@ function ActionDialog({
                   <input
                     autoFocus
                     aria-label={
-                      action.kind === 'add' ? 'Sammlungen durchsuchen' : 'Clips auswählen: Suche'
+                      action.kind === 'add'
+                        ? t('app.actions.picker.searchCollectionsLabel')
+                        : t('app.actions.picker.searchClipsLabel')
                     }
                     placeholder={
                       action.kind === 'add'
-                        ? 'Sammlungen suchen …'
-                        : 'Clips, Spiele oder Tags suchen …'
+                        ? t('app.actions.picker.searchCollectionsPlaceholder')
+                        : t('app.search.placeholder')
                     }
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
@@ -384,7 +366,7 @@ function ActionDialog({
                   {query && (
                     <button
                       className="icon-button"
-                      aria-label="Auswahlsuche löschen"
+                      aria-label={t('app.actions.picker.clearSearch')}
                       onClick={() => setQuery('')}
                     >
                       <X size={15} />
@@ -393,8 +375,16 @@ function ActionDialog({
                 </label>
                 <div className="picker-summary">
                   <span>
-                    {visibleItems.length} {action.kind === 'add' ? 'Sammlungen' : 'Clips'}
-                    {query ? ' gefunden' : ' verfügbar'}
+                    {tp(
+                      action.kind === 'add'
+                        ? query
+                          ? 'app.actions.picker.collectionsFound'
+                          : 'app.actions.picker.collectionsAvailable'
+                        : query
+                          ? 'app.actions.picker.clipsFound'
+                          : 'app.actions.picker.clipsAvailable',
+                      visibleItems.length,
+                    )}
                   </span>
                   {visibleItems.length > 0 && (
                     <button
@@ -408,7 +398,9 @@ function ActionDialog({
                         )
                       }
                     >
-                      {allVisiblePicked ? 'Sichtbare abwählen' : 'Sichtbare auswählen'}
+                      {allVisiblePicked
+                        ? t('app.actions.picker.deselectVisible')
+                        : t('app.actions.picker.selectVisible')}
                     </button>
                   )}
                 </div>
@@ -420,21 +412,21 @@ function ActionDialog({
                   <FolderPlus size={30} strokeWidth={1.3} />
                   <h3>
                     {action.kind === 'add'
-                      ? 'Noch keine Sammlung'
+                      ? t('app.actions.picker.noCollections')
                       : state.clips.length === 0
-                        ? 'Noch keine Clips'
-                        : 'Hier ist schon alles drin.'}
+                        ? t('app.actions.picker.noClips')
+                        : t('app.actions.picker.allAdded')}
                   </h3>
                   <p>
                     {action.kind === 'add'
-                      ? 'Erstelle eine Sammlung und gib deinen Clips einen gemeinsamen Platz.'
+                      ? t('app.actions.picker.noCollectionsText')
                       : state.clips.length === 0
-                        ? 'Füge zuerst einen Clip zu deiner Bibliothek hinzu.'
-                        : 'Alle verfügbaren Clips sind bereits in dieser Sammlung.'}
+                        ? t('app.actions.picker.noClipsText')
+                        : t('app.actions.picker.allAddedText')}
                   </p>
                   {action.kind === 'add' && (
                     <Link className="text-link" to="/collections" onClick={close}>
-                      Zu den Sammlungen
+                      {t('app.actions.picker.toCollections')}
                       <ArrowRight size={15} />
                     </Link>
                   )}
@@ -442,10 +434,10 @@ function ActionDialog({
               ) : visibleItems.length === 0 ? (
                 <div className="picker-empty">
                   <Search size={29} strokeWidth={1.4} />
-                  <h3>Keine Treffer</h3>
-                  <p>Versuche einen anderen Titel, ein Spiel oder einen Tag.</p>
+                  <h3>{t('app.actions.picker.noResults')}</h3>
+                  <p>{t('app.actions.picker.noResultsText')}</p>
                   <button className="text-link" onClick={() => setQuery('')}>
-                    Suche zurücksetzen
+                    {t('app.actions.picker.resetSearch')}
                     <ArrowRight size={15} />
                   </button>
                 </div>
@@ -474,8 +466,13 @@ function ActionDialog({
                       <strong>{item.title}</strong>
                       <small>
                         {'clipIds' in item
-                          ? `${item.clipIds.filter((id) => state.clips.some((clip) => clip.id === id)).length} Clips`
-                          : `${games.find((game) => game.id === item.gameId)?.name || item.gameName || 'Deine Aufnahme'} · ${time(item.duration)}`}
+                          ? tp(
+                              'common.clips',
+                              item.clipIds.filter((id) =>
+                                state.clips.some((clip) => clip.id === id),
+                              ).length,
+                            )
+                          : `${games.find((game) => game.id === item.gameId)?.name || item.gameName || t('app.clip.fallbackGame')} · ${time(item.duration)}`}
                       </small>
                     </span>
                   </label>
@@ -484,10 +481,10 @@ function ActionDialog({
             </div>
             <div className="dialog-footer">
               <span className="picker-count" role="status">
-                <strong>{pickedIds.length}</strong> ausgewählt
+                {tx('app.actions.picker.selected', { count: <strong>{pickedIds.length}</strong> })}
               </span>
               <button className="button secondary" onClick={close}>
-                Abbrechen
+                {t('common.cancel')}
               </button>
               <button
                 className="button primary"
@@ -495,7 +492,7 @@ function ActionDialog({
                 disabled={saving || !pickedIds.length}
               >
                 <FolderPlus size={17} />
-                Hinzufügen
+                {t('app.actions.picker.add')}
               </button>
             </div>
           </>
@@ -513,25 +510,25 @@ function ActionDialog({
                     : action.kind === 'delete' && action.ids.length === 1
                       ? state.clips.find((item) => item.id === action.ids[0])?.title
                       : action.kind === 'delete'
-                        ? `${action.ids.length} ausgewählte Clips`
+                        ? tp('app.actions.delete.selected', action.ids.length)
                         : ''}
                 </strong>
                 <small>
                   {action.kind === 'deleteCollection'
-                    ? 'Clips in deiner Bibliothek bleiben erhalten.'
-                    : 'Originaldateien bleiben erhalten.'}
+                    ? t('app.actions.delete.keepClips')
+                    : t('app.actions.delete.keepOriginals')}
                 </small>
               </div>
             </div>
             <div className="dialog-footer">
               <button className="button secondary" onClick={close}>
-                Abbrechen
+                {t('common.cancel')}
               </button>
               <button className="button danger" disabled={saving} onClick={save}>
                 {action.kind === 'delete' &&
                 action.ids.some((id) => state.clips.find((c) => c.id === id)?.server)
-                  ? 'Aus Bibliothek entfernen'
-                  : 'Endgültig löschen'}
+                  ? t('app.actions.delete.removeFromLibrary')
+                  : t('app.actions.delete.permanent')}
               </button>
             </div>
           </>
@@ -539,7 +536,7 @@ function ActionDialog({
         {action.kind === 'reset' && (
           <div className="dialog-footer">
             <button className="button secondary" onClick={close}>
-              Abbrechen
+              {t('common.cancel')}
             </button>
             <button
               className="button danger"
@@ -549,10 +546,10 @@ function ActionDialog({
                   clips: [...s.clips.filter((c) => c.server), ...createSeed().clips],
                 }));
                 close();
-                toast('Beispieldaten zurückgesetzt');
+                toast(t('app.actions.reset.toast'));
               }}
             >
-              Zurücksetzen
+              {t('app.actions.reset.confirm')}
             </button>
           </div>
         )}
@@ -560,17 +557,14 @@ function ActionDialog({
           <>
             <div className="notice">
               <AlertCircle size={20} />
-              <p>
-                Öffentliches Teilen ist noch nicht verfügbar. Diese Vorschau funktioniert
-                ausschließlich in diesem Browser und bietet keine Zugriffskontrolle.
-              </p>
+              <p>{t('app.actions.share.notice')}</p>
             </div>
             <div className="share-preview">
               <div className="share-preview-art" aria-hidden="true">
                 <Artwork src={clip.thumbnail} sizes="480px" />
               </div>
               <div>
-                <span className="eyebrow">LOKALE VORSCHAU</span>
+                <span className="eyebrow">{t('app.actions.share.eyebrow')}</span>
                 <p>{clip.title}</p>
               </div>
             </div>
@@ -584,15 +578,15 @@ function ActionDialog({
                     );
                     setCopied(true);
                   } catch {
-                    toast('Kopieren nicht möglich. Öffne die Vorschau und kopiere die Adresse.');
+                    toast(t('app.actions.share.copyFailed'));
                   }
                 }}
               >
                 {copied ? <Check size={16} /> : <Copy size={16} />}{' '}
-                {copied ? 'Vorschau-Adresse kopiert' : 'Vorschau-Adresse kopieren'}
+                {copied ? t('app.actions.share.copied') : t('app.actions.share.copy')}
               </button>
               <Link className="button primary" to={`/share/preview-${clip.id}`} onClick={close}>
-                Vorschau <ExternalLink size={16} />
+                {t('app.actions.share.open')} <ExternalLink size={16} />
               </Link>
             </div>
           </>
@@ -603,16 +597,18 @@ function ActionDialog({
               <span>{serverUpload ? <HardDrive size={19} /> : <Monitor size={19} />}</span>
               <div>
                 <strong>
-                  {serverUpload ? 'Dein Archiv-Server' : 'Vorschau in diesem Browser'}
+                  {serverUpload
+                    ? t('app.actions.upload.serverTitle')
+                    : t('app.actions.upload.browserTitle')}
                 </strong>
                 <small>
                   {serverUpload
-                    ? 'Die Originaldatei wird auf deinem Server gespeichert.'
-                    : 'Für dauerhaftes Archivieren einen Server verbinden.'}
+                    ? t('app.actions.upload.serverHint')
+                    : t('app.actions.upload.browserHint')}
                 </small>
               </div>
               <span className={`upload-destination-badge${serverUpload ? ' online' : ''}`}>
-                {serverUpload ? 'Verbunden' : 'Lokal'}
+                {serverUpload ? t('app.status.connected') : t('app.status.local')}
               </span>
             </div>
             {server.connected && (
@@ -622,7 +618,7 @@ function ActionDialog({
                   checked={localOnly}
                   onChange={(e) => setLocalOnly(e.target.checked)}
                 />
-                Nur lokal ansehen, nicht auf den Server laden
+                {t('app.actions.upload.localOnly')}
               </label>
             )}
             <div
@@ -656,12 +652,14 @@ function ActionDialog({
                   <UploadCloud size={34} strokeWidth={1.3} />
                 </span>
               </div>
-              <h3>{dragging ? 'Hier loslassen.' : 'Dein nächster Moment.'}</h3>
-              <p>Videos hier ablegen oder Dateien auswählen.</p>
+              <h3>
+                {dragging ? t('app.actions.upload.dropHere') : t('app.actions.upload.nextMoment')}
+              </h3>
+              <p>{t('app.actions.upload.dropText')}</p>
               <label className="button primary file-label">
-                Dateien auswählen
+                {t('app.actions.upload.chooseFiles')}
                 <input
-                  aria-label="Videodateien auswählen"
+                  aria-label={t('app.actions.upload.chooseFilesLabel')}
                   type="file"
                   multiple
                   accept={
@@ -676,25 +674,33 @@ function ActionDialog({
                 />
               </label>
               <small>
-                {serverUpload ? 'MP4, WebM, MOV, M4V, MKV' : 'MP4, WebM, MOV, M4V'} · Max. 2 GB pro
-                Datei
+                {t('app.actions.upload.limits', {
+                  formats: serverUpload ? 'MP4, WebM, MOV, M4V, MKV' : 'MP4, WebM, MOV, M4V',
+                })}
               </small>
             </div>
             <div className="notice">
               <AlertCircle size={19} />
               <p>
                 {server.connected && !localOnly
-                  ? `Die Originaldatei wird auf deinem Server archiviert. ${server.configured && server.settings.autoAnalyze ? 'Danach startet die KI-Analyse automatisch.' : 'Eine KI-Analyse startet nach der Einrichtung oder manuell.'}`
-                  : 'Nur in diesem Browser verfügbar – noch nicht auf dem Server gespeichert. Nach dem Neuladen musst du lokale Videos erneut auswählen.'}
+                  ? t('app.actions.upload.serverNotice', {
+                      analysis:
+                        server.configured && server.settings.autoAnalyze
+                          ? t('app.actions.upload.autoAnalysis')
+                          : t('app.actions.upload.manualAnalysis'),
+                    })
+                  : t('app.actions.upload.localNotice')}
               </p>
             </div>
             <div className="upload-jobs" aria-live="polite">
               {jobs.length > 0 && (
                 <div className="upload-jobs-heading">
-                  <h3>Deine Dateien</h3>
+                  <h3>{t('app.actions.upload.files')}</h3>
                   <span>
-                    {jobs.filter((job) => job.status === 'complete').length} von {jobs.length}{' '}
-                    fertig
+                    {t('app.actions.upload.done', {
+                      done: jobs.filter((job) => job.status === 'complete').length,
+                      total: jobs.length,
+                    })}
                   </span>
                 </div>
               )}
@@ -713,15 +719,15 @@ function ActionDialog({
                       {job.error ||
                         (job.status === 'complete'
                           ? job.server
-                            ? 'Auf dem Server gespeichert'
-                            : 'Lokale Vorschau bereit'
+                            ? t('app.actions.upload.savedOnServer')
+                            : t('app.actions.upload.localReady')
                           : job.server
-                            ? `Upload ${job.progress} %`
-                            : 'Videodatei wird geprüft …')}
+                            ? t('app.actions.upload.progress', { progress: job.progress })
+                            : t('app.actions.upload.checking'))}
                     </small>
                     {job.status === 'reading' && (
                       <progress
-                        aria-label={`Fortschritt für ${job.name}`}
+                        aria-label={t('app.actions.upload.progressLabel', { name: job.name })}
                         max={100}
                         value={job.progress}
                       />
@@ -730,7 +736,7 @@ function ActionDialog({
                   {job.clipId && (
                     <Link
                       className="icon-button"
-                      aria-label={`${job.name} abspielen`}
+                      aria-label={t('app.clip.play', { title: job.name })}
                       to={`/clips/${job.clipId}`}
                       onClick={close}
                     >
@@ -749,13 +755,15 @@ function ActionDialog({
 export function ClipMenu({ clip }: { clip: Clip }) {
   const action = useActions();
   const { patchClip } = useVault();
+  // Plain accounts may not change server clips: favorite, rename and delete are left out.
+  const editable = useCanEdit(clip);
   const trigger = useRef<HTMLButtonElement>(null);
   return (
     <Menu.Root modal={false}>
       <Menu.Trigger
         ref={trigger}
         className="icon-button clip-menu"
-        aria-label={`Aktionen für ${clip.title}`}
+        aria-label={t('app.menu.label', { title: clip.title })}
       >
         <MoreHorizontal size={20} />
       </Menu.Trigger>
@@ -764,24 +772,28 @@ export function ClipMenu({ clip }: { clip: Clip }) {
           <Menu.Item asChild>
             <Link to={`/clips/${clip.id}`}>
               <Play size={16} />
-              Abspielen
+              {t('app.menu.play')}
             </Link>
           </Menu.Item>
-          <Menu.Item onSelect={() => patchClip(clip.id, { favorite: !clip.favorite })}>
-            <Heart size={16} />
-            {clip.favorite ? 'Favorit entfernen' : 'Favorisieren'}
-          </Menu.Item>
+          {editable && (
+            <Menu.Item onSelect={() => patchClip(clip.id, { favorite: !clip.favorite })}>
+              <Heart size={16} />
+              {clip.favorite ? t('app.menu.unfavorite') : t('app.menu.favorite')}
+            </Menu.Item>
+          )}
           <Menu.Item onSelect={() => action({ kind: 'add', ids: [clip.id] }, trigger.current)}>
             <FolderPlus size={16} />
-            Zur Sammlung
+            {t('app.menu.addToCollection')}
           </Menu.Item>
-          <Menu.Item onSelect={() => action({ kind: 'rename', id: clip.id }, trigger.current)}>
-            <Pencil size={16} />
-            Umbenennen
-          </Menu.Item>
+          {editable && (
+            <Menu.Item onSelect={() => action({ kind: 'rename', id: clip.id }, trigger.current)}>
+              <Pencil size={16} />
+              {t('app.menu.rename')}
+            </Menu.Item>
+          )}
           <Menu.Item onSelect={() => action({ kind: 'share', id: clip.id }, trigger.current)}>
             <Share2 size={16} />
-            Teilen
+            {t('app.menu.share')}
           </Menu.Item>
           {(clip.server || (clip.local && clip.videoSource)) && (
             <Menu.Item asChild>
@@ -790,18 +802,22 @@ export function ClipMenu({ clip }: { clip: Clip }) {
                 download={clip.title}
               >
                 <Download size={16} />
-                Herunterladen
+                {t('app.menu.download')}
               </a>
             </Menu.Item>
           )}
-          <Menu.Separator />
-          <Menu.Item
-            className="destructive"
-            onSelect={() => action({ kind: 'delete', ids: [clip.id] }, trigger.current)}
-          >
-            <Trash2 size={16} />
-            Löschen
-          </Menu.Item>
+          {editable && (
+            <>
+              <Menu.Separator />
+              <Menu.Item
+                className="destructive"
+                onSelect={() => action({ kind: 'delete', ids: [clip.id] }, trigger.current)}
+              >
+                <Trash2 size={16} />
+                {t('common.delete')}
+              </Menu.Item>
+            </>
+          )}
         </Menu.Content>
       </Menu.Portal>
     </Menu.Root>

@@ -10,9 +10,7 @@ const initial: GameMetadataStatus = {
   pending: 0,
 };
 for (const width of [390, 1440]) {
-  test(`Spielinfos zeigen den Abrufstatus und aktualisieren sich bei ${width}px`, async ({
-    page,
-  }) => {
+  test(`game info shows the fetch status and refreshes at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     let metadata = { ...initial };
     let requests = 0;
@@ -40,28 +38,26 @@ for (const width of [390, 1440]) {
       return route.fulfill({ json: [] });
     });
     await page.goto('/settings#games');
-    const section = page.getByRole('region', { name: 'Spielinfos', exact: true });
-    await expect(section.getByText('Automatischer Abruf aktiv', { exact: true })).toBeVisible();
+    const section = page.getByRole('region', { name: 'Game info', exact: true });
+    await expect(section.getByText('Automatic fetching on', { exact: true })).toBeVisible();
     await expect(
-      section.getByText('2 von 3 Spielen mit Infos · 1 ohne eindeutigen Treffer'),
+      section.getByText('2 of 3 games with info · 1 without a clear match'),
     ).toBeVisible();
-    await section.getByRole('button', { name: 'Jetzt aktualisieren' }).click();
-    await expect(section.getByRole('button', { name: 'Wird aktualisiert …' })).toBeDisabled();
-    await expect(section.getByText('3 Spiele werden gerade abgefragt.')).toBeVisible();
+    await section.getByRole('button', { name: 'Update now' }).click();
+    await expect(section.getByRole('button', { name: 'Updating …' })).toBeDisabled();
+    await expect(section.getByText('3 games are being looked up right now.')).toBeVisible();
     expect(requests).toBe(1);
     metadata = { ...metadata, pending: 0, matched: 3, missing: 0 };
-    await expect(
-      section.getByText('3 von 3 Spielen mit Infos · 0 ohne eindeutigen Treffer'),
-    ).toBeVisible({ timeout: 10000 });
-    await expect(section.getByRole('button', { name: 'Jetzt aktualisieren' })).toBeEnabled();
+    await expect(section.getByText('3 of 3 games with info · 0 without a clear match')).toBeVisible(
+      { timeout: 10000 },
+    );
+    await expect(section.getByRole('button', { name: 'Update now' })).toBeEnabled();
     await section.screenshot({ path: `artifacts/game-metadata-${width}.png` });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
   });
 }
 
-test('Ein deaktivierter Abruf zeigt den Zustand und erlaubt keinen neuen Auftrag', async ({
-  page,
-}) => {
+test('disabled fetching shows its state and allows no new job', async ({ page }) => {
   await page.route('**/api/**', (route) =>
     route.fulfill({
       json: route.request().url().endsWith('/status')
@@ -79,7 +75,7 @@ test('Ein deaktivierter Abruf zeigt den Zustand und erlaubt keinen neuen Auftrag
     }),
   );
   await page.goto('/settings#games');
-  const section = page.getByRole('region', { name: 'Spielinfos', exact: true });
-  await expect(section.getByText('Automatischer Abruf deaktiviert', { exact: true })).toBeVisible();
-  await expect(section.getByRole('button', { name: 'Jetzt aktualisieren' })).toBeDisabled();
+  const section = page.getByRole('region', { name: 'Game info', exact: true });
+  await expect(section.getByText('Automatic fetching off', { exact: true })).toBeVisible();
+  await expect(section.getByRole('button', { name: 'Update now' })).toBeDisabled();
 });

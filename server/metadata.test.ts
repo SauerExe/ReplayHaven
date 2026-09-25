@@ -4,7 +4,7 @@ import { gameKey, Igdb, pickExact, lookupGame } from './metadata';
 afterEach(() => vi.unstubAllGlobals());
 
 it('normalises game names across spelling differences', () => {
-  // NVIDIA legt Ordner mit doppelten Leerzeichen an, Steam schreibt Markenzeichen und Apostrophe.
+  // NVIDIA creates folders with double spaces, Steam writes trademark signs and apostrophes.
   expect(gameKey("Tom Clancy's Rainbow Six  Siege")).toBe('tom clancy s rainbow six siege');
   expect(gameKey('Tom Clancy’s Rainbow Six Siege')).toBe('tom clancy s rainbow six siege');
   expect(gameKey('Call of Duty®: Black Ops 6')).toBe('call of duty black ops 6');
@@ -13,7 +13,7 @@ it('normalises game names across spelling differences', () => {
 });
 
 it('accepts only exact matches, because a wrong cover is worse than none', () => {
-  // Echte Antworten der Steam-Suche vom 2026-09-22.
+  // Real Steam search responses from 2026-09-22.
   const cod = [
     { appid: '311210', name: 'Call of Duty: Black Ops III' },
     { appid: '4384550', name: 'Call of Duty®: Black Ops 6' },
@@ -105,7 +105,7 @@ it('treats unavailable details as retryable and rejects software matches', async
       : Response.json({ '648800': { success: false } }),
   );
   vi.stubGlobal('fetch', fetcher);
-  await expect(lookupGame('Raft')).rejects.toThrow('keine Spieldetails');
+  await expect(lookupGame('Raft')).rejects.toThrow('not returning game details');
   fetcher.mockImplementation(async (url: string) =>
     url.includes('SearchApps')
       ? Response.json([{ appid: '648800', name: 'Raft' }])
@@ -115,7 +115,7 @@ it('treats unavailable details as retryable and rejects software matches', async
 });
 
 it('keeps meaningful symbols and skips NVIDIA fallback profiles', async () => {
-  // "Desktop+" ist ein SteamVR-Werkzeug und darf nicht auf den Ordner "Desktop" passen.
+  // "Desktop+" is a SteamVR tool and must not match the "Desktop" folder.
   expect(gameKey('Desktop+')).not.toBe(gameKey('Desktop'));
   expect(pickExact('Desktop', [{ appid: '1', name: 'Desktop+' }])).toBeUndefined();
   const fetcher = vi.fn();
@@ -161,7 +161,7 @@ it('asks IGDB for games Steam does not know and reuses the Twitch token', async 
     'https://images.igdb.com/igdb/image/upload/t_cover_big_2x/co2mvt.jpg',
   );
   await lookupGame('Valorant', undefined, igdb);
-  // Ein Token für beide Suchen.
+  // One token for both searches.
   expect(calls.filter((c) => c.startsWith('https://id.twitch.tv/'))).toHaveLength(1);
 });
 
@@ -186,7 +186,7 @@ it('takes the main game over a same-named regional port on IGDB', async () => {
     'fetch',
     vi.fn(async () => Response.json([])),
   );
-  // Echte Antwort vom 2026-09-24, gekürzt: die chinesische Fassung kommt zuerst.
+  // Real response from 2026-09-24, shortened: the Chinese version comes first.
   const get = vi.fn(async (url: string | URL | Request) =>
     String(url).startsWith('https://id.twitch.tv/')
       ? Response.json({ access_token: 'tok', expires_in: 3600 })

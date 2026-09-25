@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { useActions } from './Actions';
 import { useVault } from '../data/store';
+import { useIsAdmin } from './AuthGate';
+import { t, tp } from '../i18n';
 const scrollPositions = new Map<string, number>();
 function RouteScroll() {
   const location = useLocation();
@@ -58,7 +60,7 @@ export function Brand({ linked = true }: { linked?: boolean }) {
     </>
   );
   return linked ? (
-    <Link className="brand" to="/" aria-label="ReplayHaven Startseite">
+    <Link className="brand" to="/" aria-label={t('app.layout.brandHome')}>
       {content}
     </Link>
   ) : (
@@ -69,11 +71,14 @@ function ProfileMenu({ mobile = false }: { mobile?: boolean }) {
   const { state } = useVault();
   return (
     <Menu.Root modal={false}>
-      <Menu.Trigger className={mobile ? 'mobile-more' : 'profile-button'} aria-label="Profilmenü">
+      <Menu.Trigger
+        className={mobile ? 'mobile-more' : 'profile-button'}
+        aria-label={t('app.layout.profileMenu')}
+      >
         {mobile ? (
           <>
             <MenuIcon size={21} />
-            <span>Mehr</span>
+            <span>{t('app.layout.more')}</span>
           </>
         ) : (
           <>
@@ -86,25 +91,25 @@ function ProfileMenu({ mobile = false }: { mobile?: boolean }) {
         <Menu.Content className="dropdown profile-dropdown" sideOffset={12} align="end">
           <Menu.Label>
             {state.preferences.name}
-            <small>Dein persönliches Archiv</small>
+            <small>{t('app.layout.personalArchive')}</small>
           </Menu.Label>
           <Menu.Separator />
           <Menu.Item asChild>
             <Link to="/devices">
               <Monitor size={17} />
-              Geräte
+              {t('app.layout.devices')}
             </Link>
           </Menu.Item>
           <Menu.Item asChild>
             <Link to="/settings">
               <Settings size={17} />
-              Einstellungen
+              {t('app.layout.settings')}
             </Link>
           </Menu.Item>
           <Menu.Item asChild>
             <Link to="/setup">
               <BookOpen size={17} />
-              Setup-Guide
+              {t('app.layout.setupGuide')}
             </Link>
           </Menu.Item>
         </Menu.Content>
@@ -114,6 +119,8 @@ function ProfileMenu({ mobile = false }: { mobile?: boolean }) {
 }
 export function Layout() {
   const action = useActions();
+  // Uploading from the browser is for admins; plain users only watch.
+  const canUpload = useIsAdmin();
   const { state, jobs, storageError, server } = useVault();
   const location = useLocation();
   const navigate = useNavigate();
@@ -129,20 +136,20 @@ export function Layout() {
     setSearchOpen(false);
   }, [location.pathname]);
   const nav = [
-    { to: '/', name: 'Start', icon: Home },
-    { to: '/library', name: 'Bibliothek', icon: Grid2X2 },
-    { to: '/collections', name: 'Sammlungen', icon: Folder },
+    { to: '/', name: t('app.layout.nav.home'), icon: Home },
+    { to: '/library', name: t('app.layout.nav.library'), icon: Grid2X2 },
+    { to: '/collections', name: t('app.layout.nav.collections'), icon: Folder },
   ];
   return (
     <>
       <RouteScroll />
       <a className="skip-link" href="#main">
-        Zum Inhalt springen
+        {t('app.layout.skipLink')}
       </a>
       <header className={`header ${scrolled || location.pathname !== '/' ? 'solid' : ''}`}>
         <div className="header-inner">
           <Brand />
-          <nav className="desktop-nav" aria-label="Hauptnavigation">
+          <nav className="desktop-nav" aria-label={t('app.layout.mainNav')}>
             {nav.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.to === '/'}>
                 {n.name}
@@ -152,27 +159,29 @@ export function Layout() {
           <div className="header-right">
             <button
               className="icon-button search-trigger"
-              aria-label="Suche öffnen"
+              aria-label={t('app.layout.openSearch')}
               onClick={() => setSearchOpen((v) => !v)}
             >
               <Search size={21} />
             </button>
-            <button
-              aria-label="Clip hochladen"
-              className="button upload-button"
-              onClick={() => action({ kind: 'upload' })}
-            >
-              <Upload size={17} />
-              <span>Clip hochladen</span>
-              {jobs.some((j) => j.status === 'reading') && <span className="upload-dot" />}
-            </button>
+            {canUpload && (
+              <button
+                aria-label={t('app.layout.upload')}
+                className="button upload-button"
+                onClick={() => action({ kind: 'upload' })}
+              >
+                <Upload size={17} />
+                <span>{t('app.layout.upload')}</span>
+                {jobs.some((j) => j.status === 'reading') && <span className="upload-dot" />}
+              </button>
+            )}
             <Link
               to="/devices"
               className="connection"
-              title={server.connected ? 'Archiv-Server verbunden' : 'Kein Server verbunden'}
+              title={server.connected ? t('app.layout.serverConnected') : t('app.layout.noServer')}
             >
               <span />
-              {server.connected ? 'Verbunden' : 'Lokal'}
+              {server.connected ? t('app.status.connected') : t('app.status.local')}
             </Link>
             <span className="header-divider" />
             <ProfileMenu />
@@ -190,8 +199,8 @@ export function Layout() {
             <Search size={20} />
             <input
               autoFocus
-              aria-label="Alle Clips durchsuchen"
-              placeholder="Clips, Spiele oder Tags suchen …"
+              aria-label={t('app.layout.searchLabel')}
+              placeholder={t('app.search.placeholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -199,15 +208,14 @@ export function Layout() {
               }}
             />
             <button className="button primary" type="submit">
-              Suchen
+              {t('app.layout.searchSubmit')}
             </button>
           </form>
         )}
       </header>
       {storageError && (
         <div className="storage-warning" role="alert">
-          Dein Browser kann Änderungen gerade nicht dauerhaft speichern. Prüfe den verfügbaren
-          Browserspeicher.
+          {t('app.layout.storageWarning')}
         </div>
       )}
       <main id="main">
@@ -215,20 +223,22 @@ export function Layout() {
       </main>
       <footer className="footer">
         <Brand />
-        <span>Deine Momente. Dein Archiv.</span>
+        <span>{t('app.layout.tagline')}</span>
         <div>
           {state.clips.some((c) => !c.server && !c.local) && (
-            <span className="demo-label">Beispiel-Cards</span>
+            <span className="demo-label">{t('app.layout.sampleCards')}</span>
           )}
           <Link to="/devices">
             <WifiOff size={13} />{' '}
-            {server.connected ? 'Archiv-Server verbunden' : 'Server nicht verbunden'}{' '}
+            {server.connected
+              ? t('app.layout.serverConnected')
+              : t('app.layout.serverNotConnected')}{' '}
             <ArrowUpRight size={13} />
           </Link>
         </div>
-        <small>{state.clips.length} Clips in deinem Vault</small>
+        <small>{tp('app.layout.clipsInVault', state.clips.length)}</small>
       </footer>
-      <nav className="mobile-nav" aria-label="Mobile Navigation">
+      <nav className="mobile-nav" aria-label={t('app.layout.mobileNav')}>
         {nav.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.to === '/'}>
             <n.icon size={21} />

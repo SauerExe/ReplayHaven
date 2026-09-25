@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { api } from '../data/api';
 import { useVault } from '../data/store';
+import { useIsAdmin } from './AuthGate';
 import { SettingsSection } from './SettingsSection';
+import { t, tp } from '../i18n';
 
 export function GameMetadataSettings() {
   const { server, refreshServer, toast } = useVault();
+  const admin = useIsAdmin();
   const [refreshing, setRefreshing] = useState(false);
   const metadata = server.gameMetadata;
   const busy = refreshing || !!metadata?.pending;
@@ -14,14 +17,10 @@ export function GameMetadataSettings() {
     setRefreshing(true);
     try {
       const { queued } = await api<{ queued: number }>('/games/refresh', { method: 'POST' });
-      toast(
-        queued
-          ? `Spielinfos für ${queued} Spiele werden aktualisiert.`
-          : 'Alle Spiele sind bereits eingeplant.',
-      );
+      toast(queued ? tp('pages.games.queued', queued) : t('pages.games.allQueued'));
       await refreshServer();
     } catch (error) {
-      toast(error instanceof Error ? error.message : 'Spielinfos konnten nicht abgerufen werden.');
+      toast(error instanceof Error ? error.message : t('pages.games.fetchFailed'));
     } finally {
       setRefreshing(false);
     }
@@ -30,66 +29,62 @@ export function GameMetadataSettings() {
   return (
     <SettingsSection
       id="games"
-      title="Spielinfos"
-      description="Cover und Hintergrundinfos für deine Spiele."
+      title={t('pages.games.title')}
+      description={t('pages.games.description')}
     >
       <div className="settings-card">
         <div className="setting-row">
           <div>
-            <h3>Automatisch von Steam</h3>
-            <p>
-              Sobald ein Spiel erkannt wird, ergänzt dein Server Cover, Beschreibung, Genre und
-              Erscheinungsdatum. Dafür brauchst du keinen API-Schlüssel.
-            </p>
+            <h3>{t('pages.games.steamTitle')}</h3>
+            <p>{t('pages.games.steamText')}</p>
           </div>
           <button
             type="button"
             className="button secondary"
-            disabled={!server.connected || !metadata?.enabled || !metadata.total || busy}
+            // Plain accounts see the status; refreshing needs an admin.
+            disabled={!admin || !server.connected || !metadata?.enabled || !metadata.total || busy}
             onClick={() => void refresh()}
           >
             <RefreshCw size={16} aria-hidden="true" />
-            {busy ? 'Wird aktualisiert …' : 'Jetzt aktualisieren'}
+            {busy ? t('pages.games.updating') : t('pages.games.updateNow')}
           </button>
         </div>
         <div className="setting-row">
           <div role="status">
             <h3>
               {!server.connected
-                ? 'Kein Server verbunden'
+                ? t('pages.games.noServer')
                 : !metadata
-                  ? 'Server-Update erforderlich'
+                  ? t('pages.games.updateRequired')
                   : metadata.enabled
-                    ? 'Automatischer Abruf aktiv'
-                    : 'Automatischer Abruf deaktiviert'}
+                    ? t('pages.games.enabled')
+                    : t('pages.games.disabled')}
             </h3>
             <p>
               {!server.connected
-                ? 'Verbinde deinen Archiv-Server, um Spielinfos automatisch zu laden.'
+                ? t('pages.games.noServerText')
                 : !metadata
-                  ? 'Aktualisiere deinen Server, um den Abruf hier zu steuern.'
+                  ? t('pages.games.updateRequiredText')
                   : !metadata.enabled
-                    ? 'Auf diesem Server ausgeschaltet. Gespeicherte Spielinfos bleiben verfügbar.'
+                    ? t('pages.games.disabledText')
                     : !metadata.total
-                      ? 'Der Abruf startet, sobald ein archivierter Clip einem Spiel zugeordnet ist.'
-                      : `${metadata.matched} von ${metadata.total} Spielen mit Infos · ${metadata.missing} ohne eindeutigen Treffer`}
+                      ? t('pages.games.waitingText')
+                      : t('pages.games.summary', {
+                          matched: metadata.matched,
+                          total: metadata.total,
+                          missing: metadata.missing,
+                        })}
             </p>
             {server.connected && metadata?.enabled && !!metadata.pending && (
-              <p>{metadata.pending} Spiele werden gerade abgefragt.</p>
+              <p>{tp('pages.games.pending', metadata.pending)}</p>
             )}
             {server.connected && metadata?.enabled && !!metadata.failed && (
-              <p>
-                {metadata.failed} Abrufe konnten nicht vollständig geladen werden und werden
-                automatisch erneut versucht.
-              </p>
+              <p>{tp('pages.games.failed', metadata.failed)}</p>
             )}
           </div>
         </div>
       </div>
-      <p className="settings-footnote">
-        An Steam geht nur der Spielname. Die Infos und Cover bleiben auf deinem Server gespeichert.
-        Ohne eindeutigen Steam-Treffer bleibt der vorhandene Spielname erhalten.
-      </p>
+      <p className="settings-footnote">{t('pages.games.footnote')}</p>
     </SettingsSection>
   );
 }

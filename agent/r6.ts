@@ -10,13 +10,13 @@ import type { FeedFrame } from './valorant';
 import type { MediaProcessor } from '../server/media';
 
 /**
- * Kartenname und Rundenausgang in Rainbow Six Siege, aus Texterkennung (agent/ocr.ts). Im
- * Blindtest an 26 frischen Clips waren beide nie falsch. Kills dagegen werden hier bewusst nicht
- * gelesen: Wer eine Killfeed-Zeile verursacht hat und ob sie zum Clip gehört, ließ sich in sechs
- * Blindtests nicht verlässlich klären.
+ * Map name and round result in Rainbow Six Siege, from text recognition (agent/ocr.ts). In a
+ * blind test on 26 fresh clips, neither was ever wrong. Kills are deliberately not read here:
+ * six blind tests could not reliably settle who caused a killfeed line and whether it belongs
+ * to the clip.
  */
 
-/** Karten von Siege X (Stand 2026); unbekannte Karten werden schlicht nicht erkannt. */
+/** Maps of Siege X (as of 2026); unknown maps are simply not recognised. */
 export const R6_MAPS = [
   'Bank',
   'Border',
@@ -50,7 +50,7 @@ export function isR6(game: string) {
   return sameGame('Rainbow Six', game);
 }
 
-/** Großbuchstaben ohne Satzzeichen; typische Verwechslungen der Texterkennung werden Buchstaben. */
+/** Upper case without punctuation; typical text recognition mix-ups become letters. */
 function letters(text: string) {
   return text
     .toUpperCase()
@@ -63,14 +63,14 @@ function letters(text: string) {
 }
 
 /**
- * Die Karte einer gelesenen Zeile. Sie muss die ganze Zeile sein oder vorne stehen, gefolgt von
- * Ort und Land ("OREGON, USA") — so wird ein Raumname wie "Tower Stairs" nicht zur Karte.
+ * The map in a read line. It must be the whole line or stand at the start, followed by place
+ * and country ("OREGON, USA"), so a room name like "Tower Stairs" does not become a map.
  */
 export function mapIn(text: string): string | undefined {
-  // PP-OCRv5 liest Banner ohne Leerzeichen ("NIGHTHAVENLABS", "KAFEDOSTOYEVSKI"): verglichen
-  // wird deshalb ohne sie, und bei langen Namen darf ein Zeichen abweichen.
-  // Allein stehend zählt nur Großschrift wie auf Tafel und Ladebild: "Tower" ist auf Skyscraper
-  // ein Raum in der Ortsanzeige (2026-09-25, 235 Bilder "Tower" gegen 21 "SKYSCRAPER").
+  // PP-OCRv5 reads banners without spaces ("NIGHTHAVENLABS", "KAFEDOSTOYEVSKI"), so the
+  // comparison ignores them, and long names may differ by one character.
+  // On its own, only upper case counts, as on the scoreboard and loading screen: "Tower" is a
+  // room in the location display on Skyscraper (2026-09-25, 235 frames "Tower" vs 21 "SKYSCRAPER").
   const line = letters(text).replace(/ /g, '');
   const capitals = !/\p{Ll}/u.test(text);
   const raw = text.trim().toUpperCase();
@@ -85,7 +85,7 @@ export function mapIn(text: string): string | undefined {
   });
 }
 
-/** Ob sich zwei Wörter um höchstens ein Zeichen unterscheiden (ersetzt, fehlt oder zu viel). */
+/** Whether two words differ by at most one character (replaced, missing or extra). */
 function oneApart(a: string, b: string) {
   if (Math.abs(a.length - b.length) > 1) return false;
   let i = 0;
@@ -97,7 +97,7 @@ function oneApart(a: string, b: string) {
   );
 }
 
-/** Wörter der R6-Banner, aus denen zusammengeschriebene Zeilen wieder zerlegt werden. */
+/** Words of the R6 banners, used to split lines that were read without spaces. */
 const BANNER_WORDS = new Set([
   'YOUR',
   'TEAM',
@@ -139,12 +139,12 @@ const BANNER_WORDS = new Set([
 ]);
 
 /**
- * Zerlegt eine ohne Leerzeichen gelesene Bannerzeile in ihre Wörter ("WONROUND2" → "WON ROUND
- * 2"), damit die Muster aus agent/events.ts greifen. Andere Zeilen bleiben, wie sie sind.
+ * Splits a banner line read without spaces into its words ("WONROUND2" → "WON ROUND 2") so the
+ * patterns from agent/events.ts match. Other lines stay as they are.
  */
 export function respace(text: string) {
   return text.replace(/\b([A-Z]{5,})(\d*)\b/g, (whole, word: string, digits: string) => {
-    // Kürzeste Zerlegung von hinten nach vorn; best[i] = Wörter für word.slice(i).
+    // Shortest split from back to front; best[i] = words for word.slice(i).
     const best: (string[] | undefined)[] = [];
     best[word.length] = [];
     for (let i = word.length - 1; i >= 0; i--)
@@ -163,10 +163,10 @@ export function respace(text: string) {
 }
 
 /**
- * Das Rundenbanner eines Bildes, auch wenn es in Stücken und mit Lesefehlern gelesen wurde
- * ("YOURTEAA" | "WONROUND2" | "ENEMIESELIMINATED", R6-Clip vom 2024-12-07): als Satz, den
- * agent/events.ts kennt, oder leer. Wer gewonnen hat, steht vor "WON ROUND"; fehlt das, sagt
- * der Untertitel "ENEMIES ELIMINATED", dass ihr die Runde geholt habt.
+ * The round banner of a frame, even when read in pieces and with misreads ("YOURTEAA" |
+ * "WONROUND2" | "ENEMIESELIMINATED", R6 clip from 2024-12-07): as a sentence agent/events.ts
+ * knows, or empty. The winner stands before "WON ROUND"; if that is missing, the subtitle
+ * "ENEMIES ELIMINATED" says your team took the round.
  */
 export function bannerResult(rows: readonly TextLine[]) {
   const line = rows.map((r) => letters(r.text).replace(/ /g, '')).join('');
@@ -179,7 +179,7 @@ export function bannerResult(rows: readonly TextLine[]) {
   return line.includes('ENEMIESELIMINATED') ? 'YOUR TEAM WON ROUND' : '';
 }
 
-/** Rundenausgänge und Matchergebnisse; nur diese Ereignisse liest die Texterkennung. */
+/** Round and match results; text recognition reads only these events. */
 const RESULTS: EventKind[] = ['roundWon', 'roundLost', 'matchWon', 'matchLost'];
 
 export interface FrameText {
@@ -188,12 +188,12 @@ export interface FrameText {
 }
 
 export interface TextFindings {
-  /** Die Karte, wenn sie in mindestens zwei Bildern sicher gelesen wurde und eindeutig ist. */
+  /** The map, if it was read confidently in at least two frames and is unambiguous. */
   map?: string;
   events: GameEvent[];
 }
 
-/** Wertet die gelesenen Zeilen eines Clips aus. */
+/** Evaluates the read lines of a clip. */
 export function r6Findings(frames: FrameText[], game: string): TextFindings {
   const maps = new Map<string, number>();
   for (const f of frames)
@@ -211,7 +211,7 @@ export function r6Findings(frames: FrameText[], game: string): TextFindings {
       .filter(Boolean)
       .join(' | '),
   }));
-  // Ohne Dateinamen: NVIDIA-Ereignisse sind nicht Sache der Texterkennung.
+  // No file name: NVIDIA events are not the business of text recognition.
   const events = collectEvents(seen, 'ocr', game)
     .filter((e) => RESULTS.includes(e.kind) && e.source === 'screen')
     .map((e): GameEvent => ({ ...e, source: 'ocr' }));
@@ -220,7 +220,7 @@ export function r6Findings(frames: FrameText[], game: string): TextFindings {
 
 export interface TextTrace {
   frames: number;
-  /** Rechenzeit der Texterkennung in Sekunden. */
+  /** Computing time of text recognition in seconds. */
   seconds: number;
   map?: string;
   events: number;
@@ -228,14 +228,14 @@ export interface TextTrace {
 }
 
 export interface TextLookup extends TextFindings {
-  /** Der Killfeed wurde gelesen; seine Kills und Tode ersetzen die vom Modell gelesenen. */
+  /** The killfeed was read; its kills and deaths replace those the model read. */
   feed?: boolean;
   trace: TextTrace;
 }
 
 /**
- * Liest die Texte eines R6-Clips: zwei Bilder je Sekunde in 1280 Pixeln Breite, wie im
- * Blindtest. Die Modelle werden beim ersten Clip geladen und bleiben geladen.
+ * Reads the texts of an R6 clip: two frames per second at 1280 pixels wide, as in the blind
+ * test. The models load with the first clip and stay loaded.
  */
 export class ClipTexts {
   private reader?: Promise<TextReader>;
@@ -243,7 +243,7 @@ export class ClipTexts {
     readonly options: {
       media: MediaProcessor;
       models: OcrModels;
-      /** Ordner mit onnxruntime-node im fertigen Client; sonst aus node_modules. */
+      /** Folder with onnxruntime-node in the packaged client; otherwise from node_modules. */
       runtime?: string;
       fps?: number;
       width?: number;
@@ -252,7 +252,7 @@ export class ClipTexts {
   ) {}
 
   private load() {
-    // Scheitert das Laden (Datei gesperrt, Speicher knapp), versucht es der nächste Clip erneut.
+    // If loading fails (file locked, low memory), the next clip tries again.
     this.reader ??= TextReader.load(
       this.options.models,
       this.options.threads,
@@ -264,13 +264,13 @@ export class ClipTexts {
     return this.reader;
   }
 
-  /** Lädt die Modelle, falls nötig, und liest ein leeres Probebild. Wirft, wenn das scheitert. */
+  /** Loads the models if needed and reads a blank test image. Throws if that fails. */
   async check() {
     const reader = await this.load();
     await reader.read({ width: 64, height: 32, data: new Uint8Array(64 * 32 * 3) });
   }
 
-  /** Gibt die Modelle frei; der nächste Clip lädt sie neu. */
+  /** Releases the models; the next clip loads them again. */
   async close() {
     const reader = this.reader;
     this.reader = undefined;
@@ -309,8 +309,8 @@ export class ClipTexts {
   }
 
   /**
-   * Valorant: nur der Killfeed-Ausschnitt, zwei Bilder je Sekunde. Ohne eigenen Namen lässt
-   * sich keine Zeile zuordnen; dann bleibt es bei den Meldungen, die das Modell liest.
+   * Valorant: only the killfeed region, two frames per second. Without the player's own names
+   * no line can be attributed; then the messages the model reads stay as they are.
    */
   private async valorant(
     path: string,
@@ -335,7 +335,7 @@ export class ClipTexts {
       };
       frames.push({ seconds, lines: await reader.read(crop(frame, region)) });
     }
-    // Abgebrochen ist nichts belegt; ein halber Killfeed darf die Meldungen nicht ersetzen.
+    // An aborted read proves nothing; half a killfeed must not replace the messages.
     if (signal?.aborted) return undefined;
     const events = feedEvents(frames, names);
     return {
@@ -350,7 +350,7 @@ export class ClipTexts {
   }
 }
 
-/** Was der Worker der Texterkennung zum Start braucht (siehe agent/r6-worker.ts). */
+/** What the text recognition worker needs to start (see agent/r6-worker.ts). */
 export interface TextsWorkerData {
   models: OcrModels;
   runtime?: string;
@@ -369,7 +369,7 @@ interface TextsReply {
   error?: { message: string; code?: string };
 }
 
-/** Beantwortet im Worker die Anfragen von WorkerTexts; ein Abbruch betrifft nur seine Anfrage. */
+/** Answers WorkerTexts requests inside the worker; an abort affects only its own request. */
 export function serveTexts(port: MessagePort, texts: Pick<ClipTexts, 'forClip' | 'check'>) {
   const running = new Map<number, AbortController>();
   port.on('message', (request: TextsRequest) => {
@@ -399,9 +399,9 @@ export function serveTexts(port: MessagePort, texts: Pick<ClipTexts, 'forClip' |
 }
 
 /**
- * Die Texterkennung in einem eigenen Thread. ONNX Runtime rechnet synchron; im Hauptprozess des
- * Clients hielt jedes Bild Fenster, Tray und Pause-Knopf bis zu 200 ms an, eine Minute lang je
- * R6-Clip. Der Worker lädt die Modelle einmal und behält sie über Starts hinweg.
+ * Text recognition in its own thread. ONNX Runtime computes synchronously; in the client's main
+ * process each frame froze the window, tray and pause button for up to 200 ms, for a minute per
+ * R6 clip. The worker loads the models once and keeps them across runs.
  */
 export class WorkerTexts {
   private worker?: Worker;
@@ -420,7 +420,7 @@ export class WorkerTexts {
     >;
   }
 
-  /** Lädt die Texterkennung zur Probe. Nichts heißt bereit, sonst der Fehler beim Laden. */
+  /** Test-loads text recognition. Nothing means ready; otherwise the loading error. */
   async problem() {
     try {
       await this.request({ type: 'check' });
@@ -431,9 +431,9 @@ export class WorkerTexts {
   }
 
   /**
-   * Beendet den Worker. Mitten in einer Rechnung beendet, reißt ONNX Runtime den ganzen Prozess
-   * mit (SIGABRT). Deshalb bricht close() erst alle Anfragen ab und wartet auf ihre Antworten:
-   * ein Bild oder das Laden der Modelle, höchstens `wait` Millisekunden.
+   * Stops the worker. Terminated mid-computation, ONNX Runtime takes the whole process down
+   * (SIGABRT). So close() first aborts all requests and waits for their answers: one frame or
+   * the model load, at most `wait` milliseconds.
    */
   async close(wait = 10000) {
     const worker = this.worker;
@@ -447,7 +447,7 @@ export class WorkerTexts {
       new Promise((done) => (timer = setTimeout(done, wait))),
     ]);
     clearTimeout(timer);
-    this.fail(new Error('Texterkennung beendet.'));
+    this.fail(new Error('Text recognition stopped.'));
     await worker.terminate();
   }
 
@@ -467,7 +467,7 @@ export class WorkerTexts {
         );
       else waiting.resolve(reply.value);
     });
-    // Stirbt der Worker, scheitern die offenen Anfragen; die nächste startet einen neuen.
+    // If the worker dies, open requests fail; the next one starts a new worker.
     const lost = (error: Error) => {
       if (this.worker !== worker) return;
       this.worker = undefined;
@@ -475,7 +475,7 @@ export class WorkerTexts {
     };
     worker.on('error', lost);
     worker.on('exit', (code) =>
-      lost(new Error(`Texterkennung unerwartet beendet (Code ${code}).`)),
+      lost(new Error(`Text recognition exited unexpectedly (code ${code}).`)),
     );
     this.worker = worker;
     return worker;

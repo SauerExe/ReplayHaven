@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 /**
- * Eigene Spielernamen. Wer in jedem Spiel anders heißt, trägt je Spiel einen Namen ein; ein
- * Eintrag ohne Spiel gilt überall. Die Analyse nennt der KI nur die Namen, die zum Spiel des
- * Clips passen — ein Fortnite-Name hilft in R6 nicht und könnte dort einen Fremden meinen.
+ * Your own player names. Anyone with a different name in each game enters one name per game; an
+ * entry without a game applies everywhere. The analysis only gives the AI the names that match
+ * the clip's game — a Fortnite name does not help in R6 and could mean a stranger there.
  */
 export const MAX_PLAYER_NAMES = 20;
 export const playerNameSchema = z.object({
@@ -14,13 +14,13 @@ export type PlayerName = z.infer<typeof playerNameSchema>;
 export const playerNamesSchema = z.array(playerNameSchema).max(MAX_PLAYER_NAMES);
 
 /**
- * Kürzel, die für einen NVIDIA-Spielordner stehen. Der Client schlägt die Ordnernamen vor; wer
- * trotzdem "R6" schreibt, meint "Tom Clancy's Rainbow Six Siege".
+ * Abbreviations that stand for an NVIDIA game folder. The client suggests the folder names;
+ * anyone who still writes "R6" means "Tom Clancy's Rainbow Six Siege".
  */
 const ALIASES: Record<string, string[]> = {
   r6: ['rainbow', 'six'],
   r6s: ['rainbow', 'six'],
-  // Ordnername älterer NVIDIA-Aufnahmen (2024).
+  // Folder name of older NVIDIA recordings (2024).
   r6siege: ['rainbow', 'six', 'siege'],
   cod: ['call', 'of', 'duty'],
   cs: ['counter', 'strike'],
@@ -31,7 +31,7 @@ const ALIASES: Record<string, string[]> = {
   valo: ['valorant'],
 };
 
-/** Wörter eines Spielnamens, ohne Akzente, Satzzeichen und Markenzeichen. */
+/** Words of a game name, without accents, punctuation and trademark signs. */
 function tokens(game: string) {
   return game
     .normalize('NFKD')
@@ -42,7 +42,7 @@ function tokens(game: string) {
     .flatMap((word) => ALIASES[word] ?? [word]);
 }
 
-/** Ob `part` als zusammenhängende Wortfolge in `whole` vorkommt. */
+/** Whether `part` occurs as a contiguous word sequence in `whole`. */
 function contains(whole: string[], part: string[]) {
   for (let start = 0; start + part.length <= whole.length; start++)
     if (part.every((word, i) => whole[start + i] === word)) return true;
@@ -50,22 +50,22 @@ function contains(whole: string[], part: string[]) {
 }
 
 /**
- * Ob ein eingetragenes Spiel das Spiel eines Clips meint. Ganze Wörter zählen, nicht Buchstaben:
- * "Siege" passt zu "Tom Clancy's Rainbow Six Siege", "Rust" aber nicht zu "Trust".
+ * Whether an entered game means the game of a clip. Whole words count, not letters: "Siege"
+ * matches "Tom Clancy's Rainbow Six Siege", but "Rust" does not match "Trust".
  */
 export function sameGame(entry: string, game: string) {
   const a = tokens(entry);
   const b = tokens(game);
   if (!a.length || !b.length) return false;
   const [short, long] = a.length <= b.length ? [a, b] : [b, a];
-  // Ein einzelnes kurzes Wort wie "2" oder "of" beschreibt kein Spiel.
+  // A single short word like "2" or "of" does not describe a game.
   if (short.join('').length < 3 && short.join('') !== long.join('')) return false;
   return contains(long, short);
 }
 
 /**
- * Die Namen, unter denen du im Spiel des Clips auftrittst: zuerst die für dieses Spiel, dann
- * die für alle Spiele. Doppelte fallen weg, Groß- und Kleinschreibung zählt dabei nicht.
+ * The names you appear under in the clip's game: first those for this game, then those for all
+ * games. Duplicates are dropped, ignoring case.
  */
 export function namesFor(list: readonly PlayerName[], game: string): string[] {
   const specific = list.filter((p) => p.game.trim() && sameGame(p.game, game));
@@ -82,8 +82,8 @@ export function namesFor(list: readonly PlayerName[], game: string): string[] {
 }
 
 /**
- * Bereinigt eine Namensliste: ungültige und leere Einträge fallen weg, ebenso doppelte
- * Kombinationen aus Name und Spiel. Mehrfache Leerzeichen werden zusammengezogen.
+ * Cleans up a name list: invalid and empty entries are dropped, as are duplicate combinations
+ * of name and game. Repeated spaces are collapsed.
  */
 export function tidyPlayerNames(input: readonly unknown[]): PlayerName[] {
   const seen = new Set<string>();
@@ -105,8 +105,8 @@ export function tidyPlayerNames(input: readonly unknown[]): PlayerName[] {
 }
 
 /**
- * Namen aus gespeicherten Einstellungen. Bis zu dieser Fassung gab es nur ein Feld
- * "playerName"; ein dort eingetragener Name gilt weiter für alle Spiele.
+ * Names from saved settings. Before this version there was only a "playerName" field; a name
+ * entered there still applies to all games.
  */
 export function savedPlayerNames(saved: { playerNames?: unknown; playerName?: unknown }) {
   if (Array.isArray(saved.playerNames)) return tidyPlayerNames(saved.playerNames);

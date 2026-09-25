@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import sharp from 'sharp';
 const games = [
   { id: 'elden', appId: 1245620, name: 'ELDEN RING', color: '#d1b477', genre: 'Action-RPG' },
-  { id: 'cs2', appId: 730, name: 'Counter-Strike 2', color: '#deae71', genre: 'Taktik-Shooter' },
+  { id: 'cs2', appId: 730, name: 'Counter-Strike 2', color: '#deae71', genre: 'Tactical Shooter' },
   {
     id: 'cyberpunk',
     appId: 1091500,

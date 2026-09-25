@@ -17,7 +17,7 @@ const { values } = parseArgs({
 });
 if (values.help || !values.folder) {
   console.log(
-    'NVIDIA-Ordner überwachen:\nnpm run agent -- --folder "D:\\Clips" --server http://127.0.0.1:8787\nOptional: --game "VALORANT" --include-existing --state pfad.json\nZugangsschlüssel über REPLAYHAVEN_ACCESS_TOKEN setzen. Standardmäßig werden nur neue Aufnahmen übertragen.',
+    'Watch an NVIDIA folder:\nnpm run agent -- --folder "D:\\Clips" --server http://127.0.0.1:8787\nOptional: --game "VALORANT" --include-existing --state path.json\nSet the access token via REPLAYHAVEN_ACCESS_TOKEN. By default only new recordings are uploaded.',
   );
   process.exit(values.help ? 0 : 1);
 }
@@ -29,14 +29,14 @@ if (
   url.search ||
   url.hash
 )
-  throw new Error('Verwende eine HTTP(S)-Serveradresse ohne eingebettete Zugangsdaten.');
+  throw new Error('Use an HTTP(S) server address without embedded credentials.');
 if (
   url.protocol === 'http:' &&
   !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) &&
   !values['allow-http']
 )
   throw new Error(
-    'Für entfernte Server HTTPS verwenden; im eigenen LAN ist --allow-http ausdrücklich möglich.',
+    'Use HTTPS for remote servers; on your own LAN, --allow-http is explicitly allowed.',
   );
 const server = values.server!.replace(/\/$/, '');
 const config = loadConfig();
@@ -53,7 +53,7 @@ const agent = new FolderUploader({
 });
 await agent.initialize();
 console.log(
-  `NVIDIA-Aufnahmeordner: ${resolve(values.folder)}\nZiel: ${server}\nOriginaldateien werden weder verschoben noch gelöscht.`,
+  `NVIDIA recording folder: ${resolve(values.folder)}\nTarget: ${server}\nOriginal files are neither moved nor deleted.`,
 );
 let stopped = false;
 for (const signal of ['SIGINT', 'SIGTERM'])
@@ -65,7 +65,7 @@ while (!stopped) {
     await agent.scan();
     await agent.heartbeat();
   } catch {
-    console.error('Ordner oder Server nicht erreichbar. Nächster Versuch folgt automatisch.');
+    console.error('Folder or server not reachable. Retrying automatically.');
   }
   if (!stopped) await delay(3000);
 }

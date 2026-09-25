@@ -1,5 +1,6 @@
 import type { Clip, ClipFilters, VaultState } from '../domain/models';
 import { createSeed, games, sampleCollectionIds, withSamples } from './seed';
+import { compareText, locale, perLanguage, t, tp } from '../i18n';
 const KEY = 'replayhaven.v1';
 export const repository = {
   load(): VaultState {
@@ -14,7 +15,7 @@ export const repository = {
       )
         return {
           ...data,
-          // Ältere Browser haben die Beispiele noch gespeichert; im ausgelieferten Build fallen sie weg.
+          // Older browsers still stored the samples; the shipped build drops them.
           collections: withSamples
             ? data.collections
             : data.collections.filter((c: { id: string }) => !sampleCollectionIds.has(c.id)),
@@ -51,14 +52,14 @@ export const repository = {
   },
 };
 export function filterClips(clips: Clip[], filters: ClipFilters): Clip[] {
-  const q = (filters.query || '').toLocaleLowerCase('de').trim();
+  const q = (filters.query || '').toLocaleLowerCase(locale()).trim();
   return clips
     .filter((c) => {
       const game = games.find((g) => g.id === c.gameId);
       return (
         (!q ||
           `${c.title} ${game?.name || ''} ${c.gameName || ''} ${c.description || ''} ${c.analysis?.result?.description || ''} ${c.analysis?.result?.game || ''} ${c.analysis?.result?.tags.join(' ') || ''} ${c.tags.join(' ')}`
-            .toLocaleLowerCase('de')
+            .toLocaleLowerCase(locale())
             .includes(q)) &&
         (!filters.game ||
           (filters.game.startsWith('name:')
@@ -75,7 +76,7 @@ export function filterClips(clips: Clip[], filters: ClipFilters): Clip[] {
       filters.sort === 'oldest'
         ? a.recordedAt.localeCompare(b.recordedAt)
         : filters.sort === 'title'
-          ? a.title.localeCompare(b.title, 'de')
+          ? compareText(a.title, b.title)
           : filters.sort === 'duration'
             ? b.duration - a.duration
             : filters.sort === 'size'
@@ -109,10 +110,17 @@ export function time(seconds: number) {
 }
 export function relativeDate(date: string) {
   const days = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
-  return days <= 0 ? 'Heute' : days === 1 ? 'Gestern' : `Vor ${days} Tagen`;
+  return days <= 0
+    ? t('app.date.today')
+    : days === 1
+      ? t('app.date.yesterday')
+      : tp('app.date.daysAgo', days);
 }
+const sizeFormat = perLanguage(
+  (tag) => new Intl.NumberFormat(tag, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+);
 export function bytes(size: number) {
   return size >= 1073741824
-    ? `${(size / 1073741824).toFixed(1)} GB`
-    : `${(size / 1048576).toFixed(1)} MB`;
+    ? `${sizeFormat().format(size / 1073741824)} GB`
+    : `${sizeFormat().format(size / 1048576)} MB`;
 }

@@ -1,7 +1,7 @@
 /**
- * Gesprochenes als Kontext für Spaßclips (docs/KI-ERKENNUNG.md, Stufe 4). Ollama nimmt keinen
- * Ton an; das Transkript geht als Text in die Zusammenfassung. Woher es kommt (Whisper,
- * Parakeet), entscheidet der Aufrufer über `LocalAnalyzerOptions.speech`.
+ * Speech as context for fun clips (docs/AI-RECOGNITION.md, stage 4). Ollama does not accept
+ * audio; the transcript goes into the summary as text. Where it comes from (Whisper, Parakeet)
+ * is up to the caller via `LocalAnalyzerOptions.speech`.
  */
 
 export interface SpeechSegment {
@@ -17,12 +17,12 @@ export interface Transcript {
 
 export interface SpeechTrace {
   engine: string;
-  /** Rechenzeit in Sekunden. */
+  /** Compute time in seconds. */
   seconds: number;
   words: number;
-  /** Stellen, an denen Lachen oder Durcheinander die Erkennung in Wiederholungen trieb. */
+  /** Spots where laughter or crosstalk drove the recognition into repetitions. */
   laughs: number;
-  /** Worum es im Gespräch ging, falls um mehr als Absprachen zum Spiel (LocalAnalyzer). */
+  /** What the conversation was about, if more than game callouts (LocalAnalyzer). */
   topic?: string;
   error?: string;
 }
@@ -39,14 +39,14 @@ const plain = (text: string) =>
     .replace(/[^\p{L}\p{N} ]/gu, '')
     .trim();
 
-/** Ab so vielen gleichen Kurzsätzen hintereinander ist es kein Gespräch mehr. */
+/** From this many identical short sentences in a row on, it is no longer a conversation. */
 const RUN = 4;
 
 /**
- * Trennt Gesagtes von Stellen, an denen die Erkennung ins Wiederholen fiel. Whisper antwortet
- * auf Lachen und Durcheinander mit Serien wie "Nein. Nein. Nein." im Sekundentakt (gemessen am
- * 2026-09-24 an einem Fortnite-Clip mit Lachflash, 95–110 s). Solche Serien werden zu einer
- * Lachstelle; von ihnen bleibt höchstens die erste Zeile als Gesagtes.
+ * Separates what was said from spots where the recognition fell into repeating itself. Whisper
+ * answers laughter and crosstalk with series like "Nein. Nein. Nein." every second (measured on
+ * 2026-09-24 on a Fortnite clip with a laughing fit, 95–110 s). Such series become a laugh spot;
+ * at most their first line is kept as speech.
  */
 export function splitTranscript(segments: readonly SpeechSegment[]): {
   said: SpeechSegment[];
@@ -74,7 +74,7 @@ export function splitTranscript(segments: readonly SpeechSegment[]): {
   return { said: said.filter((s) => words(s.text) > 0), laughs };
 }
 
-/** Ob genug gesprochen wird, dass das Gespräch einen Clip tragen kann. */
+/** Whether there is enough talking for the conversation to carry a clip. */
 export function conversational(transcript: Transcript | undefined) {
   if (!transcript) return false;
   const { said, laughs } = splitTranscript(transcript.segments);
@@ -82,8 +82,8 @@ export function conversational(transcript: Transcript | undefined) {
 }
 
 /**
- * Das Gesprochene als Absatz für den Prompt: mit Sekunden, gekürzt auf rund 250 Wörter, dazu die
- * Lachstellen. Leer, wenn nichts gesagt wurde.
+ * The speech as a paragraph for the prompt (German on purpose): with seconds, cut to about 250
+ * words, plus the laugh spots. Empty if nothing was said.
  */
 export function speechFacts(transcript: Transcript | undefined) {
   if (!transcript?.segments.length) return '';
@@ -103,15 +103,15 @@ export function speechFacts(transcript: Transcript | undefined) {
 }
 
 /**
- * Das Thema, das das Modell im Gespräch fand, oder leer, wenn es keins ist: ein einzelnes Wort
- * oder ein wörtlich zitierter Satz ("Nein", "Was hast du gemacht?", gemessen am 2026-09-25) sagt
- * nicht, worum es ging.
+ * The topic the model found in the conversation, or empty if it is none: a single word or a
+ * verbatim quoted sentence ("Nein", "Was hast du gemacht?", measured on 2026-09-25) does not say
+ * what it was about.
  */
 export function usableTopic(topic: unknown, said: string) {
   if (typeof topic !== 'string') return '';
   const clean = topic.replace(/\s+/g, ' ').trim().slice(0, 80);
   const key = plain(clean);
-  // Nur ganze Sätze zählen als Zitat; ein Name daraus ("Obi-Wan Kenobi") ist ein Thema.
+  // Only whole sentences count as a quote; a name from one ("Obi-Wan Kenobi") is a topic.
   const sentences = said
     .replace(/\[\d+ s\]/g, '\n')
     .split(/[\n.!?]+/)

@@ -31,7 +31,7 @@ async function start() {
   const { app } = await buildServer(config);
   return app;
 }
-/** Das Sitzungs-Cookie aus einer Antwort, für die nächste Anfrage. */
+/** The session cookie from a response, for the next request. */
 function cookieOf(response: { headers: Record<string, unknown> }) {
   const set = [response.headers['set-cookie']].flat().join(';');
   const match = /rh_session=([^;]+)/.exec(set);
@@ -64,12 +64,12 @@ it('creates the first account only with the setup key and then logs in with it',
   expect(setup.headers['set-cookie']).toMatch(/HttpOnly/);
   expect(setup.headers['set-cookie']).toMatch(/Secure/);
   expect((await app.inject({ url: '/api/clips', headers: { cookie } })).statusCode).toBe(200);
-  // Ein zweites Konto lässt sich so nicht anlegen.
+  // A second account cannot be created this way.
   expect(
     (await app.inject({ method: 'POST', url: '/api/auth/setup', payload: { ...body, key } }))
       .statusCode,
   ).toBe(409);
-  // Anmelden auf einem weiteren Gerät, Groß- und Kleinschreibung im Namen egal.
+  // Sign in on another device; the name is case-insensitive.
   expect(
     (
       await app.inject({
@@ -86,13 +86,20 @@ it('creates the first account only with the setup key and then logs in with it',
   });
   expect(login.statusCode).toBe(200);
   const state = await app.inject({ url: '/api/auth/state', headers: { cookie: cookieOf(login) } });
-  expect(state.json()).toMatchObject({ loggedIn: true, kind: 'browser', user: { name: 'timo' } });
-  // Der Zugangsschlüssel aus der Einrichtung gilt weiter, für ältere Clients.
+  expect(state.json()).toMatchObject({
+    loggedIn: true,
+    kind: 'browser',
+    role: 'admin',
+    user: { name: 'timo', role: 'admin' },
+    passwordLogin: true,
+    oidc: null,
+  });
+  // The access key from the setup keeps working, for older clients.
   expect(
     (await app.inject({ url: '/api/clips', headers: { authorization: `Bearer ${key}` } }))
       .statusCode,
   ).toBe(200);
-  // Abmelden beendet genau diese Sitzung.
+  // Signing out ends exactly this session.
   await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { cookie } });
   expect((await app.inject({ url: '/api/clips', headers: { cookie } })).statusCode).toBe(401);
   await app.close();
@@ -116,7 +123,7 @@ it('pairs a recording PC after approval, hands its access out once and lets it b
   const poll = () =>
     app.inject({ method: 'POST', url: '/api/pair/status', payload: { id, secret } });
   expect((await poll()).json()).toEqual({ status: 'pending' });
-  // Ohne Anmeldung sieht niemand offene Anfragen oder gibt sie frei.
+  // Without signing in nobody sees or approves open requests.
   expect((await app.inject({ url: '/api/pair/pending' })).statusCode).toBe(401);
   const pending = await app.inject({ url: '/api/pair/pending', headers: { cookie } });
   expect(pending.json()).toMatchObject([{ id, code, name: 'DESKTOP-TEST' }]);
@@ -127,7 +134,7 @@ it('pairs a recording PC after approval, hands its access out once and lets it b
   const approved = (await poll()).json();
   expect(approved.status).toBe('approved');
   expect(approved.token).toMatch(/^rhd_/);
-  // Der Zugang kommt genau einmal; wer das Geheimnis nicht kennt, erfährt nichts.
+  // The access token comes exactly once; without the secret nobody learns anything.
   expect((await poll()).json()).toEqual({ status: 'expired' });
   expect(
     (
@@ -140,7 +147,7 @@ it('pairs a recording PC after approval, hands its access out once and lets it b
   ).toEqual({ status: 'expired' });
   const device = { authorization: `Bearer ${approved.token}` };
   expect((await app.inject({ url: '/api/status', headers: device })).statusCode).toBe(200);
-  // Ein gekoppelter PC darf keine Geräte verwalten.
+  // A paired PC may not manage devices.
   expect((await app.inject({ url: '/api/auth/sessions', headers: device })).statusCode).toBe(403);
   const sessions = (await app.inject({ url: '/api/auth/sessions', headers: { cookie } })).json();
   const pc = sessions.find((s: { kind: string }) => s.kind === 'client');
@@ -205,6 +212,6 @@ it('denies a pairing request and signs in another device once per QR code', asyn
   const labels = (await app.inject({ url: '/api/auth/sessions', headers: { cookie } }))
     .json()
     .map((s: { label: string }) => s.label);
-  expect(labels).toContain('Safari auf iPhone/iPad');
+  expect(labels).toContain('Safari on iPhone/iPad');
   await app.close();
 });

@@ -5,6 +5,11 @@
 #
 # Building from a source checkout instead: `bash setup-server.sh` (or
 # `docker build -t replayhaven:local .` and REPLAYHAVEN_IMAGE=replayhaven:local in .env).
+#
+# Behind Coolify/Traefik: remove the `ports:` section (Traefik reaches the container over the
+# Docker network), give the service the domain https://<your-domain>:8787 in Coolify and set
+# REPLAYHAVEN_PUBLIC_ORIGIN=https://<your-domain> and REPLAYHAVEN_TRUST_PROXY=true.
+# See docs/SERVER.md, "Deploy behind Coolify/Traefik".
 services:
   replayhaven:
     image: ${REPLAYHAVEN_IMAGE:-ghcr.io/sauerexe/replayhaven:latest}
@@ -19,6 +24,17 @@ services:
     environment:
       REPLAYHAVEN_ACCESS_TOKEN: ${REPLAYHAVEN_ACCESS_TOKEN:?Set REPLAYHAVEN_ACCESS_TOKEN in .env (copy .env.example)}
       REPLAYHAVEN_PUBLIC_ORIGIN: ${REPLAYHAVEN_PUBLIC_ORIGIN:-http://localhost:8787}
+      # Listed so hosting panels like Coolify show them; empty means the default.
+      REPLAYHAVEN_TRUST_PROXY: ${REPLAYHAVEN_TRUST_PROXY:-}
+      REPLAYHAVEN_PLAYBACK: ${REPLAYHAVEN_PLAYBACK:-web}
+      REPLAYHAVEN_OIDC_ISSUER: ${REPLAYHAVEN_OIDC_ISSUER:-}
+      REPLAYHAVEN_OIDC_CLIENT_ID: ${REPLAYHAVEN_OIDC_CLIENT_ID:-}
+      REPLAYHAVEN_OIDC_CLIENT_SECRET: ${REPLAYHAVEN_OIDC_CLIENT_SECRET:-}
+      REPLAYHAVEN_OIDC_NAME: ${REPLAYHAVEN_OIDC_NAME:-}
+      REPLAYHAVEN_OIDC_SCOPES: ${REPLAYHAVEN_OIDC_SCOPES:-}
+      REPLAYHAVEN_OIDC_ADMIN_GROUP: ${REPLAYHAVEN_OIDC_ADMIN_GROUP:-}
+      REPLAYHAVEN_OIDC_AUTO_CREATE: ${REPLAYHAVEN_OIDC_AUTO_CREATE:-}
+      REPLAYHAVEN_PASSWORD_LOGIN: ${REPLAYHAVEN_PASSWORD_LOGIN:-}
     volumes:
       # Originals, thumbnails, playback copies and the SQLite database.
       - archive:/app/vault-data

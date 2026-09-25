@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { setLanguage } from '../i18n';
 import type { Clip, Game, ServerGame } from '../domain/models';
 import { formatTotal, formatUpdated } from './format';
 import {
@@ -11,6 +12,10 @@ import {
 } from './library';
 import { toStreamLibrary } from './model';
 import { buildRows, gameTiles } from './rows';
+
+// These expectations use the German wording; English is covered in i18n.test.ts.
+beforeAll(() => setLanguage('de', false));
+afterAll(() => setLanguage('en', false));
 
 const NOW = new Date(2026, 8, 24, 21, 40).getTime();
 const at = (daysAgo: number, hours: number) => new Date(2026, 8, 24 - daysAgo, hours).toISOString();

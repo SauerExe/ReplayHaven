@@ -19,7 +19,7 @@ import {
 } from './wording';
 import { CLIP_TAGS } from '../server/schema';
 
-// Meldungen, wie qwen3-vl sie in echten Clips der Sammlung gelesen hat (.docs/messungen).
+// Messages as qwen3-vl read them in real clips from the collection (.docs/messungen).
 it.each([
   ['ELIMINIERT: Gegner_Zwei', ['kill']],
   ['+1.800 EP ELIMINIERUNG x2 DOPPELT', ['kill', 'multikill']],
@@ -32,10 +32,10 @@ it.each([
   ['SIEG | PUNKTELIMIT ERREICHT', ['matchWon']],
   ['Head Shot +20', ['headshot', 'kill']],
   ['+100 Kill', ['kill']],
-  // Wardogs, im Neutest vom 2026-09-23 gelesen; die Beihilfe ist kein eigener Kill.
+  // Wardogs, read in the retest of 2026-09-23; the assist is not an own kill.
   ['+$2.250 | TÖTUNG BESTÄTIGT 250 EP', ['kill']],
   ['BEI TÖTUNG ASSISTIERT +$1.507', []],
-  // Kein Ereignis: die Seite ist unbekannt, "Siege" ist der Spielname, "Doppelte EP" kein Kill.
+  // No event: the side is unknown, "Siege" is the game name, "Doppelte EP" is not a kill.
   ['Angreifer haben durch Eliminierung gewonnen', []],
   ["Tom Clancy's Rainbow Six Siege", []],
   ['DOPPELTE EP', []],
@@ -45,11 +45,11 @@ it.each([
   expect(eventsInText(text).sort()).toEqual([...kinds].sort());
 });
 
-// Valorant schreibt das Rundenende ohne "Runde" (Prüfung von E17: VAL-WIN, VAL-KNAPP).
+// Valorant writes the end of a round without "Runde" (review of E17: VAL-WIN, VAL-KNAPP).
 it.each([
   ['GEWONNEN | GEGNERISCHES TEAM ELIMINIERT', 'Valorant', ['roundWon']],
   ['KNAPP | 9 | 10 | ZUSCHAUER 4', 'Valorant', ['roundWon']],
-  // Der fehlerlose Rundensieg (Neutest, VAL-B1).
+  // The flawless round win (retest, VAL-B1).
   ['MAKELLOS | VERTeidiger', 'Valorant', ['roundWon']],
   ['VERLOREN | TEAM ELIMINIERT', 'Valorant', ['roundLost']],
   ['KAMPBERICHT | VERLOR | FÄHIGKEIT', 'Valorant', []],
@@ -83,7 +83,7 @@ const frame = (seconds: number, visibleText: string, kind: SeenFrame['kind'] = '
 });
 
 it('counts kills spread over the whole clip as one multikill that leads the title', () => {
-  // Drei Kills über die Runde verteilt, der Schluss ab Sekunde 90 zeigt nur den eigenen Tod.
+  // Three kills spread over the round; the end from second 90 only shows the own death.
   const events = collectEvents(
     [
       frame(12, 'ELIMINIERT: SpielerZwei'),
@@ -102,7 +102,7 @@ it('counts kills spread over the whole clip as one multikill that leads the titl
 });
 
 it('reads R6 score pop-ups split by the model into three kills of one round', () => {
-  // Gelesen am 2026-09-24 in einem R6-Clip auf Border: Kopfschuss, Kill, später Kopfschuss.
+  // Read on 2026-09-24 in an R6 clip on Border: headshot, kill, later a headshot.
   const events = collectEvents(
     [
       frame(57.1, '2F East Stairs | 1:45'),
@@ -120,8 +120,8 @@ it('reads R6 score pop-ups split by the model into three kills of one round', ()
     60.1, 65.9, 112.8,
   ]);
   expect(events.find((e) => e.kind === 'multikill')).toMatchObject({ count: 3 });
-  // Die Prüfer sahen die Kills bei 58,7, 64,5 und 109,8 s: jede Zeitmarke liegt kurz davor,
-  // am letzten Bild ohne Einblendung, statt 1,4 bis 3 s zu spät auf der Einblendung.
+  // The reviewers saw the kills at 58.7, 64.5 and 109.8 s: each highlight sits just before,
+  // on the last frame without the message, instead of 1.4 to 3 s late on the message.
   expect(
     tidyHighlights([], events, 120)
       .filter((h) => /Kill|Kopfschuss|Headshot|ausgeschaltet/i.test(h.title))
@@ -145,7 +145,7 @@ it('merges a message that stays on screen and keeps separate kills apart', () =>
     'Gegner_Zwei',
   ]);
   expect(events.filter((e) => e.kind === 'multikill')).toHaveLength(1);
-  // Der Dateiname bestätigt nur, was ohnehin gelesen wurde.
+  // The file name only confirms what was read anyway.
   expect(events.some((e) => e.source === 'nvidia')).toBe(false);
   expect(tagsFor(events, [], CLIP_TAGS)).toEqual(['Kill', 'Multikill']);
 });
@@ -160,7 +160,7 @@ it('infers an elimination from the spectator view, but not from a round replay',
     'R6 2025.09.21 - 16.19.35.02.DVR.mp4',
   );
   expect(tagsFor(spectating, [], CLIP_TAGS)).toEqual(['Tod', 'Runde verloren']);
-  // R6 zählt die Lebenden aus eigener Sicht: "0 vs 2" heißt, von euch lebt niemand mehr.
+  // R6 counts the living from the own team's view: "0 vs 2" means none of you is alive.
   const wiped = collectEvents(
     [
       frame(97.7, 'GRIDLOCK | WATCHING Flyven.MoM', 'gameplay'),
@@ -207,8 +207,8 @@ it('ignores what a replay shows, since it may be somebody else playing', () => {
 });
 
 it('keeps two deaths by the same agent in two rounds apart', () => {
-  // VAL-B2: Kampfbericht der Vorrunde bis zur Kaufphase, dann eine Runde ohne ihn, dann der
-  // neue Tod durch denselben Agenten.
+  // VAL-B2: the previous round's combat report until the buy phase, then a round without it,
+  // then a new death by the same agent.
   const frames = [
     frame(0, 'GETÖTET VON DEADLOCK | KAMPFBERICHT', 'respawn'),
     frame(56.3, 'MATCHPUNKT | GETÖTET VON DEADLOCK', 'menu'),
@@ -220,7 +220,7 @@ it('keeps two deaths by the same agent in two rounds apart', () => {
   const events = collectEvents(frames, 'Valorant.mp4', 'Valorant');
   expect(events.map((e) => e.seconds)).toEqual([0, 116.3]);
   expect(headline(events, 90.1).map((e) => e.seconds)).toEqual([116.3]);
-  // Ein einzelnes verlesenes Bild mitten in einer stehenden Meldung trennt dagegen nichts.
+  // A single misread frame in the middle of a message on screen, however, separates nothing.
   const blink = collectEvents(
     [frame(5.9, 'ELIMINIERT: Civil'), frame(6.7, ''), frame(7.5, 'ELIMINIERT: Civil')],
     'clip.mp4',
@@ -266,7 +266,7 @@ it('headlines the strongest event of the saved moment, with at most one of anoth
     ['roundWon', undefined],
     ['death', 'Deadlock'],
   ]);
-  // Der Kampfbericht der Vorrunde steht noch in der Kaufphase im Bild und trägt keinen Titel.
+  // The previous round's combat report is still on screen in the buy phase and carries no title.
   expect(headline(collectEvents([frame(0, 'GETÖTET VON OMEN')], 'Valorant.mp4'), 90)).toEqual([]);
 });
 
@@ -297,7 +297,7 @@ const at = (kind: string, other?: string) => ({
 });
 
 it.each([
-  // Wirklich vorgekommen: falsche Richtung, erfundener Tod, abgeschriebene Anzeige.
+  // Really happened: wrong direction, invented death, copied HUD readout.
   ['Tod durch Feuerwaffe', [at('kill'), at('multikill')], /Tod/],
   ['Tod im Zielfernrohr', [at('matchWon')], /Tod/],
   ['3 vs 1', [], /Zahlenverhältnis/],
@@ -336,7 +336,7 @@ it('falls back to the proven event, or repairs a copied display without inventin
 });
 
 it('keeps the topic of a voice chat title from the later proposal and drops the chat', () => {
-  // Gemessen am 2026-09-25: die Rückfrage brachte das Thema, beide Fassungen nannten den Chat.
+  // Measured on 2026-09-25: the follow-up question brought the topic; both versions named the chat.
   expect(
     fallbackTitle([], ['Eiswand im Voice-Chat', 'Obi-Wan und Yoda im Voice-Chat'], [], null),
   ).toBe('Obi-Wan und Yoda');
@@ -345,18 +345,18 @@ it('keeps the topic of a voice chat title from the later proposal and drops the 
 
 it('says whose elimination a title about the own death means', () => {
   const died = [at('death')];
-  // FN-02 (2026-09-25): Respawn-Ansicht nach dem Tod, der Titel las sich wie ein Kill.
+  // FN-02 (2026-09-25): respawn view after the death; the title read like a kill.
   expect(titleProblems('Ausgeschaltet in der Luft', died, died).join(' ')).toMatch(/eigener Tod/);
   expect(titleProblems('Ausgeschaltet von GegnerEins', died, died)).toEqual([]);
   expect(titleProblems('Von Deadlock erwischt', died, died)).toEqual([]);
   expect(titleProblems('Warten auf den Respawn', died, died)).toEqual([]);
-  // Mit eigenem Kill ist "ausgeschaltet" als Abtausch lesbar und bleibt erlaubt.
+  // With an own kill, "ausgeschaltet" reads as a trade and stays allowed.
   const traded = [at('kill'), at('death')];
   expect(titleProblems('Gegenseitig ausgeschaltet', traded, traded)).toEqual([]);
 });
 
 it('counts headshots in titles against the killfeed', () => {
-  // Wie VAL-B2 (2026-09-25): zwei Kills per Kopfschuss, dann der eigene Tod.
+  // Like VAL-B2 (2026-09-25): two kills by headshot, then the own death.
   const series = { ...at('multikill'), seconds: 110, count: 2, headshots: 2 };
   const events = [
     at('kill'),
@@ -378,7 +378,7 @@ it('counts headshots in titles against the killfeed', () => {
 });
 
 it('treats killing as a claim also when it is phrased as an activity', () => {
-  // Ohne Meldung darf kein Titel ein Ausschalten behaupten, auch nicht im Infinitiv.
+  // Without a message no title may claim an elimination, not even in the infinitive.
   expect(titleProblems('Zombies töten', [], []).join(' ')).toMatch(/Kill/);
   expect(titleProblems('Gegner ausschalten', [], []).join(' ')).toMatch(/Ausschalten/);
   expect(titleProblems('Gegner ausschalten', [at('kill')], [])).toEqual([]);
@@ -437,7 +437,7 @@ it('builds time marks from proven events and drops repeated or unsupported propo
   ]);
 });
 
-// Ereignisse aus einem Fortnite-Replay: exakt gezählt, mit Waffe und Entfernung.
+// Events from a Fortnite replay: counted exactly, with weapon and distance.
 const replayed = (kind: string, extra: Partial<GameEvent> = {}): GameEvent => ({
   kind: kind as GameEvent['kind'],
   seconds: 10,
@@ -489,11 +489,12 @@ it.each([
   ['Knock über 170 m', [replayed('knock', { weapon: 'rifle', distance: 175.6 })]],
   ['Triple Kill am Turm', [replayed('kill'), replayed('multikill', { count: 3 })]],
   ['Victory Royale am Berg', [replayed('matchWon')]],
-  // So formuliert der Prompt selbst ("zwei Gegner kurz nacheinander"), und so heißt der Ersatztitel.
+  // This is how the prompt itself phrases it ("zwei Gegner kurz nacheinander"), and so does
+  // the fallback title.
   ['Zwei schnelle Kills', double],
   ['Zwei Gegner mit der Schrotflinte ausgeschaltet', double],
   ['Snipe-Knock über 180 m', [replayed('knock', { weapon: 'sniper', distance: 183.4 })]],
-  // Eine Entfernung vor "Kill" ist keine Anzahl.
+  // A distance before "Kill" is not a count.
   ['200 Meter Kill mit dem Sniper', [replayed('kill', { weapon: 'sniper', distance: 205 })]],
 ])('accepts the replay title %s', (title, events) => {
   expect(titleProblems(title, events, headline(events, 0))).toEqual([]);
@@ -504,7 +505,7 @@ it.each([
   ['Drei Kills mit der Schrotflinte', double, /3 Kills, belegt sind 2/],
   ['Drei-Kill-Serie', double, /3 Kills, belegt sind 2/],
   ['Drei Knocks am Turm', [replayed('knock')], /3 Knocks, belegt sind 1/],
-  // Ein Knock deckt "Snipe" nur, wo der Titel ihn auch nennt.
+  // A knock covers "Snipe" only where the title also names it.
   [
     'Snipe zur Victory Royale',
     [replayed('knock', { weapon: 'shotgun', distance: 4 }), replayed('matchWon')],
@@ -524,7 +525,7 @@ it.each([
 });
 
 it('keeps checking titles of clips without replay as before', () => {
-  // Ohne Replay ist eine Serie nicht gezählt; der Titel darf sie nennen wie bisher.
+  // Without a replay a streak is not counted; the title may name it as before.
   expect(
     titleProblems('Doppel-Kill im Lagerhaus', [at('kill')], headline([at('kill')], 0)),
   ).toEqual([]);
@@ -542,7 +543,7 @@ it('replaces read kills and deaths by the exact ones of a replay and keeps resul
     ['kill', 'replay'],
     ['matchWon', 'screen'],
   ]);
-  // Ein leeres Replay-Ergebnis heißt: kein eigener Kill im Clip.
+  // An empty replay result means: no own kill in the clip.
   expect(withReplay(read, []).map((e) => e.kind)).toEqual(['matchWon']);
   expect(withReplay(read, undefined)).toBe(read);
   expect(tidyHighlights([], merged, 20)).toEqual([
@@ -581,19 +582,19 @@ it('rejects an R6 place the text recognition never read, but keeps plain phrases
   expect(titleProblems('Dreifach-Kill auf Border', kills, [], read)).toEqual([]);
   expect(titleProblems('Kopfschuss auf Distanz', kills, [], place)).toEqual([]);
   expect(titleProblems('Bagger auf dem Hof', [], [], place)).toEqual([]);
-  // Zum selben Bild schrieb Qwen3.5 im zweiten Lauf "Übersicht über Dirt Haul".
+  // For the same frame Qwen3.5 wrote "Übersicht über Dirt Haul" in the second run.
   expect(titleProblems('Übersicht über Dirt Haul', [], [], place).join(' ')).toMatch(
     /Ort Dirt Haul/,
   );
   expect(titleProblems('Sprung in Deckung', [], [], place)).toEqual([]);
-  // Dritter Lauf, dasselbe Bild: "Übersicht über Dantzig".
+  // Third run, same frame: "Übersicht über Dantzig".
   expect(titleProblems('Übersicht über Dantzig', [], [], place).join(' ')).toMatch(/Ort Dantzig/);
-  // Ohne Texterkennung (kein R6) gilt die Prüfung nicht.
+  // Without text recognition (not R6) the check does not apply.
   expect(titleProblems('Abend auf Mallorca', [], [])).toEqual([]);
 });
 
 it('counts an R6 kill pop-up on two frames in a row once, unless the alive count changed', () => {
-  // Gelesen am 2026-09-24 im Clip R6-3V1 (Prüfer: Kills bei 43, 61,3 und 68,9 s, dann Tod).
+  // Read on 2026-09-24 in clip R6-3V1 (reviewer: kills at 43, 61.3 and 68.9 s, then death).
   const events = collectEvents(
     [
       frame(45.4, '5vs4 | 1F Main Stairs'),
@@ -616,7 +617,7 @@ it('counts an R6 kill pop-up on two frames in a row once, unless the alive count
 });
 
 it('rejects titles about the voice chat itself and spelled-out round numbers', () => {
-  // Titel aus der Messung vom 2026-09-25 (Stichprobe pruefung-2 mit Transkript).
+  // Titles from the measurement of 2026-09-25 (sample pruefung-2 with transcript).
   expect(titleProblems('Verwirrung im Voice-Chat', [], []).join(' ')).toMatch(/Voice-Chat statt/);
   expect(titleProblems('Gespräch über Gurken', [], []).join(' ')).toMatch(/Voice-Chat statt/);
   expect(titleProblems('Obi-Wan und Yoda im Chat', [], []).join(' ')).toMatch(/Voice-Chat statt/);

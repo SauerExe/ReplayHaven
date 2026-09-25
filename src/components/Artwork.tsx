@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Film } from 'lucide-react';
+import { t } from '../i18n';
 
 export function Artwork({
   src,
@@ -34,7 +35,7 @@ export function Artwork({
   ) : (
     <div className={`art-fallback ${className}`}>
       <Film size={32} />
-      <span>Keine Vorschau</span>
+      <span>{t('app.artwork.noPreview')}</span>
     </div>
   );
 }
