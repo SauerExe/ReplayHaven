@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Signing in at a LAN address such as `http://192.168.1.10:8787` failed with "This origin is
+  not allowed" unless that address was listed in `REPLAYHAVEN_PUBLIC_ORIGIN`. Requests from the
+  page the server itself delivered are now accepted at any address; other sites are still
+  rejected, with a message that names the variable to change.
 - When the client opens before the archive server or Ollama is up (typically right after
   Windows starts), the automatic start now retries every 30 seconds instead of giving up. A
   pause by hand stops the retries. The message names the unreachable server instead of

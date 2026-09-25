@@ -90,12 +90,28 @@ export async function buildServer(
     `http://localhost:${config.port}`,
     `http://127.0.0.1:${config.port}`,
   ]);
+  /**
+   * A page served by this very server calling its own API, e.g. opened at a LAN address such as
+   * http://192.168.1.10:8787 that is not listed in REPLAYHAVEN_PUBLIC_ORIGIN. Another site cannot
+   * forge this: the browser sets Origin to that site, while Host names this server. Behind a
+   * proxy, req.host follows X-Forwarded-Host only when REPLAYHAVEN_TRUST_PROXY trusts it.
+   */
+  const sameOrigin = (req: { headers: { origin?: string }; host: string; protocol: string }) => {
+    try {
+      const origin = new URL(req.headers.origin!);
+      return origin.host === req.host && origin.protocol === `${req.protocol}:`;
+    } catch {
+      return false;
+    }
+  };
   app.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/')) return;
     reply.header('Cache-Control', 'no-store');
     reply.header('X-Content-Type-Options', 'nosniff');
-    if (req.headers.origin && !origins.has(req.headers.origin))
-      return reply.code(403).send({ error: 'This origin is not allowed.' });
+    if (req.headers.origin && !origins.has(req.headers.origin) && !sameOrigin(req))
+      return reply.code(403).send({
+        error: `The address ${req.headers.origin} is not allowed. Add it to REPLAYHAVEN_PUBLIC_ORIGIN on the server.`,
+      });
     if (auth.guard(req, reply)) return reply;
   });
   // Accounts, roles, devices and pairing (server/auth-routes.ts).

@@ -215,3 +215,17 @@ it('denies a pairing request and signs in another device once per QR code', asyn
   expect(labels).toContain('Safari on iPhone/iPad');
   await app.close();
 });
+
+it('accepts the page it served itself from any address and still rejects other sites', async () => {
+  const app = await start();
+  const call = (origin: string, host: string) =>
+    app.inject({ url: '/api/auth/state', headers: { origin, host } });
+  // Opened at a LAN address that is not in REPLAYHAVEN_PUBLIC_ORIGIN.
+  expect((await call('http://192.168.1.10:8787', '192.168.1.10:8787')).statusCode).toBe(200);
+  const foreign = await call('http://evil.example', '192.168.1.10:8787');
+  expect(foreign.statusCode).toBe(403);
+  expect(foreign.json().error).toMatch(/REPLAYHAVEN_PUBLIC_ORIGIN/);
+  // Same host, different scheme is another origin.
+  expect((await call('https://192.168.1.10:8787', '192.168.1.10:8787')).statusCode).toBe(403);
+  await app.close();
+});
