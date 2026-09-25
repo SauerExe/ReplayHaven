@@ -28,11 +28,14 @@ const app = await electron.launch({
 });
 try {
   const page = await app.firstWindow();
-  await page.waitForSelector('#status-message');
+  // A fresh profile opens the setup wizard over the overview.
+  await page.waitForSelector('#wizard:not([hidden])');
+  await expect(page.locator('#wizard-title')).not.toBeEmpty();
+  await expect(page.locator('#wizard-next')).toBeEnabled();
   const state = await page.evaluate(() => window.vault.call('load'));
   if (!state.ok) throw new Error(state.error);
-  await expect(page.locator('#pause')).toBeDisabled();
-  await expect(page.locator('#pick-folder')).toBeVisible();
+  expect(state.value.config.onboarded).toBe(false);
+  await expect(page.locator('#primary-action')).toBeAttached();
   expect(await page.evaluate(() => typeof window.require)).toBe('undefined');
   expect(state.value.config.token).toBe('');
   // ONNX Runtime and the text recognition models load in the packaged client.
