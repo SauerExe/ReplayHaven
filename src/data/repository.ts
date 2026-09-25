@@ -1,5 +1,5 @@
 import type { Clip, ClipFilters, VaultState } from '../domain/models';
-import { createSeed, games } from './seed';
+import { createSeed, games, sampleCollectionIds, withSamples } from './seed';
 const KEY = 'replayhaven.v1';
 export const repository = {
   load(): VaultState {
@@ -14,7 +14,14 @@ export const repository = {
       )
         return {
           ...data,
-          clips: data.clips.map((clip: Clip) => ({
+          // Ältere Browser haben die Beispiele noch gespeichert; im ausgelieferten Build fallen sie weg.
+          collections: withSamples
+            ? data.collections
+            : data.collections.filter((c: { id: string }) => !sampleCollectionIds.has(c.id)),
+          clips: (withSamples
+            ? data.clips
+            : data.clips.filter((clip: Clip) => clip.server || clip.local)
+          ).map((clip: Clip) => ({
             ...clip,
             thumbnail: clip.thumbnail?.startsWith('/media/')
               ? clip.thumbnail.replace(/\.jpg$/, '.webp')

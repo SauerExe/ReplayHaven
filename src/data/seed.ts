@@ -40,7 +40,21 @@ export const sampleCollectionIds = new Set([
   'friends',
   'after-hours',
 ]);
+/**
+ * Beispiel-Clips gibt es nur in Entwicklung und Tests. Im ausgelieferten Build startet die
+ * Bibliothek leer: Sonst stehen die Beispiele in jedem Browser, bis der Server einmal
+ * erfolgreich geantwortet hat, und bleiben bei jedem Fehlschlag stehen.
+ */
+export const withSamples = import.meta.env.MODE !== 'production';
 export function createSeed(): VaultState {
+  if (!withSamples)
+    return {
+      version: 1,
+      clips: [],
+      collections: [],
+      progress: {},
+      preferences: { name: 'Spieler', speed: 1, reducedMotion: false, compact: false },
+    };
   const clips: Clip[] = games.flatMap((g, gi) =>
     titles[gi].map((title, i) => ({
       id: `${g.id}-${i + 1}`,
