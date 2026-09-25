@@ -162,11 +162,11 @@ export function ClipLayers({
             <ClipMenu
               clip={detail}
               variant="round"
-              onRename={(id) => action({ kind: 'rename', id })}
-              onShare={(id) => action({ kind: 'share', id })}
+              onRename={(id, opener) => action({ kind: 'rename', id }, opener)}
+              onShare={(id, opener) => action({ kind: 'share', id }, opener)}
               pageHref={`/clips/${encodeURIComponent(detail.id)}`}
               onNavigate={navigate}
-              onDelete={(id) => action({ kind: 'delete', ids: [id] })}
+              onDelete={(id, opener) => action({ kind: 'delete', ids: [id] }, opener)}
             />
           )
         }

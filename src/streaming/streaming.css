@@ -1574,6 +1574,72 @@
   color: #fff;
   transform: scale(var(--stream-pop));
 }
+.stream-volume {
+  position: relative;
+  flex: none;
+  display: flex;
+}
+.stream-volume-popover {
+  position: absolute;
+  z-index: 3;
+  bottom: 100%;
+  left: 50%;
+  padding-bottom: 12px;
+  transform: translateX(-50%);
+}
+/* Wie bei Netflix: ein schmaler dunkler Kasten über dem Symbol, der Regler senkrecht. */
+.stream-volume-panel {
+  display: flex;
+  justify-content: center;
+  width: 44px;
+  padding: 16px 0;
+  border-radius: 4px;
+  background: rgba(38, 38, 38, 0.96);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.stream-volume-input {
+  appearance: none;
+  /* Senkrechter Regler, unten leise, oben laut. */
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 28px;
+  height: 116px;
+  margin: 0;
+  background: linear-gradient(
+      to top,
+      var(--stream-accent) var(--volume),
+      rgba(255, 255, 255, 0.35) var(--volume)
+    )
+    center / 5px 100% no-repeat;
+  cursor: pointer;
+  touch-action: none;
+}
+.stream-volume-input:focus-visible {
+  outline-offset: 2px;
+}
+.stream-volume-input::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--stream-accent);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease;
+}
+.stream-volume-input:hover::-webkit-slider-thumb {
+  transform: scale(1.2);
+}
+.stream-volume-input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--stream-accent);
+}
+.stream-volume-input::-moz-range-track {
+  background: transparent;
+}
 .stream-player-time {
   font-size: 15px;
   font-weight: 700;

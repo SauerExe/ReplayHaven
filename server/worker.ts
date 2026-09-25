@@ -13,6 +13,7 @@ export class AnalysisWorker {
     readonly config: ServerConfig,
     readonly media: MediaProcessor,
     readonly provider: AnalysisProvider,
+    private readonly onGame?: (name: string) => void,
   ) {}
   recover() {
     for (const clip of this.db.list())
@@ -112,6 +113,7 @@ export class AnalysisWorker {
         if (!latest || latest.deleted) continue;
         this.db.patch(clip.id, {
           ...(settings.autoTitle && !latest.userEditedTitle ? { title: result.title } : {}),
+          gameName: latest.gameName || result.game,
           analysis: {
             status: 'ready',
             result,
@@ -126,6 +128,7 @@ export class AnalysisWorker {
                   : 'video',
           },
         });
+        this.onGame?.(latest.gameName || result.game);
       } catch {
         if (!this.db.get(clip.id)?.deleted)
           this.db.patch(clip.id, {

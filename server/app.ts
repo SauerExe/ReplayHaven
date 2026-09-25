@@ -15,6 +15,7 @@ import { VaultDatabase, publicClip } from './database';
 import type { StoredClip } from './database';
 import { MediaProcessor } from './media';
 import { GameLibrary } from './games';
+import { Igdb } from './metadata';
 import { createProvider } from './providers';
 import type { AnalysisProvider } from './providers';
 import { AnalysisWorker } from './worker';
@@ -34,14 +35,20 @@ export async function buildServer(
   const db = new VaultDatabase(config.dataDir);
   const media = overrides.media || new MediaProcessor(config);
   const coverDir = join(config.dataDir, 'covers');
-  const games = new GameLibrary(db, coverDir, config.gameMetadata);
-  // Bereits archivierte Spiele einmal nachziehen, nicht nur kuenftige Uploads.
-  games.backfill(db.list().map((c) => c.gameName || ''));
+  const games = new GameLibrary(
+    db,
+    coverDir,
+    config.gameMetadata,
+    config.igdb ? new Igdb(config.igdb) : undefined,
+  );
   const worker = new AnalysisWorker(
     db,
     config,
     media,
     overrides.provider || createProvider(config, media),
+    (name) => {
+      games.schedule(name);
+    },
   );
   await mkdir(join(config.dataDir, 'incoming'), { recursive: true });
   await app.register(cookie, {
@@ -118,11 +125,20 @@ export async function buildServer(
             genre: g.info.genre,
             released: g.info.released,
             source: g.info.source,
-            cover: g.info.cover ? `/api/games/${encodeURIComponent(g.key)}/cover` : undefined,
+            cover: g.info.cover
+              ? `/api/games/${encodeURIComponent(g.key)}/cover?v=${encodeURIComponent(g.checkedAt)}`
+              : undefined,
           }
         : {}),
     })),
   );
+  app.post('/api/games/refresh', async (_req, reply) => {
+    if (!config.gameMetadata)
+      return reply.code(409).send({
+        error: 'Der automatische Abruf von Spielinfos ist auf diesem Server deaktiviert.',
+      });
+    return reply.code(202).send({ queued: games.backfill(undefined, true) });
+  });
   app.get<{ Params: { key: string } }>('/api/games/:key/cover', async (req, reply) => {
     const entry = games.list().find((g) => g.key === req.params.key);
     if (!entry?.info?.cover) return reply.code(404).send({ error: 'Kein Cover vorhanden.' });
@@ -146,6 +162,7 @@ export async function buildServer(
       ).length,
     devices: db.devices(),
     clientDownloadAvailable: (await localInstaller()) || !!config.clientDownloadUrl,
+    gameMetadata: games.status(),
   }));
   app.get('/api/downloads/windows', async (_req, reply) => {
     if (await localInstaller()) {
@@ -206,6 +223,7 @@ export async function buildServer(
       const duplicate = db.findHash(digest);
       if (duplicate) {
         if (duplicate.deleted) db.patch(duplicate.id, { deleted: false });
+        if (duplicate.gameName) games.schedule(duplicate.gameName);
         return reply.code(200).send({ clip: publicClip(db.get(duplicate.id)!), duplicate: true });
       }
       const directory = join(config.dataDir, 'clips', id);
@@ -273,6 +291,7 @@ export async function buildServer(
     const result = parseAnalysis(JSON.stringify(payload.result), actual.duration);
     const latest = db.get(id)!;
     if (latest.deleted) return reply.code(404).send({ error: 'Clip wurde entfernt.' });
+    games.schedule(latest.gameName || result.game);
     const previous =
       latest.analysis?.provider === 'client' && latest.analysis.status === 'ready'
         ? latest.analysis.result
@@ -307,6 +326,7 @@ export async function buildServer(
     const clip = db.get(id);
     if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip nicht gefunden.' });
     const patch = clipPatchSchema.parse(req.body);
+    if (patch.gameName) games.schedule(patch.gameName);
     return publicClip(
       db.patch(id, { ...patch, ...(patch.title ? { userEditedTitle: true } : {}) })!,
     );
@@ -384,10 +404,18 @@ export async function buildServer(
     const path = decodeURIComponent(req.url.split('?')[0]);
     return reply.sendFile(path.includes('.') ? path.replace(/^\//, '') : 'index.html');
   });
+  // Auch ohne neue Uploads werden abgelaufene Einträge und fehlgeschlagene Abrufe nachgeholt.
+  games.backfill();
+  const metadataTimer = config.gameMetadata
+    ? setInterval(() => games.backfill(), 3600000)
+    : undefined;
+  metadataTimer?.unref();
   app.addHook('onClose', async () => {
+    clearInterval(metadataTimer);
     await worker.stop();
+    await games.stop();
     db.close();
   });
   worker.recover();
-  return { app, db, worker };
+  return { app, db, worker, games };
 }

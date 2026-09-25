@@ -18,6 +18,7 @@ const ClipDetail = lazy(() => import('./pages/ClipDetail'));
 const SharePage = lazy(() => import('./pages/ClipDetail').then((m) => ({ default: m.SharePage })));
 const Devices = lazy(() => import('./pages/Devices'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Setup = lazy(() => import('./pages/Setup'));
 export function App() {
   return (
     <ActionProvider>
@@ -43,6 +44,7 @@ export function App() {
             <Route path="collections/auto/:id" element={<SmartCollection />} />
             <Route path="devices" element={<Devices />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="setup" element={<Setup />} />
             <Route
               path="*"
               element={

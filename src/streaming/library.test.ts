@@ -80,6 +80,20 @@ function setup(clips: Clip[], collections: { id: string; clipIds: string[] }[] =
 const filters = (query: string) => readFilters(new URLSearchParams(query));
 
 describe('Spielinfos der Bibliothek', () => {
+  it('findet gecachte Infos auch bei abweichender Großschreibung und Markenzeichen', () => {
+    const library = toStreamLibrary(
+      { clips: [server('r6', { gameName: 'RAINBOW SIX® SIEGE' })], collections: [], progress: {} },
+      { [siege.key]: siege },
+      [],
+    );
+    expect(library.clips[0]).toMatchObject({ game: siege.name, gameCover: siege.cover });
+    expect(library.games['name:RAINBOW SIX® SIEGE']).toMatchObject({
+      name: siege.name,
+      cover: siege.cover,
+      description: siege.description,
+    });
+  });
+
   it('nimmt Name, Cover und Steam-Angaben vom Server, sonst aus den Beispieldaten', () => {
     const { library } = setup([
       server('r6'),

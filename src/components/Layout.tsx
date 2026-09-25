@@ -10,6 +10,7 @@ import {
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import {
   ArrowUpRight,
+  BookOpen,
   ChevronDown,
   Folder,
   Grid2X2,
@@ -29,7 +30,10 @@ function RouteScroll() {
   const navigation = useNavigationType();
   const previous = useRef(location.pathname);
   useLayoutEffect(() => {
-    if (navigation === 'POP') window.scrollTo(0, scrollPositions.get(location.key) || 0);
+    const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+    if (navigation === 'POP' && scrollPositions.has(location.key))
+      window.scrollTo(0, scrollPositions.get(location.key)!);
+    else if (target) target.scrollIntoView({ block: 'start', behavior: 'instant' });
     else if (previous.current !== location.pathname) window.scrollTo(0, 0);
     previous.current = location.pathname;
     const save = () => scrollPositions.set(location.key, window.scrollY);
@@ -38,7 +42,7 @@ function RouteScroll() {
       save();
       window.removeEventListener('scroll', save);
     };
-  }, [location.key, location.pathname, navigation]);
+  }, [location.key, location.pathname, location.hash, navigation]);
   return null;
 }
 export function Brand({ linked = true }: { linked?: boolean }) {
@@ -95,6 +99,12 @@ function ProfileMenu({ mobile = false }: { mobile?: boolean }) {
             <Link to="/settings">
               <Settings size={17} />
               Einstellungen
+            </Link>
+          </Menu.Item>
+          <Menu.Item asChild>
+            <Link to="/setup">
+              <BookOpen size={17} />
+              Setup-Guide
             </Link>
           </Menu.Item>
         </Menu.Content>

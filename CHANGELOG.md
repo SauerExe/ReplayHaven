@@ -77,6 +77,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Game info from Steam is refreshed on its own: after uploads, game detection and renamed games,
+  once at start and every hour for due entries, and on demand under Einstellungen → Spielinfos,
+  which also shows how many games are matched. Covers fall back to Steam's header image.
+- Optional second source for game info: with `REPLAYHAVEN_IGDB_CLIENT_ID` and
+  `REPLAYHAVEN_IGDB_CLIENT_SECRET` the server asks IGDB (Twitch) for games Steam does not list,
+  such as Valorant, Fortnite and Minecraft, preferring the main game over ports and editions.
+- A setup guide in the web UI walks through server, access key and Windows client with
+  copyable commands; settings, devices and collections pages share one heading and layout.
+- The player's volume opens as a vertical slider on hover, like on streaming services; a click
+  on the speaker mutes.
 - Default model is Qwen3.5 9B instead of Qwen3-VL 8B. On twelve hand-checked clips it named the
   proven event in 6 of 6 titles instead of 5 of 6, at the same speed (docs/KI-ERKENNUNG.md).
 - Text recognition reads with the PP-OCRv5 latin model (downloaded and checked by SHA-256 when
@@ -103,6 +113,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Steam game info for Rainbow Six Siege: Steam answers the old app id under its new one.
+- Closing a dialog opened from a clip menu in the library, collections or clip detail returns
+  focus to the menu button.
 - R6 kill pop-ups read as "+100 | Kill" count as kills, and one pop-up on two frames in a row
   counts once unless the alive count changed. Titles naming more kills than counted, an "Ace"
   (in R6 an operator), or a place the text recognition never read are corrected.

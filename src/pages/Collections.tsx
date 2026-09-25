@@ -1,36 +1,55 @@
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FolderPlus, Pencil, Plus, Trash2, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Clock3,
+  Film,
+  Folder,
+  FolderPlus,
+  Pencil,
+  Play,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useVault } from '../data/store';
 import { useActions } from '../components/Actions';
 import { Artwork, ClipCard, CollectionCard, EmptyState } from '../components/Cards';
 import type { Clip } from '../domain/models';
+import { PageHeading } from '../components/PageHeading';
+import { time, relativeDate } from '../data/repository';
 export default function Collections() {
   const { state } = useVault();
   const action = useActions();
   return (
-    <div className="page">
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">GUTE MOMENTE GEHÖREN ZUSAMMEN</span>
-          <h1>
-            Sammlungen<span className="count-badge">{state.collections.length}</span>
-          </h1>
-          <p>Deine Highlights, so sortiert wie du sie magst.</p>
-        </div>
+    <div className="page collections-page">
+      <PageHeading
+        eyebrow="GUTE MOMENTE GEHÖREN ZUSAMMEN"
+        title="Sammlungen"
+        count={state.collections.length}
+        description="Deine Highlights, so sortiert wie du sie magst."
+      >
         <button className="button primary" onClick={() => action({ kind: 'create' })}>
           <Plus size={18} />
           Neue Sammlung
         </button>
-      </div>
+      </PageHeading>
       <div className="collections-grid">
         {state.collections.map((c) => (
           <CollectionCard key={c.id} collection={c} />
         ))}
         <button className="new-collection" onClick={() => action({ kind: 'create' })}>
-          <FolderPlus size={29} strokeWidth={1.3} />
-          <h3>Platz für neue Geschichten</h3>
-          <p>Eine neue Sammlung erstellen</p>
-          <Plus size={20} />
+          <span className="collection-create-symbol">
+            <FolderPlus size={28} strokeWidth={1.3} />
+          </span>
+          <span className="collection-create-copy">
+            <strong>Die nächste Geschichte gehört dir.</strong>
+            <small>Gib deinen Lieblingsmomenten eine eigene Sammlung.</small>
+          </span>
+          <span className="collection-create-action">
+            Sammlung erstellen
+            <ArrowRight size={17} />
+          </span>
         </button>
       </div>
     </div>
@@ -57,22 +76,58 @@ export function CollectionDetail() {
   const clips = collection.clipIds
     .map((id) => state.clips.find((c) => c.id === id))
     .filter((c): c is Clip => !!c);
+  const firstPlayable = clips.find((clip) => clip.status === 'ready' && clip.videoSource);
+  const duration = clips.reduce((total, clip) => total + clip.duration, 0);
   return (
-    <div className="page">
+    <div className="page collection-detail-page">
       <Link className="back-link" to="/collections">
         <ArrowLeft size={17} />
         Alle Sammlungen
       </Link>
       <section className="collection-hero">
-        {clips[0] && <Artwork src={clips[0].thumbnail} className="collection-hero-art" />}
+        {clips.length > 0 && (
+          <div className="collection-filmstrip" aria-hidden="true">
+            {clips.slice(0, 3).map((clip, index) => (
+              <div key={clip.id}>
+                <Artwork
+                  src={clip.thumbnail}
+                  eager={index === 0}
+                  sizes="(max-width: 600px) 100vw, 65vw"
+                />
+              </div>
+            ))}
+          </div>
+        )}
         <div className="collection-hero-gradient" />
         <div className="collection-hero-content">
-          <span className="eyebrow">DEINE SAMMLUNG · {clips.length} CLIPS</span>
+          <span className="eyebrow">
+            <Folder size={14} />
+            DEINE SAMMLUNG
+          </span>
           <h1>{collection.title}</h1>
           <p>{collection.description || 'Hier ist Platz für gute Momente.'}</p>
+          <div className="collection-facts">
+            <span>
+              <Film size={14} />
+              {clips.length} {clips.length === 1 ? 'Clip' : 'Clips'}
+            </span>
+            {duration > 0 && (
+              <span>
+                <Clock3 size={14} />
+                {time(duration)} Gesamtlänge
+              </span>
+            )}
+            <span>Aktualisiert: {relativeDate(collection.updatedAt)}</span>
+          </div>
           <div className="button-row">
+            {firstPlayable && (
+              <Link className="button primary" to={`/clips/${firstPlayable.id}`}>
+                <Play size={16} fill="currentColor" />
+                Ersten Clip öffnen
+              </Link>
+            )}
             <button
-              className="button primary"
+              className={`button ${firstPlayable ? 'secondary' : 'primary'}`}
               onClick={() => action({ kind: 'addClips', id: collection.id })}
             >
               <Plus size={17} />
@@ -95,6 +150,20 @@ export function CollectionDetail() {
           </div>
         </div>
       </section>
+      {clips.length > 0 && (
+        <div className="collection-content-heading">
+          <div>
+            <span className="eyebrow">MOMENT FÜR MOMENT</span>
+            <h2>
+              In dieser Sammlung<span>{clips.length}</span>
+            </h2>
+          </div>
+          <Link className="text-link" to="/library">
+            Zur Bibliothek
+            <ArrowRight size={15} />
+          </Link>
+        </div>
+      )}
       {clips.length ? (
         <div className="clip-grid">
           {clips.map((c) => (
@@ -127,6 +196,7 @@ export function CollectionDetail() {
         <EmptyState
           title="Der Anfang einer guten Sammlung"
           description="Füge die ersten Clips aus deiner Bibliothek hinzu."
+          icon={FolderPlus}
         >
           <button
             className="button secondary"

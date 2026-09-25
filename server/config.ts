@@ -19,6 +19,8 @@ export interface ServerConfig {
   clientDownloadUrl?: string;
   /** Spielinfos (Name, Beschreibung, Cover) bei Steam nachschlagen. */
   gameMetadata: boolean;
+  /** Twitch-Anwendung für IGDB, die zweite Quelle für Spiele ohne Steam-Eintrag. */
+  igdb?: { clientId: string; clientSecret: string };
 }
 export function loadConfig(): ServerConfig {
   const provider = process.env.REPLAYHAVEN_AI_PROVIDER || 'none';
@@ -52,6 +54,16 @@ export function loadConfig(): ServerConfig {
     gameMetadata: !['0', 'false', 'off'].includes(
       (process.env.REPLAYHAVEN_GAME_METADATA || '1').toLowerCase(),
     ),
+    // IGDB nur mit beiden Angaben; sonst bleibt es bei Steam.
+    ...(process.env.REPLAYHAVEN_IGDB_CLIENT_ID?.trim() &&
+    process.env.REPLAYHAVEN_IGDB_CLIENT_SECRET?.trim()
+      ? {
+          igdb: {
+            clientId: process.env.REPLAYHAVEN_IGDB_CLIENT_ID.trim(),
+            clientSecret: process.env.REPLAYHAVEN_IGDB_CLIENT_SECRET.trim(),
+          },
+        }
+      : {}),
   };
 }
 export function aiConfigured(config: ServerConfig) {

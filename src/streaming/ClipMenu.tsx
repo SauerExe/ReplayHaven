@@ -1,4 +1,5 @@
 import * as Menu from '@radix-ui/react-dropdown-menu';
+import { useRef } from 'react';
 import {
   Download,
   FileText,
@@ -13,19 +14,25 @@ import {
 import { linkHandler, type Navigate } from './links';
 import type { StreamClip } from './model';
 
+/**
+ * Aktionen bekommen den Menü-Knopf mit: Beim Öffnen eines Dialogs ist der Menüpunkt schon weg,
+ * ohne Knopf fände der Fokus nach Escape nicht zurück.
+ */
+type MenuAction = (id: string, opener: HTMLElement | null) => void;
+
 export interface ClipMenuProps {
   clip: StreamClip;
-  onPlay?: (id: string) => void;
-  onAddToCollection?: (id: string) => void;
-  onRename?: (id: string) => void;
-  onEditTags?: (id: string) => void;
-  onShare?: (id: string) => void;
+  onPlay?: MenuAction;
+  onAddToCollection?: MenuAction;
+  onRename?: MenuAction;
+  onEditTags?: MenuAction;
+  onShare?: MenuAction;
   /** Mit Download-Eintrag, sofern der Clip eine Originaldatei hat. */
   download?: boolean;
   /** Die ausführliche Clip-Seite mit Notizen und KI-Auswertung. */
   pageHref?: string;
   onNavigate?: Navigate;
-  onDelete?: (id: string) => void;
+  onDelete?: MenuAction;
   /** Größe des Auslösers: klein auf Kacheln, rund wie die übrigen Knöpfe im Detaildialog. */
   variant?: 'tile' | 'round';
 }
@@ -45,10 +52,12 @@ export function ClipMenu({
   variant = 'tile',
 }: ClipMenuProps) {
   const id = clip.id;
+  const trigger = useRef<HTMLButtonElement>(null);
   return (
     // Nicht modal: sonst sperrt Radix das Scrollen und die Seite springt.
     <Menu.Root modal={false}>
       <Menu.Trigger
+        ref={trigger}
         className={variant === 'round' ? 'stream-round' : 'stream-tile-tool'}
         aria-label={`Aktionen für ${clip.title}`}
         title="Weitere Aktionen"
@@ -58,31 +67,37 @@ export function ClipMenu({
       <Menu.Portal>
         <Menu.Content className="stream stream-menu" sideOffset={6} align="end">
           {onPlay && (
-            <Menu.Item className="stream-menu-item" onSelect={() => onPlay(id)}>
+            <Menu.Item className="stream-menu-item" onSelect={() => onPlay(id, trigger.current)}>
               <Play size={16} aria-hidden="true" />
               Abspielen
             </Menu.Item>
           )}
           {onAddToCollection && (
-            <Menu.Item className="stream-menu-item" onSelect={() => onAddToCollection(id)}>
+            <Menu.Item
+              className="stream-menu-item"
+              onSelect={() => onAddToCollection(id, trigger.current)}
+            >
               <FolderPlus size={16} aria-hidden="true" />
               Zur Sammlung
             </Menu.Item>
           )}
           {onRename && (
-            <Menu.Item className="stream-menu-item" onSelect={() => onRename(id)}>
+            <Menu.Item className="stream-menu-item" onSelect={() => onRename(id, trigger.current)}>
               <Pencil size={16} aria-hidden="true" />
               Umbenennen
             </Menu.Item>
           )}
           {onEditTags && (
-            <Menu.Item className="stream-menu-item" onSelect={() => onEditTags(id)}>
+            <Menu.Item
+              className="stream-menu-item"
+              onSelect={() => onEditTags(id, trigger.current)}
+            >
               <Tag size={16} aria-hidden="true" />
               Tags bearbeiten
             </Menu.Item>
           )}
           {onShare && (
-            <Menu.Item className="stream-menu-item" onSelect={() => onShare(id)}>
+            <Menu.Item className="stream-menu-item" onSelect={() => onShare(id, trigger.current)}>
               <Share2 size={16} aria-hidden="true" />
               Teilen
             </Menu.Item>
@@ -108,7 +123,7 @@ export function ClipMenu({
               <Menu.Separator className="stream-menu-separator" />
               <Menu.Item
                 className="stream-menu-item stream-menu-item--danger"
-                onSelect={() => onDelete(id)}
+                onSelect={() => onDelete(id, trigger.current)}
               >
                 <Trash2 size={16} aria-hidden="true" />
                 Löschen

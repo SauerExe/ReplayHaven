@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
@@ -72,6 +72,15 @@ export function PlayerOverlay({
   const [time, setTime] = useState(startAt);
   const [mediaDuration, setMediaDuration] = useState(0);
   const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [volumeOpen, setVolumeOpen] = useState(false);
+  const volumeRef = useRef<HTMLDivElement>(null);
+  const volumeButtonRef = useRef<HTMLButtonElement>(null);
+  // Wie bei Netflix: die Maus öffnet den Regler durch Überfahren, ein Klick schaltet stumm.
+  // Ein Tippen auf dem Touchscreen öffnet ihn stattdessen, sonst käme man nicht heran.
+  const volumePointer = useRef('mouse');
+  const lastAudibleVolume = useRef(1);
+  const volumePanelId = useId();
   const [fullscreen, setFullscreen] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -90,7 +99,9 @@ export function PlayerOverlay({
   const blocked = unavailable(clip);
   const message =
     blocked ?? (loadError ? { title: 'Das Video lässt sich nicht laden', text: loadError } : null);
-  const controlsHidden = playing && idle && !overControls && !message;
+  const controlsHidden = playing && idle && !overControls && !volumeOpen && !message;
+  const silent = muted || volume === 0;
+  const volumePercent = silent ? 0 : Math.round(volume * 100);
   const upcoming = clip.highlights.find((mark) => mark.seconds > time + 0.5);
 
   const save = useCallback(
@@ -191,7 +202,19 @@ export function PlayerOverlay({
 
   function toggleMute() {
     if (!video) return;
-    video.muted = !video.muted;
+    if (video.muted || video.volume === 0) {
+      if (video.volume === 0) video.volume = lastAudibleVolume.current;
+      video.muted = false;
+    } else video.muted = true;
+    setMuted(video.muted);
+    setVolume(video.volume);
+  }
+
+  function changeVolume(percent: number) {
+    if (!video) return;
+    video.volume = percent / 100;
+    video.muted = percent === 0;
+    setVolume(video.volume);
     setMuted(video.muted);
   }
 
@@ -203,6 +226,9 @@ export function PlayerOverlay({
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     wake();
+    // Pfeiltasten auf einem Regler gehören dem Regler, nicht den Sprungtasten des Players.
+    if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]'))
+      return;
     const key = event.key.toLowerCase();
     // Leertaste und Enter auf Schaltflächen lösen die Schaltfläche aus, nicht Play/Pause.
     if ((key === ' ' || key === 'enter') && (event.target as HTMLElement).closest('button, a'))
@@ -238,9 +264,18 @@ export function PlayerOverlay({
             rootRef.current?.focus();
           }}
           onCloseAutoFocus={returnFocus}
+          onEscapeKeyDown={(event) => {
+            if (!volumeOpen) return;
+            event.preventDefault();
+            volumeButtonRef.current?.focus();
+            setVolumeOpen(false);
+          }}
           onKeyDown={onKeyDown}
           onPointerMove={wake}
-          onPointerDown={wake}
+          onPointerDown={(event) => {
+            wake();
+            if (!volumeRef.current?.contains(event.target as Node)) setVolumeOpen(false);
+          }}
         >
           <video
             ref={setVideo}
@@ -281,7 +316,12 @@ export function PlayerOverlay({
               save(event.currentTarget, true);
             }}
             onSeeked={(event) => save(event.currentTarget, false)}
-            onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
+            onVolumeChange={(event) => {
+              const video = event.currentTarget;
+              setMuted(video.muted);
+              setVolume(video.volume);
+              if (video.volume > 0) lastAudibleVolume.current = video.volume;
+            }}
             onError={(event) => {
               if (event.currentTarget.getAttribute('src'))
                 setLoadError(
@@ -406,18 +446,67 @@ export function PlayerOverlay({
               >
                 <SkipTen forward />
               </button>
-              <button
-                type="button"
-                className="stream-control"
-                aria-label={muted ? 'Ton einschalten' : 'Stummschalten'}
-                onClick={toggleMute}
+              <div
+                ref={volumeRef}
+                className="stream-volume"
+                onPointerEnter={(event) => {
+                  if (event.pointerType === 'mouse') setVolumeOpen(true);
+                }}
+                onPointerLeave={(event) => {
+                  // Ein Mausklick aufs Symbol hält den Regler nicht offen, nur ein Tastaturfokus.
+                  if (
+                    event.pointerType === 'mouse' &&
+                    !event.currentTarget.querySelector(':focus-visible')
+                  )
+                    setVolumeOpen(false);
+                }}
+                onFocusCapture={(event) => {
+                  if (event.target.matches(':focus-visible')) setVolumeOpen(true);
+                }}
+                onBlurCapture={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setVolumeOpen(false);
+                }}
               >
-                {muted ? (
-                  <VolumeX size={30} strokeWidth={2} aria-hidden="true" />
-                ) : (
-                  <Volume2 size={30} strokeWidth={2} aria-hidden="true" />
+                <button
+                  ref={volumeButtonRef}
+                  type="button"
+                  className="stream-control"
+                  aria-label={silent ? 'Ton einschalten' : 'Stummschalten'}
+                  aria-expanded={volumeOpen}
+                  aria-controls={volumePanelId}
+                  onPointerDown={(event) => (volumePointer.current = event.pointerType)}
+                  onClick={(event) => {
+                    // Tastatur (detail 0) und Maus schalten stumm; ein Tippen öffnet erst den Regler.
+                    if (event.detail > 0 && volumePointer.current !== 'mouse' && !volumeOpen)
+                      setVolumeOpen(true);
+                    else toggleMute();
+                  }}
+                >
+                  {silent ? (
+                    <VolumeX size={30} strokeWidth={2} aria-hidden="true" />
+                  ) : (
+                    <Volume2 size={30} strokeWidth={2} aria-hidden="true" />
+                  )}
+                </button>
+                {volumeOpen && (
+                  <div id={volumePanelId} className="stream-volume-popover">
+                    <div className="stream-volume-panel" role="group" aria-label="Lautstärke">
+                      <input
+                        type="range"
+                        className="stream-volume-input"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={volumePercent}
+                        aria-label="Lautstärke"
+                        aria-valuetext={`${volumePercent} Prozent`}
+                        style={{ '--volume': `${volumePercent}%` } as CSSProperties}
+                        onChange={(event) => changeVolume(Number(event.target.value))}
+                      />
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
               <span className="stream-player-time">
                 {formatDuration(time)} / {formatDuration(duration)}
               </span>

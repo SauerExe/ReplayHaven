@@ -425,14 +425,14 @@ export default function StreamingLibraryPage() {
                   <ClipMenu
                     clip={clip}
                     onPlay={(id) => layers.open('play', id)}
-                    onAddToCollection={(id) => action({ kind: 'add', ids: [id] })}
-                    onRename={(id) => action({ kind: 'rename', id })}
-                    onEditTags={(id) => action({ kind: 'tags', id })}
-                    onShare={(id) => action({ kind: 'share', id })}
+                    onAddToCollection={(id, opener) => action({ kind: 'add', ids: [id] }, opener)}
+                    onRename={(id, opener) => action({ kind: 'rename', id }, opener)}
+                    onEditTags={(id, opener) => action({ kind: 'tags', id }, opener)}
+                    onShare={(id, opener) => action({ kind: 'share', id }, opener)}
                     download
                     pageHref={`/clips/${encodeURIComponent(clip.id)}`}
                     onNavigate={navigate}
-                    onDelete={(id) => action({ kind: 'delete', ids: [id] })}
+                    onDelete={(id, opener) => action({ kind: 'delete', ids: [id] }, opener)}
                   />
                 }
               />

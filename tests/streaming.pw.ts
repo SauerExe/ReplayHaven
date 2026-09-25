@@ -222,3 +222,30 @@ test('Die App startet mit der Streaming-Startseite, der Detaildialog passt aufs 
   await expect(page).not.toHaveURL(/clip=/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
+
+test('Lautstärke: Überfahren öffnet den senkrechten Regler, Klick schaltet stumm', async ({
+  page,
+}) => {
+  await page.goto(PREVIEW);
+  await page
+    .getByRole('region', { name: 'Ace auf Inferno' })
+    .getByRole('button', { name: 'Abspielen' })
+    .click();
+  const player = page.locator('.stream-player');
+  const button = player.getByRole('button', { name: 'Stummschalten' });
+  await button.hover();
+  const slider = player.getByRole('slider', { name: 'Lautstärke' });
+  await expect(slider).toBeVisible();
+  // Wie bei Netflix steht der Regler senkrecht über dem Symbol.
+  const box = (await slider.boundingBox())!;
+  expect(box.height).toBeGreaterThan(box.width * 2);
+  expect(box.y + box.height).toBeLessThanOrEqual((await button.boundingBox())!.y);
+  await slider.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(slider).toHaveValue('99');
+  await button.click();
+  await expect(player.getByRole('button', { name: 'Ton einschalten' })).toBeVisible();
+  await expect(slider).toHaveValue('0');
+  await page.mouse.move(5, 5);
+  await expect(slider).toBeHidden();
+});

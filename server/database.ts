@@ -29,6 +29,7 @@ export interface StoredGame {
   /** Der Name, wie er in der Bibliothek steht — also der Ordnername der Aufnahmen. */
   label: string;
   checkedAt: string;
+  status?: 'ready' | 'not_found' | 'error';
   /** Fehlt, wenn es zu diesem Namen keinen exakten Treffer gibt. */
   info?: {
     name: string;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -16,41 +16,8 @@ import { games } from '../data/seed';
 import { useVault } from '../data/store';
 import { relativeDate, time } from '../data/repository';
 import { ClipMenu } from './Actions';
-export function Artwork({
-  src,
-  alt = '',
-  className = '',
-  eager = false,
-}: {
-  src: string;
-  alt?: string;
-  className?: string;
-  eager?: boolean;
-}) {
-  const [failed, setFailed] = useState(false);
-  const responsive = src.startsWith('/media/') && src.endsWith('.webp');
-  return src && !failed ? (
-    <img
-      className={className}
-      src={src}
-      srcSet={
-        responsive
-          ? `${src.replace('.webp', '-thumb.webp')} ${src.includes('cover') ? 400 : 600}w, ${src} ${src.includes('cover') ? 600 : 1600}w`
-          : undefined
-      }
-      sizes={eager ? '100vw' : '(max-width:600px) 76vw, (max-width:1100px) 34vw, 25vw'}
-      alt={alt}
-      loading={eager ? 'eager' : 'lazy'}
-      fetchPriority={eager ? 'high' : 'auto'}
-      onError={() => setFailed(true)}
-    />
-  ) : (
-    <div className={`art-fallback ${className}`}>
-      <Film size={32} />
-      <span>Keine Vorschau</span>
-    </div>
-  );
-}
+import { Artwork } from './Artwork';
+export { Artwork } from './Artwork';
 export function ClipCard({
   clip,
   selecting = false,
@@ -260,15 +227,17 @@ export function EmptyState({
   title = 'Noch keine Clips',
   description = 'Dein nächster guter Moment wartet schon.',
   children,
+  icon: Icon = Film,
 }: {
   title?: string;
   description?: string;
   children?: ReactNode;
+  icon?: ComponentType<{ size?: number; strokeWidth?: number }>;
 }) {
   return (
     <div className="empty-state">
-      <div className="empty-icon">
-        <Film size={32} strokeWidth={1.4} />
+      <div className="empty-icon" aria-hidden="true">
+        <Icon size={32} strokeWidth={1.4} />
       </div>
       <h2>{title}</h2>
       <p>{description}</p>

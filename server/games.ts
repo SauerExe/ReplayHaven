@@ -1,64 +1,116 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gameKey, lookupGame } from './metadata';
+import type { Igdb } from './metadata';
 import type { VaultDatabase, StoredGame } from './database';
+import type { GameMetadataStatus } from '../src/domain/models';
 
-/**
- * Spielinfos einmal je Spielname besorgen und im Archiv behalten. Der Aufruf blockiert keinen
- * Upload: er läuft im Hintergrund und scheitert still, wenn Steam nicht erreichbar ist.
- *
- * Auch ein erfolgloses Nachschlagen wird vermerkt, damit nicht bei jedem Upload erneut
- * angefragt wird. Nach `RETRY_AFTER_DAYS` darf ein Name erneut versucht werden — Spiele
- * erscheinen später auf Steam, und Tippfehler werden im Archiv korrigiert.
- */
-const RETRY_AFTER_DAYS = 14;
+const HOUR = 3600000;
+const DAY = 24 * HOUR;
 
+/** Netzfehler und fehlende Cover früher erneut versuchen als einen eindeutigen Nichttreffer. */
 export function needsLookup(existing: StoredGame | undefined, now = Date.now()) {
   if (!existing) return true;
-  if (existing.info) return false;
   const age = now - Date.parse(existing.checkedAt);
-  return !Number.isFinite(age) || age > RETRY_AFTER_DAYS * 86400000;
+  const retryAfter =
+    existing.status === 'error' || (existing.info && !existing.info.cover)
+      ? HOUR
+      : existing.info && existing.status !== 'not_found'
+        ? 30 * DAY
+        : 14 * DAY;
+  return !Number.isFinite(age) || age < 0 || age >= retryAfter;
 }
 
 export class GameLibrary {
   private running = new Set<string>();
   /** Anfragen laufen nacheinander: der Dienst ist fremd und soll nicht geflutet werden. */
-  private queue: Promise<unknown> = Promise.resolve();
+  private queue: Promise<void> = Promise.resolve();
+  private readonly abort = new AbortController();
+  private stopped = false;
   constructor(
     private readonly db: VaultDatabase,
     private readonly coverDir: string,
     private readonly enabled: boolean,
+    /** Zweite Quelle für Spiele ohne Steam-Eintrag; fehlt, solange IGDB nicht eingerichtet ist. */
+    private readonly igdb?: Igdb,
   ) {}
 
   list(): StoredGame[] {
     return this.db.games();
   }
 
-  /** Stößt das Nachschlagen an, ohne auf das Ergebnis zu warten. */
-  schedule(label: string) {
-    if (!this.enabled) return;
+  labels() {
+    return this.db
+      .list()
+      .filter((clip) => !clip.deleted)
+      .map((clip) => clip.gameName || '');
+  }
+
+  status(): GameMetadataStatus {
+    const keys = new Set(this.labels().map(gameKey).filter(Boolean));
+    const entries = this.list().filter((game) => keys.has(game.key));
+    return {
+      enabled: this.enabled,
+      pending: this.running.size,
+      total: keys.size,
+      matched: entries.filter((game) => game.info).length,
+      missing: entries.filter((game) => !game.info && game.status !== 'error').length,
+      failed: entries.filter((game) => game.status === 'error').length,
+    };
+  }
+
+  /** Liefert true, wenn ein neuer Auftrag hinzugefügt wurde; wartet nicht auf das Netz. */
+  schedule(label: string, force = false) {
+    if (!this.enabled || this.stopped) return false;
     const key = gameKey(label);
-    if (!key || this.running.has(key)) return;
-    if (!needsLookup(this.db.game(key))) return;
+    if (!key || this.running.has(key)) return false;
+    if (!force && !needsLookup(this.db.game(key))) return false;
     this.running.add(key);
     this.queue = this.queue
-      .then(() => this.resolve(key, label))
+      .then(() => {
+        if (!this.stopped) return this.resolve(key, label);
+      })
+      .catch(() => {
+        // Auch ein Speicherfehler darf spätere Aufträge nicht blockieren.
+        console.warn('Spielinfos konnten nicht gespeichert werden.');
+      })
       .finally(() => this.running.delete(key));
+    return true;
   }
 
   /**
    * Holt Spielinfos für alles nach, was schon im Archiv liegt. Ohne diesen Schritt bekämen nur
    * künftige Aufnahmen ein Cover, und ein gewachsenes Archiv bliebe für immer leer.
    */
-  backfill(labels: string[]) {
-    for (const label of new Set(labels.filter(Boolean))) this.schedule(label);
+  backfill(labels = this.labels(), force = false) {
+    let queued = 0;
+    for (const label of new Set(labels.filter(Boolean))) {
+      if (this.schedule(label, force)) queued++;
+    }
+    return queued;
+  }
+
+  async stop() {
+    this.stopped = true;
+    this.abort.abort();
+    await this.queue;
   }
 
   private async resolve(key: string, label: string) {
-    const entry: StoredGame = { key, label, checkedAt: new Date().toISOString() };
+    const previous = this.db.game(key);
+    const entry: StoredGame = {
+      key,
+      label,
+      checkedAt: new Date().toISOString(),
+      info: previous?.info,
+      status: 'not_found',
+    };
     try {
-      const info = await lookupGame(label);
+      const signal = AbortSignal.any([this.abort.signal, AbortSignal.timeout(30000)]);
+      const info = await lookupGame(label, signal, this.igdb);
       if (info) {
+        const cover = await this.cache(key, [info.coverUrl, info.fallbackCoverUrl].filter(Boolean));
         entry.info = {
           name: info.name,
           appId: info.appId,
@@ -66,29 +118,68 @@ export class GameLibrary {
           genre: info.genre,
           released: info.released,
           source: info.source,
-          cover: await this.cache(key, info.coverUrl),
+          cover: cover || (previous?.info?.appId === info.appId ? previous.info.cover : undefined),
         };
+        entry.status = cover ? 'ready' : 'error';
       }
     } catch {
-      // Kein Netz, kein Steam, kein Drama: der Eintrag wird als erfolglos vermerkt und
-      // später erneut versucht. Aufnahmen funktionieren ohne Spielinfos vollständig.
+      // Bereits gespeicherte Infos bleiben auch bei einem vorübergehenden Fehler verfügbar.
+      entry.status = 'error';
     }
-    this.db.putGame(entry);
+    if (!this.stopped) {
+      entry.checkedAt = new Date().toISOString();
+      this.db.putGame(entry);
+    }
   }
 
-  /** Lädt das Cover einmal herunter, damit die Bibliothek ohne Netz funktioniert. */
-  private async cache(key: string, url: string) {
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
-      if (!response.ok) return undefined;
-      const bytes = Buffer.from(await response.arrayBuffer());
-      if (!bytes.length) return undefined;
-      await mkdir(this.coverDir, { recursive: true });
-      const file = `${key.replace(/[^a-z0-9]+/g, '-')}.jpg`;
-      await writeFile(join(this.coverDir, file), bytes);
-      return file;
-    } catch {
-      return undefined;
+  /** Cover lokal und atomar speichern; Querformat als Rückfall fürs fehlende Poster. */
+  private async cache(key: string, urls: string[]) {
+    const file = `${createHash('sha256').update(key).digest('hex')}.jpg`;
+    const temporary = join(this.coverDir, `${file}.tmp`);
+    for (const url of urls) {
+      if (this.stopped) return undefined;
+      try {
+        const response = await fetch(url, {
+          signal: AbortSignal.any([this.abort.signal, AbortSignal.timeout(20000)]),
+        });
+        const limit = 8 * 1024 * 1024;
+        if (
+          !response.ok ||
+          !response.headers.get('content-type')?.startsWith('image/jpeg') ||
+          Number(response.headers.get('content-length')) > limit ||
+          !response.body
+        ) {
+          await response.body?.cancel();
+          continue;
+        }
+        const reader = response.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let size = 0;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            size += value.length;
+            if (size > limit) throw new Error('Cover zu groß.');
+            chunks.push(value);
+          }
+        } finally {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
+        }
+        const bytes = Buffer.concat(chunks);
+        if (bytes.length < 3 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff)
+          continue;
+        await mkdir(this.coverDir, { recursive: true });
+        await writeFile(temporary, bytes);
+        await rename(temporary, join(this.coverDir, file));
+        return file;
+      } catch {
+        // Der nächste Bildpfad kann verfügbar sein, auch wenn das Bibliothekscover fehlt.
+      } finally {
+        await rm(temporary, { force: true }).catch(() => {});
+      }
     }
+    return undefined;
   }
 }

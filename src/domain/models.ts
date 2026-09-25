@@ -59,6 +59,14 @@ export interface ClipAnalysis {
   updatedAt?: string;
   input?: 'frames' | 'video' | 'video_audio';
 }
+export interface GameMetadataStatus {
+  enabled: boolean;
+  pending: number;
+  total: number;
+  matched: number;
+  missing: number;
+  failed: number;
+}
 export interface ServerInfo {
   connected: boolean;
   authRequired?: boolean;
@@ -68,6 +76,7 @@ export interface ServerInfo {
   settings: { autoAnalyze: boolean; autoTitle: boolean; includeAudio: boolean };
   queue: number;
   clientDownloadAvailable?: boolean;
+  gameMetadata?: GameMetadataStatus;
   devices: {
     id: string;
     name: string;

@@ -44,7 +44,16 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       // Spielinfos sind Beiwerk: ohne sie zeigt die Bibliothek weiterhin alles, nur ohne Cover.
       api<ServerGame[]>('/games')
         .then((list) =>
-          setGameInfo(Object.fromEntries(list.filter((g) => g.name).map((g) => [g.label, g]))),
+          setGameInfo(
+            Object.fromEntries(
+              list
+                .filter((g) => g.name)
+                .flatMap((g) => [
+                  [g.label, g],
+                  [g.key, g],
+                ]),
+            ),
+          ),
         )
         .catch(() => {});
       setState((s) => ({

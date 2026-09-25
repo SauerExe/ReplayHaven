@@ -53,6 +53,7 @@ clips/<UUID>/original.<ext>    Unveränderte Aufnahme
 clips/<UUID>/thumbnail.jpg     Vorschaubild
 clips/<UUID>/playback.mp4      Optionale Wiedergabekopie
 incoming/                      Laufende Uploads
+covers/                        Lokal gespeicherte Spiele-Cover von Steam
 ```
 
 Für ein konsistentes Backup den Container stoppen, das **gesamte Volume** sichern, dann wieder starten:
@@ -79,6 +80,20 @@ Fehlt beides, gibt es keinen Downloadknopf.
 ## Verarbeitung
 
 H.264 in MP4 wird direkt wiedergegeben. Andere Formate erhalten eine zusätzliche H.264-Wiedergabekopie mittels CPU-FFmpeg. HEVC/AV1 benötigen dadurch zusätzliche Zeit und Platz. Eine Warteschlange begrenzt gleichzeitige Serververarbeitung; laufende Aufträge werden nach Neustart erneut aufgenommen.
+
+## Automatische Spielinfos
+
+Der Server lädt für erkannte Spiele den offiziellen Namen, eine deutsche Kurzbeschreibung (soweit bei Steam vorhanden), Genre, Erscheinungsdatum und Cover von Steam. Ein API-Schlüssel ist nicht erforderlich. Die Funktion ist standardmäßig aktiv; `REPLAYHAVEN_GAME_METADATA=0` in `.env` schaltet neue Abrufe aus. Nach einer Änderung den Container mit `docker compose up -d` neu erstellen.
+
+Der Abruf startet nach Uploads mit Spielnamen, nach der Spielerkennung durch Client- oder Server-KI und nach manuellen Änderungen des Spielnamens. Beim Serverstart werden vorhandene Clips nachgezogen. Nur normalisiert exakt passende Steam-Namen werden übernommen: Satzzeichen, Markenzeichen und Großschreibung dürfen abweichen; ein ähnlicher Spieletitel allein reicht nicht. Nicht bei Steam geführte Spiele und abweichende Kurznamen behalten ihren bisherigen Namen ohne erfundene Metadaten.
+
+**IGDB als zweite Quelle (optional).** Spiele, die Steam nicht führt (Valorant, Fortnite, Minecraft und andere), findet der Server über [IGDB](https://api-docs.igdb.com/) von Twitch, kostenlos für nicht-kommerzielle Nutzung. Dafür unter https://dev.twitch.tv/console/apps eine Anwendung anlegen (Weiterleitungs-URL `http://localhost`, Kategorie „Application Integration“), dann Client-ID und ein neues Client-Secret als `REPLAYHAVEN_IGDB_CLIENT_ID` und `REPLAYHAVEN_IGDB_CLIENT_SECRET` in `.env` eintragen und den Container mit `docker compose up -d` neu erstellen. Unter **Einstellungen → Spielinfos** lassen sich danach alle Spiele neu nachschlagen. Es gilt dieselbe Regel wie bei Steam: nur exakt passende Namen, Cover im Hochformat. Beschreibungen kommen von IGDB auf Englisch.
+
+Anfragen laufen nacheinander im Hintergrund. Die Metadaten liegen in SQLite, Cover unter `covers/`; der Browser lädt die Bilder vom eigenen Server. Fehlt das Hochformat-Cover, versucht der Server das Steam-Headerbild. Bereits gespeicherte Infos bleiben bei Ausfällen erhalten.
+
+Ein stündlicher Durchlauf prüft fällige Abrufe: Netzfehler und unvollständige Cover frühestens nach einer Stunde, Spiele ohne Treffer nach 14 Tagen, vollständige Einträge nach 30 Tagen. Unter **Einstellungen → Spielinfos** stehen Status und Trefferzahlen. **Jetzt aktualisieren** stößt den Abruf aller Spiele im sichtbaren Archiv sofort an. Entfernte Clips werden dabei nicht berücksichtigt.
+
+Übertragen werden der Spielname für die Suche und die gefundene Steam-App-ID für Details und Bilder; keine Clips oder Analyseergebnisse.
 
 ## Ohne Docker
 

@@ -1,5 +1,5 @@
 import { expect, it, vi, afterEach } from 'vitest';
-import { gameKey, pickExact, lookupGame } from './metadata';
+import { gameKey, Igdb, pickExact, lookupGame } from './metadata';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -71,12 +71,47 @@ it('builds the game info from search hit and details', async () => {
   expect(fetcher.mock.calls[1][0]).toContain('l=german');
 });
 
+it('follows Steam when it answers a renamed game under a new app id', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) =>
+      url.includes('SearchApps')
+        ? Response.json([{ appid: '359550', name: "Tom Clancy's Rainbow Six Siege" }])
+        : Response.json({
+            '5290420': {
+              success: true,
+              data: { type: 'game', name: "Tom Clancy's Rainbow Six Siege", steam_appid: 359550 },
+            },
+          }),
+    ),
+  );
+  const info = await lookupGame("Tom Clancy's Rainbow Six  Siege");
+  expect(info).toMatchObject({ name: "Tom Clancy's Rainbow Six Siege", appId: 359550 });
+  expect(info?.coverUrl).toContain('/359550/');
+});
+
 it('gives up quietly when Steam answers with an error', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => new Response('', { status: 503 })),
   );
   await expect(lookupGame('Raft')).rejects.toThrow('HTTP 503');
+});
+
+it('treats unavailable details as retryable and rejects software matches', async () => {
+  const fetcher = vi.fn(async (url: string) =>
+    url.includes('SearchApps')
+      ? Response.json([{ appid: '648800', name: 'Raft' }])
+      : Response.json({ '648800': { success: false } }),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  await expect(lookupGame('Raft')).rejects.toThrow('keine Spieldetails');
+  fetcher.mockImplementation(async (url: string) =>
+    url.includes('SearchApps')
+      ? Response.json([{ appid: '648800', name: 'Raft' }])
+      : Response.json({ '648800': { success: true, data: { type: 'application' } } }),
+  );
+  expect(await lookupGame('Raft')).toBeUndefined();
 });
 
 it('keeps meaningful symbols and skips NVIDIA fallback profiles', async () => {
@@ -88,4 +123,92 @@ it('keeps meaningful symbols and skips NVIDIA fallback profiles', async () => {
   for (const profile of ['Desktop', 'Base Profile', 'NVIDIA Share'])
     expect(await lookupGame(profile)).toBeUndefined();
   expect(fetcher).not.toHaveBeenCalled();
+});
+
+it('asks IGDB for games Steam does not know and reuses the Twitch token', async () => {
+  const steam = vi.fn(async () => Response.json([{ appid: '1', name: 'Valorant Soundtrack' }]));
+  vi.stubGlobal('fetch', steam);
+  const calls: string[] = [];
+  const get = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push(String(url));
+    if (String(url).startsWith('https://id.twitch.tv/'))
+      return Response.json({ access_token: 'tok', expires_in: 5000000 });
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer tok');
+    expect(String(init?.body)).toMatch(/^search "valorant";/i);
+    return Response.json([
+      { id: 7, name: 'Valorant Champions', cover: { image_id: 'xyz' } },
+      {
+        id: 126459,
+        name: 'Valorant',
+        summary: 'A 5v5 character-based tactical shooter.',
+        first_release_date: 1590969600,
+        genres: [{ name: 'Shooter' }, { name: 'Tactical' }],
+        cover: { image_id: 'co2mvt' },
+        url: 'https://www.igdb.com/games/valorant',
+      },
+    ]);
+  });
+  const igdb = new Igdb({ clientId: 'id', clientSecret: 'secret' }, get as typeof fetch);
+  const info = await lookupGame('VALORANT', undefined, igdb);
+  expect(info).toMatchObject({
+    name: 'Valorant',
+    appId: 126459,
+    genre: 'Shooter, Tactical',
+    released: '1. Juni 2020',
+    source: 'https://www.igdb.com/games/valorant',
+  });
+  expect(info?.coverUrl).toBe(
+    'https://images.igdb.com/igdb/image/upload/t_cover_big_2x/co2mvt.jpg',
+  );
+  await lookupGame('Valorant', undefined, igdb);
+  // Ein Token für beide Suchen.
+  expect(calls.filter((c) => c.startsWith('https://id.twitch.tv/'))).toHaveLength(1);
+});
+
+it('stays with Steam when it has the game and without IGDB when nothing matches exactly', async () => {
+  const get = vi.fn(async (url: string | URL | Request) =>
+    String(url).startsWith('https://id.twitch.tv/')
+      ? Response.json({ access_token: 'tok', expires_in: 3600 })
+      : Response.json([{ id: 1, name: 'Minecraft Dungeons' }]),
+  );
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json([])),
+  );
+  const igdb = new Igdb({ clientId: 'id', clientSecret: 'secret' }, get as typeof fetch);
+  expect(await lookupGame('Minecraft', undefined, igdb)).toBeUndefined();
+  expect(await lookupGame('Desktop', undefined, igdb)).toBeUndefined();
+  expect(get).toHaveBeenCalledTimes(2);
+});
+
+it('takes the main game over a same-named regional port on IGDB', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json([])),
+  );
+  // Echte Antwort vom 2026-09-24, gekürzt: die chinesische Fassung kommt zuerst.
+  const get = vi.fn(async (url: string | URL | Request) =>
+    String(url).startsWith('https://id.twitch.tv/')
+      ? Response.json({ access_token: 'tok', expires_in: 3600 })
+      : Response.json([
+          {
+            id: 231090,
+            name: 'Fortnite',
+            game_type: 11,
+            parent_game: 1905,
+            total_rating_count: 33,
+            cover: { image_id: 'cn' },
+          },
+          {
+            id: 1905,
+            name: 'Fortnite',
+            game_type: 0,
+            total_rating_count: 1011,
+            cover: { image_id: 'main' },
+          },
+          { id: 324915, name: 'Fortnite OG', game_type: 2, parent_game: 1905 },
+        ]),
+  );
+  const igdb = new Igdb({ clientId: 'id', clientSecret: 'secret' }, get as typeof fetch);
+  expect(await lookupGame('Fortnite', undefined, igdb)).toMatchObject({ appId: 1905 });
 });

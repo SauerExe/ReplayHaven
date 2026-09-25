@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   Check,
+  BookOpen,
   Database,
   FolderOpen,
+  Gamepad2,
   Monitor,
   Palette,
   Play,
@@ -18,9 +20,13 @@ import { useVault } from '../data/store';
 import { bytes, canContinue } from '../data/repository';
 import { useActions } from '../components/Actions';
 import { ServerSettings } from '../components/ServerSettings';
+import { GameMetadataSettings } from '../components/GameMetadataSettings';
 import { SettingsSection, type SettingsArea } from '../components/SettingsSection';
+import { PageHeading } from '../components/PageHeading';
+import { useActiveSection } from '../components/useActiveSection';
 const areas: SettingsArea[] = [
   { id: 'analysis', label: 'KI & Server', icon: Sparkles },
+  { id: 'games', label: 'Spielinfos', icon: Gamepad2 },
   { id: 'profile', label: 'Profil', icon: User },
   { id: 'playback', label: 'Wiedergabe', icon: Play },
   { id: 'appearance', label: 'Erscheinungsbild', icon: Palette },
@@ -28,44 +34,29 @@ const areas: SettingsArea[] = [
   { id: 'devices', label: 'Geräte', icon: Monitor },
 ];
 const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const areaIds = areas.map((area) => area.id);
 function length(seconds: number) {
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `${minutes} Min`;
   const rest = minutes % 60;
   return rest ? `${Math.floor(minutes / 60)} Std ${rest} Min` : `${Math.floor(minutes / 60)} Std`;
 }
-function useCurrentArea() {
-  const [current, setCurrent] = useState(areas[0].id);
-  useEffect(() => {
-    const update = () => {
-      const nodes = areas
-        .map((a) => document.getElementById(a.id))
-        .filter((node): node is HTMLElement => Boolean(node));
-      if (!nodes.length) return;
-      const last = nodes[nodes.length - 1];
-      const atEnd = window.innerHeight + window.scrollY >= document.body.scrollHeight - 4;
-      setCurrent(
-        atEnd
-          ? last.id
-          : (nodes.filter((node) => node.getBoundingClientRect().top <= 170).pop() || nodes[0]).id,
-      );
-    };
-    update();
-    window.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
-    return () => {
-      window.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
-    };
-  }, []);
-  return current;
-}
 export default function Settings() {
   const { state, setState, toast, server } = useVault();
   const action = useActions();
   const [name, setName] = useState(state.preferences.name);
   const prefs = state.preferences;
-  const current = useCurrentArea();
+  const current = useActiveSection(areaIds);
+  const navigationRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = navigationRef.current;
+    const active = nav?.querySelector<HTMLElement>('[aria-current]');
+    if (!nav || !active || nav.scrollWidth <= nav.clientWidth) return;
+    const navBox = nav.getBoundingClientRect();
+    const activeBox = active.getBoundingClientRect();
+    if (activeBox.left < navBox.left || activeBox.right > navBox.right)
+      nav.scrollLeft += activeBox.left - navBox.left - (nav.clientWidth - activeBox.width) / 2;
+  }, [current]);
   const update = (patch: Partial<typeof prefs>) =>
     setState((s) => ({ ...s, preferences: { ...s.preferences, ...patch } }));
   const localClips = state.clips.filter((c) => c.local);
@@ -81,29 +72,43 @@ export default function Settings() {
   const initial = (name.trim() || prefs.name).slice(0, 1).toUpperCase();
   return (
     <div className="page settings-page">
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow">GANZ WIE DU ES MAGST</span>
-          <h1>Einstellungen</h1>
-          <p>Dein Vault, deine Gewohnheiten.</p>
-        </div>
-      </div>
+      <PageHeading
+        eyebrow="GANZ WIE DU ES MAGST"
+        title="Einstellungen"
+        description="Dein Vault, deine Gewohnheiten."
+      >
+        <Link className="button secondary" to="/setup">
+          <BookOpen size={17} />
+          Setup-Guide
+        </Link>
+      </PageHeading>
       <div className="settings-layout">
-        <nav className="settings-nav" aria-label="Einstellungsbereiche">
+        <nav className="settings-nav" aria-label="Einstellungsbereiche" ref={navigationRef}>
           <span className="settings-nav-label">Bereiche</span>
           {areas.map((area) => (
             <a
               key={area.id}
               href={`#${area.id}`}
-              aria-current={current === area.id ? 'true' : undefined}
+              aria-current={current === area.id ? 'location' : undefined}
             >
               <area.icon size={16} />
               {area.label}
             </a>
           ))}
+          <div className="settings-nav-note">
+            <span className="settings-note-icon">
+              <BookOpen size={19} />
+            </span>
+            <strong>Neu bei ReplayHaven?</strong>
+            <p>Vom ersten Start bis zu deinem ersten archivierten Clip.</p>
+            <Link to="/setup">
+              Zur Einrichtung <ArrowRight size={14} />
+            </Link>
+          </div>
         </nav>
         <div className="settings-sections">
           <ServerSettings />
+          <GameMetadataSettings />
           <SettingsSection id="profile" title="Profil" description="Ein bisschen persönlicher.">
             <form
               className="settings-card profile-form"

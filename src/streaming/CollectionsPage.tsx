@@ -255,14 +255,16 @@ function CollectionGrid({
               <ClipMenu
                 clip={clip}
                 onPlay={(clipId) => layers.open('play', clipId)}
-                onAddToCollection={(clipId) => action({ kind: 'add', ids: [clipId] })}
-                onRename={(clipId) => action({ kind: 'rename', id: clipId })}
-                onEditTags={(clipId) => action({ kind: 'tags', id: clipId })}
-                onShare={(clipId) => action({ kind: 'share', id: clipId })}
+                onAddToCollection={(clipId, opener) =>
+                  action({ kind: 'add', ids: [clipId] }, opener)
+                }
+                onRename={(clipId, opener) => action({ kind: 'rename', id: clipId }, opener)}
+                onEditTags={(clipId, opener) => action({ kind: 'tags', id: clipId }, opener)}
+                onShare={(clipId, opener) => action({ kind: 'share', id: clipId }, opener)}
                 download
                 pageHref={`/clips/${encodeURIComponent(clip.id)}`}
                 onNavigate={navigate}
-                onDelete={(clipId) => action({ kind: 'delete', ids: [clipId] })}
+                onDelete={(clipId, opener) => action({ kind: 'delete', ids: [clipId] }, opener)}
               />
             }
             footer={footer?.(clip)}

@@ -7,6 +7,7 @@ import type {
   VaultState,
 } from '../domain/models';
 import { games as seedGames } from '../data/seed';
+import { gameKey } from '../domain/gameKey';
 import type { Confidence } from './format';
 
 export interface StreamHighlight {
@@ -87,7 +88,9 @@ export function toStreamClip(
   const result = analysis?.result;
   // Server-Aufnahmen tragen den Ordnernamen, Beispiel-Clips eine Spiel-ID; so filtert auch die Bibliothek.
   const seedGame = clip.gameName ? undefined : knownGames.find((g) => g.id === clip.gameId);
-  const info = clip.gameName ? gameInfo[clip.gameName] : undefined;
+  const info = clip.gameName
+    ? (gameInfo[clip.gameName] ?? gameInfo[gameKey(clip.gameName)])
+    : undefined;
   const duration = Number.isFinite(clip.duration) && clip.duration > 0 ? clip.duration : 0;
   const highlights = (result?.highlights ?? [])
     .filter(
@@ -133,7 +136,7 @@ function toStreamGame(
   knownGames: Game[],
 ): StreamGame | undefined {
   if (clip.gameName) {
-    const info = gameInfo[clip.gameName];
+    const info = gameInfo[clip.gameName] ?? gameInfo[gameKey(clip.gameName)];
     return {
       key: `name:${clip.gameName}`,
       name: info?.name || clip.gameName,
