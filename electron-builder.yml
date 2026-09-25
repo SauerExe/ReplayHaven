@@ -31,7 +31,7 @@ win:
   target:
     - target: nsis
       arch: x64
-  signAndEditExecutable: false
+  signAndEditExecutable: true
 nsis:
   oneClick: false
   perMachine: false

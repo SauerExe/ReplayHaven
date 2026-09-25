@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-25
+
 ### Added
 
 - Web library with search, filters, collections, favourites and a keyboard-friendly player.
@@ -91,6 +93,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- New app icon for the Windows client, also embedded in the program file, shortcuts and
+  installer (they showed the Electron icon before).
 - Game info from Steam is refreshed on its own: after uploads, game detection and renamed games,
   once at start and every hour for due entries, and on demand under Einstellungen → Spielinfos,
   which also shows how many games are matched. Covers fall back to Steam's header image.
@@ -158,3 +162,6 @@ All notable changes to this project are documented here. The format follows
   too few; unreadable batches are retried once and partially recovered.
 - Time marks outside the clip no longer discard the whole analysis.
 - "Spiel & Tags übernehmen" no longer replaces the folder game name with the model's guess.
+
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/SauerExe/ReplayHaven/releases/tag/v1.0.0

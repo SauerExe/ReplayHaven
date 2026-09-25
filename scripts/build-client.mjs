@@ -142,17 +142,28 @@ await writeFile(
   'desktop-bundle/licenses/PaddleOCR-models-Apache-2.0.txt',
   `PaddleOCR PP-OCRv4 text detection model (https://github.com/PaddlePaddle/PaddleOCR), converted to ONNX by @gutenye/ocr-models (MIT), and the PP-OCRv5 latin recognition model, converted to ONNX by monkt/paddleocr-onnx (https://huggingface.co/monkt/paddleocr-onnx).\n\n${await readFile('node_modules/typescript/LICENSE.txt', 'utf8')}`,
 );
-await sharp('public/favicon.svg').resize(256, 256).png().toFile('desktop-bundle/icon.png');
-// ICO containing a PNG image, supported by modern Windows shells and NSIS.
-const png = await sharp('public/favicon.svg').resize(256, 256).png().toBuffer();
-const header = Buffer.alloc(22);
+// App-Icon aus desktop/icon-source.png (512 px): Fenster und Tray nehmen das PNG, Programmdatei,
+// Verknüpfungen und Installer das ICO mit allen Größen, die Windows anzeigt.
+const icon = 'desktop/icon-source.png';
+await sharp(icon).resize(256, 256).png().toFile('desktop-bundle/icon.png');
+const sizes = [16, 24, 32, 48, 64, 128, 256];
+const images = await Promise.all(sizes.map((s) => sharp(icon).resize(s, s).png().toBuffer()));
+const header = Buffer.alloc(6 + 16 * sizes.length);
 header.writeUInt16LE(1, 2);
-header.writeUInt16LE(1, 4);
-header.writeUInt16LE(1, 10);
-header.writeUInt16LE(32, 12);
-header.writeUInt32LE(png.length, 14);
-header.writeUInt32LE(22, 18);
-await writeFile('desktop-bundle/icon.ico', Buffer.concat([header, png]));
+header.writeUInt16LE(sizes.length, 4);
+let offset = header.length;
+sizes.forEach((size, i) => {
+  const entry = 6 + 16 * i;
+  // 256 steht im ICO-Verzeichnis als 0.
+  header.writeUInt8(size % 256, entry);
+  header.writeUInt8(size % 256, entry + 1);
+  header.writeUInt16LE(1, entry + 4);
+  header.writeUInt16LE(32, entry + 6);
+  header.writeUInt32LE(images[i].length, entry + 8);
+  header.writeUInt32LE(offset, entry + 12);
+  offset += images[i].length;
+});
+await writeFile('desktop-bundle/icon.ico', Buffer.concat([header, ...images]));
 await writeFile(
   'desktop-bundle/package.json',
   JSON.stringify({

@@ -233,7 +233,7 @@ Die sechs Clips mit belegtem Ereignis blieben unverändert (6/6 nennen das Ereig
 | 23.09.                                                                                       | 24/26        | 12/16                         | 0                 | 51 s             |
 | 25.09.: Qwen3.5 9B, ganzer Clip alle 3 s, Texterkennung, Replays, Voice-Chat, Titelprüfungen | 41/41        | 16/16                         | 0                 | 67 s             |
 
-Neu gefunden werden vor allem Kills und Kopfschüsse aus dem Valorant-Killfeed sowie Karte und Rundenausgang in R6: Die Titel lauten jetzt etwa „Runde gewonnen auf Border“, „Von GegnerDrei ausgeschaltet auf Fortress“ oder „Drei Kopfschüsse zum Sieg“. Fünf Abweichungen zwischen Pipeline und Handprüfung lagen an der Handprüfung: Standbilder des Killfeeds zeigten die Kopfschüsse und zweiten Kills, die die Pipeline gemeldet hatte. Die Wahrheit wurde mit Beleg korrigiert, nicht an die Pipeline angepasst.
+Neu gefunden werden vor allem Kills und Kopfschüsse aus dem Valorant-Killfeed sowie Karte und Rundenausgang in R6: Die Titel lauten jetzt etwa „Runde gewonnen auf Border“, „Ausgeschaltet von … auf Fortress“ oder „Drei Kopfschüsse zum Sieg“. Fünf Abweichungen zwischen Pipeline und Handprüfung lagen an der Handprüfung: Standbilder des Killfeeds zeigten die Kopfschüsse und zweiten Kills, die die Pipeline gemeldet hatte. Die Wahrheit wurde mit Beleg korrigiert, nicht an die Pipeline angepasst.
 
 Dabei behoben:
 
