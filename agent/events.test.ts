@@ -335,6 +335,14 @@ it('falls back to the proven event, or repairs a copied display without inventin
   expect(fallbackTitle([], [], [], 'loading')).toBe('Ladebildschirm');
 });
 
+it('keeps the topic of a voice chat title from the later proposal and drops the chat', () => {
+  // Gemessen am 2026-09-25: die Rückfrage brachte das Thema, beide Fassungen nannten den Chat.
+  expect(
+    fallbackTitle([], ['Eiswand im Voice-Chat', 'Obi-Wan und Yoda im Voice-Chat'], [], null),
+  ).toBe('Obi-Wan und Yoda');
+  expect(fallbackTitle([], ['Gespräch über Gurken'], [], null)).toBe('Ohne besonderes Ereignis');
+});
+
 it('treats killing as a claim also when it is phrased as an activity', () => {
   // Ohne Meldung darf kein Titel ein Ausschalten behaupten, auch nicht im Infinitiv.
   expect(titleProblems('Zombies töten', [], []).join(' ')).toMatch(/Kill/);
@@ -544,6 +552,8 @@ it('rejects an R6 place the text recognition never read, but keeps plain phrases
     /Ort Dirt Haul/,
   );
   expect(titleProblems('Sprung in Deckung', [], [], place)).toEqual([]);
+  // Dritter Lauf, dasselbe Bild: "Übersicht über Dantzig".
+  expect(titleProblems('Übersicht über Dantzig', [], [], place).join(' ')).toMatch(/Ort Dantzig/);
   // Ohne Texterkennung (kein R6) gilt die Prüfung nicht.
   expect(titleProblems('Abend auf Mallorca', [], [])).toEqual([]);
 });
@@ -569,4 +579,17 @@ it('counts an R6 kill pop-up on two frames in a row once, unless the alive count
   expect(events.find((e) => e.kind === 'multikill')).toMatchObject({ count: 3 });
   expect(titleProblems('Vierfach Kill und ACE', events, []).join(' ')).toMatch(/4 Kills.*3|Ace/);
   expect(titleProblems('Dreifach-Kill, dann xiTango', events, [])).toEqual([]);
+});
+
+it('rejects titles about the voice chat itself and spelled-out round numbers', () => {
+  // Titel aus der Messung vom 2026-09-25 (Stichprobe pruefung-2 mit Transkript).
+  expect(titleProblems('Verwirrung im Voice-Chat', [], []).join(' ')).toMatch(/Voice-Chat statt/);
+  expect(titleProblems('Gespräch über Gurken', [], []).join(' ')).toMatch(/Voice-Chat statt/);
+  expect(titleProblems('Obi-Wan und Yoda im Chat', [], []).join(' ')).toMatch(/Voice-Chat statt/);
+  expect(titleProblems('Obi-Wan oder Yoda?', [], [])).toEqual([]);
+  const won = [
+    { kind: 'roundWon', seconds: 90, text: 'ROUND WON', source: 'screen' },
+  ] as GameEvent[];
+  expect(titleProblems('Runde zwei gewonnen', won, []).join(' ')).toMatch(/Rundennummer/);
+  expect(titleProblems('Runde gewonnen', won, [])).toEqual([]);
 });

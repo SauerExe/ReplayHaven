@@ -207,3 +207,19 @@ Zwölf Clips mit Handprüfung (Stichprobe `pruefung-2`: Valorant, Fortnite, Rain
 | Qwen3.5 9B, PP-OCRv5-Lesen, mit Transkript  | 6/6                           | 1 (Karte „Dantzig“) | 76 s             |
 
 Die erfundene Karte fängt seither die Titelprüfung ab (`agent/wording.ts`: „auf“ plus Eigenname muss bei R6 die erkannte Karte sein). PP-OCRv5 für lateinische Schrift las an 75 Killfeed-Ausschnitten mit bekannter Wahrheit 62 Opfernamen exakt, PP-OCRv4 53, bei gleicher Rechenzeit (`.docs/tools/ocr-vergleich.mts`). Zwölf Clips sind für eine Entscheidung knapp; der Messsatz aus der Reihenfolge oben bleibt nötig.
+
+## Voice-Chat im Titel (2026-09-25)
+
+Parakeet TDT 0.6B v3 (sherpa-onnx, CPU) schreibt einen Clip von zwei Minuten in rund 4 bis 8 Sekunden mit, Whisper medium brauchte 91 Sekunden. Das Transkript allein reichte nicht: In der Zusammenfassung mit Bild beschrieb das Modell meist das Bild, auch wenn der Clip von einem Gespräch lebt. Ein Fortnite-Clip, in dem zwei Spieler rätseln, ob eine Figur Obi-Wan Kenobi oder Yoda ist, hieß in drei Läufen „Obi-Wan oder Yoda?“, „Spitzhacke vor Eiswand“ und „Eiswand-Abenteuer“.
+
+Seitdem fragt die Pipeline bei Clips ohne belegtes Ereignis zuerst nur mit dem Text, worum es im Gespräch geht (`LocalAnalyzer.topic`), und gibt das Thema der Titelregel vor. Ein einzelnes Wort oder ein wörtlich zitierter Satz zählt nicht als Thema (`usableTopic`). Ergebnis in derselben Stichprobe `pruefung-2`:
+
+| Clip                               | ohne Ton                       | Transkript, ohne Themenfrage | mit Themenfrage                     |
+| ---------------------------------- | ------------------------------ | ---------------------------- | ----------------------------------- |
+| Fortnite, Star-Wars-Rätsel (3 + 2) | —                              | 1 von 3 zum Gespräch         | 5 von 5 „Wer ist Obi-Wan Kenobi?“   |
+| ARC Raiders, Fehlschuss aus Panik  | Duckt hinter Säule             | Versteckt hinter der Säule   | Entschuldigung für den Falschschuss |
+| Gespräch über Ausbildung           | Deck-Ansicht im Fortnite-Thema | Kampfmenü im Fortnite-Modus  | Was ist vernünftig?                 |
+| Desktop, Figur ohne Kopf           | Interaktion am pinken Auto     | Kopflöser am pinken Auto     | Kopfloser Charakter                 |
+| Chained Together, Chaos am Seil    | Hängt an Kette                 | Hängen an der Kette          | Zuruf an einen Mitspieler           |
+
+Die sechs Clips mit belegtem Ereignis blieben unverändert (6/6 nennen das Ereignis, nichts erfunden); die Themenfrage läuft bei ihnen nicht. Der Chained-Together-Titel ist eine Spielabsprache statt der Pointe („nie wieder in die Mitte“); er ist nicht falsch, aber schwächer. Lachen erkennt Parakeet nicht: es schreibt bei Lachflashs keine Wiederholungen wie Whisper, deshalb entstehen mit ihm keine Lachmarken.

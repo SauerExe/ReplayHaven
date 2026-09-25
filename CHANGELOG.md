@@ -70,10 +70,14 @@ All notable changes to this project are documented here. The format follows
 - "Ganzer Clip · ein Bild alle 3 Sekunden" in the client: frames spread evenly over the whole
   clip instead of two thirds from the end, so kill-feed lines, which stay about five seconds,
   are all seen. Short clips still get at least 24 frames.
-- Voice chat as context (analyser option `speech`, not yet in the client): a transcript goes to
-  the summary, so fun clips without game events get titles about what was said; runs of
-  repeated short lines that speech recognition produces while people laugh become a
-  "Lachflash" time mark.
+- "Voice-Chat mitschreiben (Spaßclips)" in the client: Parakeet TDT 0.6B v3 via sherpa-onnx
+  transcribes the microphone track (or the mixed track) on the CPU in a separate process, a few
+  seconds per clip; the models (about 670 MB) are downloaded once on first use and checked by
+  SHA-256. The transcript goes to the summary, so clips without game events can be titled after
+  a joke, a question or a mishap in the chat. A short text-only question first asks the model
+  what the talk is about, and the title rule then names that topic; single words and quoted
+  sentences do not count as a topic. Titles about the chat itself ("Verwirrung im Voice-Chat")
+  are rejected, and the fallback title keeps the topic of the later proposal.
 
 ### Changed
 

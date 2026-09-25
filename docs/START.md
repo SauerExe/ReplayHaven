@@ -73,6 +73,16 @@ Mit **Texterkennung: R6-Karte und Rundenausgang, Valorant-Killfeed** liest der C
 - Die Texterkennung braucht etwa eine Minute CPU-Zeit je Clip. Sie läuft gleichzeitig mit der KI, die auf der Grafikkarte rechnet, in einem eigenen Thread, damit das Fenster nicht stockt, und nutzt höchstens die Hälfte der Prozessorkerne.
 - Sie nutzt ONNX Runtime von Microsoft. Deren Windows-Fassung enthält Telemetrie-Ereignisse (ETW). Laut Datenschutzhinweis des Projekts werden sie nur aufgezeichnet, wenn eine Trace-Sitzung läuft, und nur mit deiner Zustimmung zu den Windows-Diagnosedaten übertragen.
 
+## Voice-Chat mitschreiben (optional)
+
+Mit **Voice-Chat mitschreiben (Spaßclips)** schreibt der Client mit, was im Clip gesagt wird, und gibt es der KI als Kontext. Clips ohne Kills oder Rundenergebnis bekommen so Titel nach dem Gespräch, etwa „Obi-Wan oder Yoda?“ statt „Spitzhacke am Eiszaun“.
+
+- Die Erkennung läuft mit Parakeet TDT 0.6B v3 über sherpa-onnx auf der CPU, in einem eigenen Prozess neben der KI. Zwei Minuten Ton dauern wenige Sekunden.
+- Beim ersten Start mit der Option lädt der Client die Sprachmodelle einmalig nach `%LOCALAPPDATA%ReplayHavenmodelsparakeet-v3`, rund 670 MB, jede Datei gegen ihre Prüfsumme geprüft.
+- Hat die Aufnahme eine eigene Mikrofonspur (NVIDIA App: „Mikrofon als separate Spur“), hört der Client nur diese. Sonst liest er die gemischte Spur; laute Spielgeräusche verschlucken dann einzelne Wörter.
+- Englische Namen im deutschen Gespräch verhört das Modell gelegentlich. Zitate landen deshalb nicht wörtlich im Titel.
+- Das Transkript bleibt auf deinem PC; zum Server gehen wie bisher nur Titel, Beschreibung, Tags und Zeitmarken.
+
 ## Was tatsächlich passiert
 
 - Die lokale KI erhält 24 oder 48 verkleinerte Einzelbilder in aufeinanderfolgenden Paketen. **Ton wird nicht analysiert.** Schnelle Ereignisse können zwischen den Bildern liegen; Ergebnisse sind Vorschläge.

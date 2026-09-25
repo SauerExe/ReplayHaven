@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { mkdir, rename, rm, stat } from 'node:fs/promises';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { createRequire } from 'node:module';
 import { availableParallelism, homedir } from 'node:os';
 import { join } from 'node:path';
@@ -92,15 +94,29 @@ export async function ensureModel(
   if (await matches(path, model)) return path;
   onDownload?.();
   const response = await get(model.url);
-  if (!response.ok) throw new Error(`Modell nicht ladbar (HTTP ${response.status}).`);
-  const data = Buffer.from(await response.arrayBuffer());
-  const sum = createHash('sha256').update(data).digest('hex');
-  if (data.length !== model.bytes || sum !== model.sha256)
-    throw new Error('Das geladene Modell hat eine falsche Prüfsumme und wurde verworfen.');
+  if (!response.ok || !response.body)
+    throw new Error(`Modell nicht ladbar (HTTP ${response.status}).`);
   await mkdir(folder, { recursive: true });
   const partial = `${path}.part`;
+  // Gestreamt auf die Platte: das Sprachmodell hat 650 MB und gehört nicht in den Speicher.
+  const hash = createHash('sha256');
+  const wrong = () =>
+    new Error('Das geladene Modell hat eine falsche Prüfsumme und wurde verworfen.');
+  let size = 0;
   try {
-    await writeFile(partial, data);
+    await pipeline(
+      Readable.fromWeb(response.body as import('node:stream/web').ReadableStream),
+      new Transform({
+        transform(chunk: Buffer, _encoding, done) {
+          size += chunk.length;
+          if (size > model.bytes) return done(wrong());
+          hash.update(chunk);
+          done(null, chunk);
+        },
+      }),
+      createWriteStream(partial),
+    );
+    if (size !== model.bytes || hash.digest('hex') !== model.sha256) throw wrong();
     await rename(partial, path);
   } finally {
     await rm(partial, { force: true });

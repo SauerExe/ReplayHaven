@@ -39,6 +39,11 @@ const GENERIC =
   /\b(?:spielabschnitt|gameplay|spielszene|spielansicht|aufnahme|clip|screenshot|bildschirm|video)\b/i;
 const METHOD =
   /\b(?:stichprobe|frames?|einzelbild\w*|beobachtung\w*|notiz\w*|belegbild|sekunden?)\b/i;
+// Der Voice-Chat als solcher sagt nichts über den Clip ("Verwirrung im Voice-Chat"); das Thema
+// des Gesprächs dagegen schon, deshalb eine eigene Rückmeldung, die es behalten lässt.
+const CHAT = /\b(?:voice-?chats?|sprachchats?|chats?|gespräch\w*|diskussion\w*|unterhaltung\w*)\b/i;
+// Nur die Ortsangabe ("… im Voice-Chat"), die der Ersatztitel streichen kann, ohne das Thema zu verlieren.
+const CHAT_PLACE = /\s+(?:im|in|aus dem|über den)\s+(?:voice-?chat|sprachchat|chat)\b/gi;
 const SCORE = /\d+\s*[:–-]\s*\d+|\b\d+\s*vs\.?\s*\d+\b|\b\d+\s*\/\s*\d+\b/i;
 
 function words(text: string) {
@@ -131,7 +136,7 @@ function exactClaims(text: string, events: GameEvent[], killed: boolean) {
 
 /** Gewöhnliche Wendungen mit "auf", die keine Karte meinen ("Kopfschuss auf Distanz"). */
 const COMMON_AFTER_AUF =
-  /^(?:Distanz|Entfernung|Abstand|Anhieb|Augenhöhe|Sicht|Zeit|Kurs|Ansage|Kommando|Befehl|Risiko|Ansatz|Knopfdruck|Zuruf)$/i;
+  /^(?:Distanz|Entfernung|Abstand|Anhieb|Augenhöhe|Sicht|Zeit|Kurs|Ansage|Kommando|Befehl|Risiko|Ansatz|Knopfdruck|Zuruf|Deckung|Führung|Position|Stellung|Lauer|Sicherheit|Eis|Feuer|Wasser|Lava|Kopf|Kette|Ketten)$/i;
 
 /** Was über den Ort bekannt ist: die erkannte Karte und alle Karten des Spiels. */
 export interface MapContext {
@@ -157,9 +162,12 @@ export function titleProblems(
     );
   // Auch ein Ort, den es gar nicht gibt: Qwen3.5 schrieb am 2026-09-24 "Gelber Bagger auf
   // Dantzig" zu einem Bild ohne Kartennamen. "auf" plus Eigenname zählt als Kartenangabe.
-  const where = /\bauf\s+([A-ZÄÖÜ][\p{L}'-]+(?:\s+[A-ZÄÖÜ][\p{L}'-]+)?)\s*[!.]?$/u.exec(
-    title.trim(),
-  );
+  // Am Titelende nach "auf", "über", "in", "bei", "nach" oder "vor": Qwen3.5 schrieb zum selben
+  // Bild auch "Übersicht über Dantzig".
+  const where =
+    /(?<!\p{L})(?:auf|über|in|bei|nach|vor)\s+([A-ZÄÖÜ][\p{L}'-]+(?:\s+[A-ZÄÖÜ][\p{L}'-]+)?)\s*[!.]?$/u.exec(
+      title.trim(),
+    );
   // Ebenso zwei großgeschriebene Wörter nach einer Präposition ("Übersicht über Dirt Haul"):
   // im Deutschen fast immer ein Eigenname, einzelne Wörter ("in Deckung") dagegen oft nicht.
   // Wortgrenze per Lookbehind: \b kennt kein "ü" und fände "über" nicht.
@@ -180,9 +188,14 @@ export function titleProblems(
   if (!title.trim()) problems.push('ist leer');
   if (shouting(title)) problems.push('übernimmt Bildschirmtext in Großbuchstaben');
   if (SCORE.test(title)) problems.push('enthält einen Punktestand oder ein Zahlenverhältnis');
-  if (/\brunde\s+\d+/i.test(title)) problems.push('nennt eine Rundennummer');
+  if (/\brunde\s+(?:\d+|eins|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn)\b/i.test(title))
+    problems.push('nennt eine Rundennummer');
   if (GENERIC.test(title)) problems.push('ist zu allgemein');
   if (METHOD.test(title)) problems.push('spricht über das Verfahren statt über den Moment');
+  if (CHAT.test(title))
+    problems.push(
+      'nennt den Voice-Chat statt seines Inhalts; behalte Thema oder Pointe und lass das Wort weg',
+    );
   if (words(title).length > 8 || title.length > 60) problems.push('ist zu lang');
   // Die Du-Form gilt für die Beschreibung; als Überschrift wird sie schief ("Du von Deadlock
   // ausgeschaltet"). Die Ich-Form verwechselt die Perspektive ("Omen schaltet mich").
@@ -392,9 +405,12 @@ export function fallbackTitle(
   if (headlineEvents.length) return `${headlineEvents.map(label).join(' – ')}${where}`;
   if (mostly === 'loading') return 'Ladebildschirm';
   if (mostly === 'menu') return 'Im Menü';
-  for (const candidate of modelTitles) {
+  // Der jüngste Vorschlag zuerst: er antwortet auf die Rückfrage und hat deren Mängel meist
+  // schon behoben ("Eiswand im Voice-Chat", dann "Obi-Wan und Yoda im Voice-Chat").
+  for (const candidate of [...modelTitles].reverse()) {
     if (unsupportedClaims(candidate, events).length) continue;
     const repaired = candidate
+      .replace(CHAT_PLACE, ' ')
       .replace(SCORE, ' ')
       .replace(/\brunde\s+\d+/gi, 'Runde')
       .split(/\s+/)
@@ -410,6 +426,7 @@ export function fallbackTitle(
       repaired &&
       !GENERIC.test(repaired) &&
       !METHOD.test(repaired) &&
+      !CHAT.test(repaired) &&
       words(repaired).length <= 8
     )
       return repaired;

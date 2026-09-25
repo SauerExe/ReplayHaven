@@ -31,6 +31,18 @@ await build({
   external: ['ffmpeg-static', '@ffprobe-installer/ffprobe'],
   logOverride: { 'empty-import-meta': 'silent' },
 });
+// Die Spracherkennung läuft als eigener Prozess (agent/speech-worker.ts, Electron utilityProcess);
+// sherpa-onnx lädt sie zur Laufzeit aus resources/sherpa, nicht aus dem Bündel.
+await build({
+  entryPoints: ['agent/speech-worker.ts'],
+  outfile: 'desktop-bundle/speech-worker.cjs',
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'cjs',
+  external: ['ffmpeg-static', '@ffprobe-installer/ffprobe', 'sherpa-onnx-node', 'onnxruntime-node'],
+  logOverride: { 'empty-import-meta': 'silent' },
+});
 await build({
   entryPoints: ['desktop/preload.ts'],
   outfile: 'desktop-bundle/preload.cjs',
@@ -110,6 +122,18 @@ for (const model of [latin.rec, latin.keys]) {
   }
   await writeFile(`desktop-bundle/ocr/${model.file}`, data);
 }
+// sherpa-onnx samt nativer Bibliothek für Windows x64, nebeneinander: addon.js sucht das Addon in
+// ../sherpa-onnx-win-x64. Die Sprachmodelle lädt der Client erst, wenn die Option an ist.
+await rm('desktop-bundle/sherpa', { recursive: true, force: true });
+for (const pkg of ['sherpa-onnx-node', 'sherpa-onnx-win-x64'])
+  await cp(`node_modules/${pkg}`, `desktop-bundle/sherpa/${pkg}`, { recursive: true });
+await writeFile(
+  'desktop-bundle/licenses/sherpa-onnx-Apache-2.0.txt',
+  `sherpa-onnx ${require('sherpa-onnx-node/package.json').version} (https://github.com/k2-fsa/sherpa-onnx), Apache License 2.0, including its ONNX Runtime build (MIT).
+Speech models are downloaded on first use: Parakeet TDT 0.6B v3 by NVIDIA (CC-BY-4.0, https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) and Silero VAD (MIT, https://github.com/snakers4/silero-vad).
+
+${await readFile('node_modules/typescript/LICENSE.txt', 'utf8')}`,
+);
 await writeFile(
   'desktop-bundle/licenses/ONNX-Runtime-MIT.txt',
   `MIT License\n\nCopyright (c) Microsoft Corporation\n\n${(await readFile('LICENSE', 'utf8')).split('\n').slice(4).join('\n')}\nThird-party notices of ONNX Runtime: https://github.com/microsoft/onnxruntime/blob/main/ThirdPartyNotices.txt\n`,
@@ -143,6 +167,6 @@ await writeFile(
 );
 await writeFile(
   'desktop-bundle/THIRD-PARTY.txt',
-  'ReplayHaven Client includes Electron (MIT), Zod (MIT), FFmpeg 6.1.1 (GPL-3.0), FFprobe (GPL-3.0, Gyan build 20230213-2296078), ONNX Runtime 1.30 (MIT, CPU files for Windows x64) and the PaddleOCR PP-OCRv4/PP-OCRv5 text models (Apache-2.0). License texts and FFmpeg build configuration are in licenses/. Electron notices accompany the executable. FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/e38092ef93 ; FFprobe source: https://github.com/FFmpeg/FFmpeg/tree/2296078 ; build distribution: https://www.gyan.dev/ffmpeg/builds/ ; package sources: https://github.com/eugeneware/ffmpeg-static and https://github.com/SavageCore/node-ffprobe-installer . Ollama and Qwen are installed separately. No model weights are bundled.',
+  'ReplayHaven Client includes Electron (MIT), Zod (MIT), FFmpeg 6.1.1 (GPL-3.0), FFprobe (GPL-3.0, Gyan build 20230213-2296078), ONNX Runtime 1.30 (MIT, CPU files for Windows x64) the PaddleOCR PP-OCRv4/PP-OCRv5 text models (Apache-2.0) and sherpa-onnx (Apache-2.0) for speech recognition; its models (Parakeet TDT 0.6B v3, CC-BY-4.0; Silero VAD, MIT) are downloaded on first use. License texts and FFmpeg build configuration are in licenses/. Electron notices accompany the executable. FFmpeg source: https://github.com/FFmpeg/FFmpeg/tree/e38092ef93 ; FFprobe source: https://github.com/FFmpeg/FFmpeg/tree/2296078 ; build distribution: https://www.gyan.dev/ffmpeg/builds/ ; package sources: https://github.com/eugeneware/ffmpeg-static and https://github.com/SavageCore/node-ffprobe-installer . Ollama and Qwen are installed separately. No model weights are bundled.',
 );
 console.log('Windows-Client vorbereitet.');

@@ -22,6 +22,8 @@ export interface SpeechTrace {
   words: number;
   /** Stellen, an denen Lachen oder Durcheinander die Erkennung in Wiederholungen trieb. */
   laughs: number;
+  /** Worum es im Gespräch ging, falls um mehr als Absprachen zum Spiel (LocalAnalyzer). */
+  topic?: string;
   error?: string;
 }
 
@@ -98,4 +100,21 @@ export function speechFacts(transcript: Transcript | undefined) {
     ? `\nLachen oder Durcheinander im Voice-Chat bei ${laughs.map((l) => `${l.start.toFixed(0)}–${l.end.toFixed(0)} s`).join(', ')}.`
     : '';
   return `Gesprochen im Voice-Chat (automatisch mitgeschrieben, einzelne Wörter können falsch sein; Sprecher unbekannt):\n${lines.join('\n')}${laughed}`;
+}
+
+/**
+ * Das Thema, das das Modell im Gespräch fand, oder leer, wenn es keins ist: ein einzelnes Wort
+ * oder ein wörtlich zitierter Satz ("Nein", "Was hast du gemacht?", gemessen am 2026-09-25) sagt
+ * nicht, worum es ging.
+ */
+export function usableTopic(topic: unknown, said: string) {
+  if (typeof topic !== 'string') return '';
+  const clean = topic.replace(/\s+/g, ' ').trim().slice(0, 80);
+  const key = plain(clean);
+  // Nur ganze Sätze zählen als Zitat; ein Name daraus ("Obi-Wan Kenobi") ist ein Thema.
+  const sentences = said
+    .replace(/\[\d+ s\]/g, '\n')
+    .split(/[\n.!?]+/)
+    .map(plain);
+  return words(clean) < 2 || sentences.includes(key) ? '' : clean;
 }

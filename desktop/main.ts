@@ -27,6 +27,8 @@ import { defaultDemosFolder, FortniteReplays } from '../agent/fortnite';
 import { LATIN_KEYS, LATIN_REC, missingLibrary } from '../agent/ocr';
 import { WorkerTexts } from '../agent/r6';
 import { MediaProcessor } from '../server/media';
+import { SPEECH_BYTES, speechFolder } from '../agent/parakeet';
+import { SpeechProcess } from './speech';
 
 const configSchema = z.object({
   folder: z.string().max(1000),
@@ -47,6 +49,8 @@ const configSchema = z.object({
   // Karte und Rundenausgang in R6 per Texterkennung (agent/r6.ts), etwa eine Minute CPU je Clip;
   // in Valorant der Killfeed (agent/valorant.ts), sofern ein eigener Name eingetragen ist.
   r6Texts: z.boolean().default(false),
+  // Voice-Chat mitschreiben (agent/parakeet.ts): Parakeet auf der CPU, Modelle einmalig ~670 MB.
+  speech: z.boolean().default(false),
 });
 type ClientConfig = z.infer<typeof configSchema>;
 let config: ClientConfig = {
@@ -61,6 +65,7 @@ let config: ClientConfig = {
   fortniteReplays: false,
   epicAccounts: [],
   r6Texts: false,
+  speech: false,
 };
 let window: BrowserWindow;
 let tray: Tray;
@@ -184,6 +189,25 @@ async function textsProblem() {
     ? `Die R6-Texterkennung braucht die „Microsoft Visual C++ Redistributable“ (x64) in einer aktuellen Fassung. Installiere sie von Microsoft oder schalte die Option aus. (${message})`
     : `Die R6-Texterkennung lässt sich nicht laden: ${message}`;
 }
+/** Die Spracherkennung läuft in einem eigenen Prozess und behält ihre Modelle über Starts. */
+let speech: SpeechProcess | undefined;
+function speechProcess() {
+  const binaries = resource('binaries');
+  speech ??= new SpeechProcess({
+    script: resource('speech-worker.cjs'),
+    data: {
+      folder: speechFolder(),
+      runtime: join(resource('sherpa'), 'sherpa-onnx-node'),
+      ffmpeg: join(binaries, 'ffmpeg.exe'),
+      ffprobe: join(binaries, 'ffprobe.exe'),
+    },
+  });
+  return speech;
+}
+function closeSpeech() {
+  speech?.close();
+  speech = undefined;
+}
 function media() {
   const binaries = resource('binaries');
   return new MediaProcessor({
@@ -233,6 +257,19 @@ async function launch() {
     // Sonst liefe die Option still ins Leere: Jeder Clip käme ohne Karte zurück.
     const problem = config.r6Texts ? await textsProblem() : undefined;
     if (problem) throw new Error(problem);
+    // Beim ersten Mal lädt das die Sprachmodelle; ohne sie liefe die Option still ins Leere.
+    if (config.speech)
+      await speechProcess()
+        .prepare((file) =>
+          emit({
+            message: `Sprachmodell wird geladen (${file}, zusammen rund ${Math.round(SPEECH_BYTES / 1e6)} MB) …`,
+          }),
+        )
+        .catch((error: unknown) => {
+          throw new Error(
+            `Die Spracherkennung lässt sich nicht laden: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
   }
   aborter = new AbortController();
   paused = false;
@@ -244,6 +281,8 @@ async function launch() {
   const reading = config.analyze && config.r6Texts ? textsWorker() : undefined;
   // Ohne die Option gibt der Worker seine Modelle frei.
   if (!reading) void closeTexts();
+  const listening = config.analyze && config.speech ? speechProcess() : undefined;
+  if (!listening) closeSpeech();
   const analyzer = new LocalAnalyzer({
     url: OLLAMA_URL,
     model: DEFAULT_MODEL,
@@ -264,6 +303,11 @@ async function launch() {
       ? {
           texts: (path: string, game: string, signal: AbortSignal, names: readonly string[]) =>
             reading.forClip(path, game, signal, names),
+        }
+      : {}),
+    ...(listening
+      ? {
+          speech: (path: string, signal: AbortSignal) => listening.transcribe(path, signal),
         }
       : {}),
     onProgress: (message) => emit({ message }),
@@ -457,6 +501,7 @@ else {
     if (loop) clearInterval(loop);
     // Mitten in einem Bild beendet, risse ONNX Runtime den ganzen Prozess mit: erst den Worker
     // anhalten lassen, dann beenden.
+    closeSpeech();
     const closing = closeTexts();
     if (closing) {
       event.preventDefault();

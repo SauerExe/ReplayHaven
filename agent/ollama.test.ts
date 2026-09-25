@@ -794,6 +794,87 @@ it('names the recognised R6 map and rejects another one', async () => {
   }
 });
 
+it('asks for the topic of a voice chat and hands it to the title of a clip without events', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
+  try {
+    const media = new MediaProcessor({});
+    vi.spyOn(media, 'probe').mockResolvedValue({
+      duration: 20,
+      width: 1920,
+      height: 1080,
+      codec: 'h264',
+      hasAudio: true,
+      audio: [],
+    });
+    vi.spyOn(media, 'frames').mockResolvedValue(
+      Array.from({ length: 8 }, (_, i) => ({ seconds: i * 2.5, base64: `bild-${i}` })),
+    );
+    vi.spyOn(media, 'frameAt').mockResolvedValue('focus-image');
+    const questions: string[] = [];
+    const summaries: { messages: { content: string }[] }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string);
+        if (!body.messages.length) return Response.json({ done: true });
+        if (body.format?.properties?.frames)
+          return Response.json({
+            message: {
+              content: JSON.stringify({
+                frames: imagesOf(body).map((_: string, i: number) => ({
+                  frame: i,
+                  kind: 'gameplay',
+                  observation: 'Laufen',
+                  visibleText: '',
+                })),
+              }),
+            },
+          });
+        if (body.format?.properties?.topic) {
+          questions.push(body.messages[0].content);
+          return Response.json({
+            message: { content: JSON.stringify({ topic: 'Ist das Obi-Wan oder Yoda?' }) },
+          });
+        }
+        summaries.push(body);
+        return Response.json({
+          message: {
+            content: JSON.stringify({
+              title: 'Obi-Wan oder Yoda?',
+              description: 'Ihr rätselt, wer die Figur ist.',
+              uncertainty: '',
+              highlights: [],
+            }),
+          },
+        });
+      }),
+    );
+    const text =
+      'Das ist Obi-Wan Kenobi! Der hatte doch einen Bart. Nur weil er ein grünes Lichtschwert hat, ist er nicht grün. Das ist Yoda, sag ich dir, schau doch hin, wie klein er ist.';
+    let trace: AnalysisTrace | undefined;
+    const output = await new LocalAnalyzer({
+      url: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      frames: 24,
+      cacheDir: root,
+      media,
+      isPaused: () => false,
+      onTrace: (t) => (trace = t),
+      speech: async () => ({
+        segments: [{ start: 10, end: 18, text }],
+        trace: { engine: 'test', seconds: 1, words: 33, laughs: 0 },
+      }),
+    }).analyze('Fortnite/Fortnite 2026.09.25 - 21.00.00.01.DVR.mp4', 'Fortnite');
+    expect(questions[0]).toContain('Obi-Wan Kenobi');
+    expect(summaries[0].messages[0].content).toContain('es um: "Ist das Obi-Wan oder Yoda?"');
+    expect(output.result.title).toBe('Obi-Wan oder Yoda?');
+    expect(trace?.speech?.topic).toBe('Ist das Obi-Wan oder Yoda?');
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});
+
 it('stops the text recognition when the analysis fails', async () => {
   const media = new MediaProcessor({});
   vi.spyOn(media, 'probe').mockResolvedValue({

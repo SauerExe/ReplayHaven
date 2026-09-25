@@ -82,6 +82,7 @@
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.1",
     "sharp": "^0.35.4",
+    "sherpa-onnx-node": "^1.13.8",
     "tailwindcss": "^4.1.13",
     "tsx": "^4.23.15",
     "typescript": "~5.9.2",

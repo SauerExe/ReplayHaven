@@ -30,7 +30,7 @@ import type { GameEvent } from './events';
 import type { ReplayLookup, ReplayTrace } from './fortnite';
 import { isR6, R6_MAPS } from './r6';
 import type { TextLookup, TextTrace } from './r6';
-import { conversational, speechFacts, splitTranscript } from './speech';
+import { conversational, speechFacts, splitTranscript, usableTopic } from './speech';
 import type { Laugh, SpeechTrace, Transcript } from './speech';
 import { DeferredError } from './watcher';
 import { cleanText, fallbackTitle, tidyHighlights, titleProblems, uncertaintyFor } from './wording';
@@ -44,6 +44,11 @@ export const FRAME_SPACING = 3;
 export const OLLAMA_URL = 'http://127.0.0.1:11434';
 // Reuse the model between batches, with a short expiry if the client exits unexpectedly.
 const BATCH_KEEP_ALIVE_SECONDS = 60;
+const topicJsonSchema = {
+  type: 'object',
+  properties: { topic: { type: 'string' } },
+  required: ['topic'],
+};
 export class PausedError extends Error {
   constructor() {
     super('Analyse pausiert. Der Clip bleibt in der Warteschlange.');
@@ -242,6 +247,30 @@ export class LocalAnalyzer {
       return { raw, summary: parseSummary(raw, duration) };
     }
   }
+  /**
+   * Worum es im Gespräch geht, falls um mehr als Absprachen zum Spiel: eine kurze Wendung, sonst
+   * leer. Eine eigene Frage nur zum Text, weil das Modell in der Zusammenfassung mit Bild meist
+   * das Bild beschreibt, auch wenn der Clip von einem Rätsel im Voice-Chat lebt (Messung vom
+   * 2026-09-25: "Obi-Wan oder Yoda?" in einem von drei Läufen, sonst "Eiswand-Interaktion").
+   */
+  private async topic(said: string) {
+    try {
+      const raw = await this.ask(
+        [
+          {
+            role: 'user',
+            content: `${said}\nGibt es in diesem Gespräch ein Thema, über das mehr als ein Satz fällt, etwa ein Rätsel, eine Frage, einen Witz, einen Streit über etwas Bestimmtes oder eine Panne, die jemand erklärt oder bereut? Dann fasse es mit eigenen Worten in drei bis sechs Wörtern auf Deutsch zusammen, mit den genannten Namen, als Frage, wenn es eine ist; kein Zitat. Absprachen zum Spiel (Gegenstände, Gegner, Wege, Heilen, Bauen), Flüche und einzelne Ausrufe sind kein Thema; dann topic leer. Ausgabe JSON.`,
+          },
+        ],
+        topicJsonSchema,
+        BATCH_KEEP_ALIVE_SECONDS,
+      );
+      return usableTopic((JSON.parse(raw) as { topic?: unknown }).topic, said);
+    } catch (error) {
+      if (error instanceof SyntaxError) return '';
+      throw error;
+    }
+  }
   async analyze(
     path: string,
     gameHint: string,
@@ -434,12 +463,16 @@ export class LocalAnalyzer {
         : place
           ? ' Die Karte ist unbekannt; nenne keine.'
           : '';
+      const said = speechFacts(transcript);
+      const topic = !heads.length && conversational(transcript) ? await this.topic(said) : '';
+      if (topic && trace.speech) trace.speech.topic = topic;
       const titleRule = heads.length
         ? `Er benennt das wichtigste belegte Ereignis aus dem Schluss: ${phrase(heads[0])}${heads[1] ? `; er darf es mit diesem verbinden: ${phrase(heads[1])}` : ''}.${heads[0].source === 'replay' ? ' Anzahl, Waffe und Entfernung stammen aus dem Spiel selbst; nenne, was den Moment besonders macht, etwa die Zahl der Kills, einen Snipe oder die Entfernung, und nichts, was dem widerspricht.' : ''}`
-        : conversational(transcript)
-          ? 'Es gibt kein belegtes Spielereignis, aber ein Gespräch im Voice-Chat. Er nennt, worum es im Gespräch geht oder worüber gelacht wird, so konkret wie möglich (Thema, Pointe, genannte Namen), wie man den Clip einem Freund beschreiben würde; das Spielgeschehen darf dahinter zurücktreten. Nicht wörtlich zitieren.'
-          : 'Es gibt kein belegtes Ereignis, also nennt er zuerst, was du im Schluss tust, als Tätigkeit mit Verb, dann ein Detail, das diesen Clip von anderen unterscheidet — nicht bloß Umgebung oder Gegenstände und keine Anzeige.';
-      const said = speechFacts(transcript);
+        : topic
+          ? `Es gibt kein belegtes Spielereignis; der Clip lebt vom Gespräch im Voice-Chat, und darin geht es um: ${JSON.stringify(topic)}. Der Titel nennt dieses Thema, so konkret wie möglich (etwa genannte Namen), gern als Frage; nicht wörtlich zitieren und nicht "Voice-Chat" oder "Gespräch" schreiben.`
+          : conversational(transcript)
+            ? 'Es gibt kein belegtes Spielereignis, aber ein Gespräch im Voice-Chat. Dreht sich der Clip um eine Pointe, einen Witz, ein Rätsel oder eine Frage, über die gelacht oder gestritten wird, nennt er die, so konkret wie möglich (etwa genannte Namen); sonst nennt er, was du im Clip tust, und das Gespräch höchstens als Detail. Beiläufiges Gerede ist kein Titel. Nicht wörtlich zitieren und nicht "Voice-Chat" oder "Gespräch" schreiben.'
+            : 'Es gibt kein belegtes Ereignis, also nennt er zuerst, was du im Schluss tust, als Tätigkeit mit Verb, dann ein Detail, das diesen Clip von anderen unterscheidet — nicht bloß Umgebung oder Gegenstände und keine Anzeige.';
       const messages: Message[] = [
         {
           role: 'user',

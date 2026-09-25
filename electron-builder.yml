@@ -21,6 +21,10 @@ extraResources:
     to: ocr
   - from: desktop-bundle/r6-worker.cjs
     to: r6-worker.cjs
+  - from: desktop-bundle/speech-worker.cjs
+    to: speech-worker.cjs
+  - from: desktop-bundle/sherpa
+    to: sherpa
 asar: true
 win:
   icon: desktop-bundle/icon.ico

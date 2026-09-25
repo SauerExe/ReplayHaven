@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { conversational, speechFacts, splitTranscript } from './speech';
+import { conversational, speechFacts, splitTranscript, usableTopic } from './speech';
 import { tidyHighlights } from './wording';
 import type { SpeechSegment, Transcript } from './speech';
 
@@ -54,4 +54,14 @@ it('marks the laugh just before it starts, next to the model proposals', () => {
     { seconds: 72, title: 'Star-Wars-Raten', description: '' },
     { seconds: 94.7, title: 'Lachflash', description: 'Lachen im Voice-Chat.' },
   ]);
+});
+
+it('keeps a summarised topic and drops single words and quoted sentences', () => {
+  const text = speechFacts(transcript);
+  expect(usableTopic('Obi-Wan oder Yoda?', text)).toBe('Obi-Wan oder Yoda?');
+  expect(usableTopic('Obi-Wan Kenobi', text)).toBe('Obi-Wan Kenobi');
+  expect(usableTopic('Nein', text)).toBe('');
+  expect(usableTopic('Das ist Obi-Wan Kenobi', text)).toBe('');
+  expect(usableTopic('', text)).toBe('');
+  expect(usableTopic(undefined, text)).toBe('');
 });
