@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- When the client opens before the archive server or Ollama is up (typically right after
+  Windows starts), the automatic start now retries every 30 seconds instead of giving up. A
+  pause by hand stops the retries. The message names the unreachable server instead of
+  "fetch failed".
+
 ## [1.1.0] - 2026-09-25
 
 ### Added

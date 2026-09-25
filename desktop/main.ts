@@ -569,14 +569,40 @@ async function start() {
     starting = false;
   }
 }
+/**
+ * Starts on its own when the client opens. Right after Windows starts, the server (e.g. in
+ * Docker) or Ollama are often not up yet, so a failed attempt is retried every 30 seconds
+ * until it works, the user starts or pauses by hand, or auto-start is turned off.
+ */
+let autoStartTimer: ReturnType<typeof setTimeout> | undefined;
+async function autoStart() {
+  clearTimeout(autoStartTimer);
+  if (!config.onboarded || !config.autoStart || status.running || quitting) return;
+  try {
+    await start();
+  } catch (error) {
+    emit({
+      message: `Automatic start not possible yet: ${(error as Error).message} Retrying in 30 seconds.`,
+    });
+    autoStartTimer = setTimeout(() => void autoStart(), 30_000);
+  }
+}
 async function launch() {
+  clearTimeout(autoStartTimer);
   if (!config.folder) throw new Error('Choose your NVIDIA recording folder first.');
   if (working) throw new Error('The current step is still finishing.');
   const response = await fetch(`${config.server}/api/status`, {
     headers: config.token ? { Authorization: `Bearer ${config.token}` } : {},
     signal: AbortSignal.timeout(10000),
+  }).catch(() => {
+    throw new Error(`The archive server at ${new URL(config.server).host} is not reachable.`);
   });
-  if (!response.ok) throw new Error('Server not reachable or access key wrong.');
+  if (!response.ok)
+    throw new Error(
+      response.status === 401 || response.status === 403
+        ? 'The server rejected this PC. Pair it again under Settings.'
+        : `The archive server answered with HTTP ${response.status}.`,
+    );
   if (config.analyze) {
     const ai = await checkOllama();
     if (!ai.installed) throw new Error('Install Ollama and download the local model first.');
@@ -709,6 +735,8 @@ function stopWatchingGames() {
 }
 function pause() {
   paused = true;
+  // A pause by hand also ends waiting for an automatic start.
+  clearTimeout(autoStartTimer);
   if (PREVIEW) return emit({ message: 'Preview: paused.' });
   stopWatchingGames();
   aborter.abort();
@@ -1014,10 +1042,7 @@ else {
       if (PREVIEW) startPreview();
       await createWindow();
       if (PREVIEW) emit();
-      else if (config.onboarded && config.autoStart)
-        void start().catch((error: Error) =>
-          emit({ message: `Automatic start not possible: ${error.message}` }),
-        );
+      else if (config.onboarded && config.autoStart) void autoStart();
     })
     .catch((error) => {
       console.error(error.message);
