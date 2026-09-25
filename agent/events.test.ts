@@ -343,6 +343,40 @@ it('keeps the topic of a voice chat title from the later proposal and drops the 
   expect(fallbackTitle([], ['Gespräch über Gurken'], [], null)).toBe('Ohne besonderes Ereignis');
 });
 
+it('says whose elimination a title about the own death means', () => {
+  const died = [at('death')];
+  // FN-02 (2026-09-25): Respawn-Ansicht nach dem Tod, der Titel las sich wie ein Kill.
+  expect(titleProblems('Ausgeschaltet in der Luft', died, died).join(' ')).toMatch(/eigener Tod/);
+  expect(titleProblems('Ausgeschaltet von GegnerEins', died, died)).toEqual([]);
+  expect(titleProblems('Von Deadlock erwischt', died, died)).toEqual([]);
+  expect(titleProblems('Warten auf den Respawn', died, died)).toEqual([]);
+  // Mit eigenem Kill ist "ausgeschaltet" als Abtausch lesbar und bleibt erlaubt.
+  const traded = [at('kill'), at('death')];
+  expect(titleProblems('Gegenseitig ausgeschaltet', traded, traded)).toEqual([]);
+});
+
+it('counts headshots in titles against the killfeed', () => {
+  // Wie VAL-B2 (2026-09-25): zwei Kills per Kopfschuss, dann der eigene Tod.
+  const series = { ...at('multikill'), seconds: 110, count: 2, headshots: 2 };
+  const events = [
+    at('kill'),
+    at('headshot'),
+    at('kill'),
+    at('headshot'),
+    series,
+    at('death', 'Deadlock'),
+  ];
+  const heads = headline(events, 0);
+  expect(titleProblems('Zwei Kopfschüsse, dann getötet', events, heads)).toEqual([]);
+  expect(titleProblems('Doppelter Kopfschuss vor dem Tod', events, heads)).toEqual([]);
+  expect(titleProblems('Makellos: Drei Kopfschüsse', events, heads).join(' ')).toMatch(
+    /3 Kopfschüsse, belegt sind 2/,
+  );
+  expect(titleProblems('Kopfschuss am Eingang', [at('kill')], [at('kill')]).join(' ')).toMatch(
+    /Kopfschuss, den keine Meldung belegt/,
+  );
+});
+
 it('treats killing as a claim also when it is phrased as an activity', () => {
   // Ohne Meldung darf kein Titel ein Ausschalten behaupten, auch nicht im Infinitiv.
   expect(titleProblems('Zombies töten', [], []).join(' ')).toMatch(/Kill/);

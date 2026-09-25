@@ -19,10 +19,13 @@ const DEATH = /\b(?:tod|tot|gestorben|stirbt|stirbst|getötet|ausgeschieden|drau
 // Aktiv gesagt: "Deadlock schaltet dich aus" ist ein Tod, "du schaltest ihn aus" ein Kill.
 const DEATH_ACTIVE =
   /\b(?:schaltet|erledigt|erwischt|killt|tötet|eliminiert|holt|schlägt|besiegt|erschießt)\b[^.,;!?]{0,30}\b(?:dich|mich)\b/i;
+// Nachgestellt: "Ausgeschaltet von GegnerEins", "Erledigt durch einen Sturz".
+const DEATH_PASSIVE =
+  /\b(?:ausgeschaltet|eliminiert|erledigt|erwischt|getötet|besiegt)\s+(?:von|durch)\b/i;
 const KILL_ACTIVE = /\b(?:schaltest|erledigst|erwischst|eliminierst|killst|holst)\b/i;
 // Auch als Tätigkeit ("Zombies töten") eine Behauptung, die ein Ereignis braucht.
 const KILL =
-  /\b(?:kills?|headshots?|kopfschuss|ace|multikill|(?:doppel|dreifach|vierfach|mehrfach)-?kills?|abschuss|abgeschossen|abschie(?:ß|ss)en|töten|killen)\b/i;
+  /\b(?:kills?|headshots?|kopfsch(?:uss|üssen?)|ace|multikill|(?:doppel|dreifach|vierfach|mehrfach)-?kills?|abschuss|abgeschossen|abschie(?:ß|ss)en|töten|killen)\b/i;
 // Nur gegen Replay-Ereignisse geprüft: Snipes und Knocks ("niedergeschlagen" ist kein Kill).
 const SNIPE = /\b(?:snipes?|gesnip(?:ed|t)|no-?scope\w*)\b/i;
 const KNOCK = /\b(?:knocks?|geknockt|umgeknockt|niedergeschlagen)\b/i;
@@ -84,6 +87,18 @@ export function unsupportedClaims(text: string, events: GameEvent[]) {
   // In R6 heißt ein Operator ACE ("KILLED BY xiTango | ACE"); ein Ace braucht eine eigene Meldung.
   if (/\bace\b/i.test(text) && !has(events, ['ace']))
     problems.push('behauptet ein Ace, das keine Meldung belegt');
+  // Kopfschüsse sind gezählt: "Drei Kopfschüsse" bei zweien stimmt nicht (VAL-B1, 2026-09-25).
+  const heads = Math.max(
+    events.filter((e) => e.kind === 'headshot').length,
+    ...events.map((e) => (e.kind === 'multikill' ? (e.headshots ?? 0) : 0)),
+  );
+  const claimedHeads = HEADSHOT.test(rest) ? Math.max(1, countIn(rest, HEADSHOT_NOUNS)) : 0;
+  if (claimedHeads > heads)
+    problems.push(
+      heads
+        ? `behauptet ${claimedHeads} Kopfschüsse, belegt sind ${heads}`
+        : 'behauptet einen Kopfschuss, den keine Meldung belegt',
+    );
   if (!killed && EITHER.test(rest) && !kill && !death)
     problems.push('behauptet ein Ausschalten, das keine Meldung belegt');
   if (WIN.test(text) && !has(events, WINS))
@@ -175,10 +190,16 @@ export function titleProblems(
     /(?<!\p{L})(?:auf|über|in|im|am|an|bei|nach|vor)\s+([A-ZÄÖÜ][\p{L}'-]+\s+[A-ZÄÖÜ][\p{L}'-]+)/u.exec(
       title,
     );
+  // "auf Kafe" meint "Kafe Dostoyevsky": der Anfang des Kartennamens zählt als die Karte.
+  const isMap = (name: string) =>
+    !!place?.map && `${place.map.toLowerCase()} `.startsWith(`${name.toLowerCase()} `);
   const invented = [where?.[1], compound?.[1]].find(
-    (name) =>
-      name && !COMMON_AFTER_AUF.test(name) && name.toLowerCase() !== place?.map?.toLowerCase(),
+    (name) => name && !COMMON_AFTER_AUF.test(name) && !isMap(name),
   );
+  // Mit belegtem Ereignis gehört die erkannte Karte in den Titel ("Dreifach-Kill auf Oregon").
+  const short = place?.map?.split(' ')[0];
+  if (place?.map && headlineEvents.length && !new RegExp(`\\b${short}\\b`, 'i').test(title))
+    problems.push(`nennt die erkannte Karte nicht; hänge "auf ${place.map}" an`);
   if (place && !named && invented)
     problems.push(
       place.map
@@ -211,6 +232,17 @@ export function titleProblems(
     problems.push(`benennt das wichtigste belegte Ereignis nicht (${label(main)})`);
   else if (main && !problems.length && !mentionsDetail(title, main))
     problems.push(`lässt das Besondere am Ereignis weg (${label(main)})`);
+  // "Ausgeschaltet in der Luft" liest sich wie ein Kill, war aber der eigene Tod (FN-02,
+  // 2026-09-25). Ohne eigenen Kill muss ein Titel zum Tod sagen, wen es erwischt hat.
+  else if (
+    main?.kind === 'death' &&
+    !problems.length &&
+    !has(headlineEvents, KILLS) &&
+    ![DEATH_BY, DEATH_ACTIVE, DEATH, AFTER_DEATH, DEATH_PASSIVE].some((p) => p.test(title))
+  )
+    problems.push(
+      'lässt offen, wer ausgeschaltet wurde; es war dein eigener Tod (etwa "Von … ausgeschaltet")',
+    );
   return problems;
 }
 
@@ -220,7 +252,8 @@ function seriesIn(text: string) {
     [/\b(?:fünffach|penta)\w*/i, 5],
     [/\b(?:vierfach|quad)\w*/i, 4],
     [/\b(?:dreifach|triple)\w*/i, 3],
-    [/\b(?:doppel|double|zweifach)(?:-?kills?|-?eliminierung\w*|\b)/i, 2],
+    // Auch "Doppelter Kopfschuss".
+    [/\b(?:doppel|double|zweifach)(?:-?kills?|-?eliminierung\w*|te[rnms]?\b|\b)/i, 2],
   ];
   return series.find(([pattern]) => pattern.test(text))?.[1] ?? 0;
 }
@@ -236,7 +269,9 @@ const NUMBERS: Record<string, number> = {
   neun: 9,
   zehn: 10,
 };
-const KILL_NOUNS = 'kills?|abschüsse|eliminierungen';
+const KILL_NOUNS = 'kills?|abschüsse|eliminierungen|kopfschüssen?|headshots';
+const HEADSHOT_NOUNS = 'kopfschüssen?|kopfschuss|headshots?';
+const HEADSHOT = /\b(?:kopfsch(?:uss|üssen?)|headshots?)\b/i;
 /**
  * Genannte Anzahl vor einem Wort wie "Kills": "Drei Kills in Folge", "zwei schnelle Abschüsse",
  * "Drei-Kill-Serie", "4 Kills". Entfernungen wie "200 Meter Kill" sind keine Anzahl. 0 ohne Angabe.
@@ -347,7 +382,9 @@ export function label(event: GameEvent) {
           `${event.count} Kills in Folge`;
         return event.weapon && !['storm', 'fall'].includes(event.weapon)
           ? `${name} ${WEAPON_WITH[event.weapon]}`
-          : name;
+          : event.headshots && event.headshots >= event.count
+            ? `${name} per Kopfschuss`
+            : name;
       }
       return /DREIFACH|TRIPLE|X\s?3/.test(text)
         ? 'Dreifach-Kill'
@@ -402,7 +439,11 @@ export function fallbackTitle(
       ),
   );
   if (death && traded) return `Abtausch mit ${death.other}${where}`;
-  if (headlineEvents.length) return `${headlineEvents.map(label).join(' – ')}${where}`;
+  // Die Karte gehört zum ersten Ereignis: "Runde gewonnen auf Kanal – Von … ausgeschaltet".
+  if (headlineEvents.length)
+    return [`${label(headlineEvents[0])}${where}`, ...headlineEvents.slice(1).map(label)].join(
+      ' – ',
+    );
   if (mostly === 'loading') return 'Ladebildschirm';
   if (mostly === 'menu') return 'Im Menü';
   // Der jüngste Vorschlag zuerst: er antwortet auf die Rückfrage und hat deren Mängel meist

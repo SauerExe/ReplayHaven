@@ -4,11 +4,13 @@
 
 Stand 2026-09-24: Das Messwerkzeug `npm run r6-replays` ist gebaut (siehe unten); in die Analyse ist nichts eingebaut. Geprüft ist es nur an den neun Beispielrunden von r6-dissect (Y8S1 bis Y9S1) und an einem gerenderten Clip. Eine aktuelle `.rec`-Datei und echte R6-Clips lagen hier nicht vor.
 
+Stand 2026-09-25: erste Messung an echten Matches, siehe [Erste Messung](#erste-messung-2026-09-25). Der Client sichert seitdem das Match zu jedem R6-Clip (Option „R6-Replays zu Clips aufbewahren“), damit die Runden noch da sind, wenn die Auswertung eingebaut wird.
+
 ## Was das Spiel schreibt
 
 - **Ordner:** Im Installationsordner des Spiels unter `MatchReplay`, laut Ubisoft etwa `…\Ubisoft Game Launcher\games\Tom Clancy's Rainbow Six Siege\MatchReplay`.
 - **Dateien:** Je Match ein Ordner `Match-JJJJ-MM-TT_hh-mm-ss-<n>`, darin eine Datei je Runde: `…-R01.rec`, `…-R02.rec` usw.
-- **Aufbewahrung:** Das Spiel behält nur die jüngsten 10 bis 12 Matches; die Quellen nennen beide Zahlen. Die Auswertung muss also bald nach dem Match laufen, so wie der Watcher ohnehin arbeitet.
+- **Aufbewahrung:** Das Spiel behält nur die jüngsten Matches. Die Quellen nennen 10 bis 12; auf einem Test-PC lagen am 2026-09-25 30 Matches mit zusammen 940 MB, also etwa 30 MB je Match. Ältere Clips haben deshalb kein Replay mehr, wenn niemand es vorher sichert.
 - **Voraussetzung:** Match Replay muss in den Spieleinstellungen eingeschaltet sein. Welche Spielmodi aufgezeichnet werden, klärt der erste Messschritt.
 - **Format:** zstd-komprimiert in Blöcken. Am Anfang steht ein Kopf mit Klartext-Eigenschaften, danach folgen Datenpakete ohne Dokumentation.
 
@@ -108,3 +110,14 @@ Es ändert nichts an der Analyse und lädt nichts hoch.
 
 1. Du lässt das Messwerkzeug über deine Matches und Clips laufen und vergleichst mit der Übersicht im Spiel und den Videos. Die JSON-Datei enthält keine Spielernamen und lässt sich gefahrlos weitergeben.
 2. Erst nach bestandener Messung wird es eingebaut, hinter einer Option, die zunächst aus ist. Dafür kommt der Go-Build in die Release-Pipeline.
+
+## Erste Messung (2026-09-25)
+
+30 Matches aus Juli 2026 (Season Y11S2), Parser auf dem gepinnten Stand `e360e2b`.
+
+- **Lesbarkeit:** 134 von 155 Runden gelesen (86 %). 21 Runden brechen mit einem Absturz des Parsers ab; vier Matches liefern gar keine Runde. Je gelesener Runde kommen Ausgang mit Siegbedingung, eigene Kills mit Rundenuhr, Kopfschüsse, Niederschläge, Serien, Ace, Clutch und der eigene Tod. Der aufnehmende Spieler wurde in allen gelesenen Runden erkannt.
+- **Karten:** Bei 16 von 26 Matches kennt der Parser die Karten-ID nicht („Map(441825219764)“); die übrigen heißen intern etwa „ChaletY10“. Für Titel käme die Karte weiter aus der Texterkennung, die sie seit dem Umbau vom selben Tag verlässlich liest.
+- **Auffällig:** Einzelne Zeiten wirken unplausibel, etwa ein Kill bei 0:00 oder Kill und eigener Tod in derselben Sekunde. Ob das stimmt, klärt erst der Vergleich mit der Übersicht im Spiel.
+- **Rundenwahl und Zeit:** nicht messbar. Die vorhandenen R6-Clips stammen aus 2024 und 2025; zu ihnen gibt es keine Replays mehr. Der einzige Clip aus dem Juli ist 0,3 s lang.
+
+**Folgerung:** Der Parser liest die aktuelle Season weitgehend. Eingebaut wird er erst nach den Stufen Rundenwahl und Zeit, und dafür braucht es neue R6-Clips mit gesichertem Match. Genau dafür sichert der Client jetzt das Match zu jedem R6-Clip: gleich nach dem Upload, während der Spielpause nie, und bei einem womöglich noch laufenden Match einmal je Minute nach, bis die letzte Runde geschrieben ist. Ziel ist `%LOCALAPPDATA%\ReplayHaven\r6-replays`.

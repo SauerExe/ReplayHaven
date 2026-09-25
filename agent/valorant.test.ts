@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { feedEvents, feedLines, isValorant, sameName } from './valorant';
-import { tidyHighlights } from './wording';
+import { label, tidyHighlights } from './wording';
+import { phrase } from './events';
 import type { GameEvent } from './events';
 import type { TextLine } from './ocr';
 
@@ -110,7 +111,13 @@ it('counts two own headshot kills and the own death once each, with the frame be
     ['multikill', 109.8, 109.3, undefined],
     ['death', 117.3, 116.8, 'Deadlock'],
   ]);
-  expect(events.find((e) => e.kind === 'multikill')).toMatchObject({ count: 2, source: 'ocr' });
+  const multi = events.find((e) => e.kind === 'multikill')!;
+  expect(multi).toMatchObject({ count: 2, source: 'ocr', headshots: 2 });
+  // Der Titel soll die Kopfschüsse nennen können, nicht nur "Zwei Kills".
+  expect(phrase(multi)).toBe(
+    'Du hast zwei Gegner kurz nacheinander ausgeschaltet, beide per Kopfschuss',
+  );
+  expect(label(multi)).toBe('Doppel-Kill per Kopfschuss');
 });
 
 it('gives each killfeed moment one time mark, before the entry, without the model repeating it', () => {
@@ -124,7 +131,7 @@ it('gives each killfeed moment one time mark, before the entry, without the mode
   expect(tidyHighlights(proposed, events, 120).map((h) => [h.seconds, h.title])).toEqual([
     [60, 'Kaufphase'],
     [106.8, 'Headshot'],
-    [108.3, 'Doppel-Kill'],
+    [108.3, 'Doppel-Kill per Kopfschuss'],
     [115.8, 'Von Deadlock ausgeschaltet'],
   ]);
 });

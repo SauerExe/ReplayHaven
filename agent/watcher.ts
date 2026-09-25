@@ -22,8 +22,17 @@ export interface WatchOptions {
   isPaused?: () => boolean;
   onStatus?: (message: string) => void;
   onQueued?: (count: number) => void;
+  /**
+   * Das Spiel eines Clips, den die NVIDIA App ohne Spiel ablegte ("Desktop", "Base Profile"),
+   * etwa aus dem Fenster, das beim Speichern vorne war (agent/gaming.ts). Leer: Ordnername.
+   */
+  gameFor?: (path: string, savedAt: number) => string | undefined;
+  /** Nach jedem bestätigten Upload, etwa um das R6-Match zum Clip zu sichern. */
+  onUploaded?: (path: string, game: string, savedAt: number) => void;
   signal?: AbortSignal;
 }
+/** Ordner, unter denen die NVIDIA App Aufnahmen ohne erkanntes Spiel ablegt. */
+const NO_GAME_FOLDERS = /^(?:desktop|base profile)$/i;
 /**
  * Die Aufnahme soll später verarbeitet werden, ohne dass etwas schiefging — etwa, weil ihr
  * Fortnite-Match noch läuft und das Replay erst danach feststeht.
@@ -138,7 +147,12 @@ export class FolderUploader {
           this.options.onStatus?.(`Übersprungen: ${basename(path)} — ${reason}`);
           continue;
         }
-        const game = this.options.game || basename(dirname(path));
+        const folder = this.options.game || basename(dirname(path));
+        const game =
+          (!this.options.game &&
+            NO_GAME_FOLDERS.test(folder.trim()) &&
+            this.options.gameFor?.(path, before.mtimeMs)) ||
+          folder;
         let analysis: ClientAnalysis | undefined;
         const cachePath = join(
           dirname(this.options.statePath),
@@ -170,7 +184,9 @@ export class FolderUploader {
           headers: {
             ...this.headers(),
             'x-device-name': encodeURIComponent(hostname()),
-            'x-game-name': encodeURIComponent(gameLabel(this.options.game, path)),
+            'x-game-name': encodeURIComponent(
+              game === folder ? gameLabel(this.options.game, path) : game,
+            ),
             'x-client-analysis': analysis ? '1' : '0',
             'x-recorded-at': new Date(before.mtimeMs).toISOString(),
           },
@@ -213,6 +229,7 @@ export class FolderUploader {
         queued--;
         this.options.onQueued?.(queued);
         this.options.onStatus?.(`Archiviert: ${basename(path)}`);
+        this.options.onUploaded?.(path, game, before.mtimeMs);
       } catch (error) {
         if (error instanceof DeferredError) {
           this.retryAt.set(path, now + 60000);

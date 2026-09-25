@@ -70,6 +70,16 @@ All notable changes to this project are documented here. The format follows
 - "Ganzer Clip · ein Bild alle 3 Sekunden" in the client: frames spread evenly over the whole
   clip instead of two thirds from the end, so kill-feed lines, which stay about five seconds,
   are all seen. Short clips still get at least 24 frames.
+- "R6-Replays zu Clips aufbewahren" in the client, on by default: after an R6 clip is uploaded,
+  the match it was saved in is copied from the game's MatchReplay folder (the game keeps only
+  about 30 matches, 30 MB each), so exact kills and rounds can be read from it later. The newest
+  match started before the clip wins; rounds written later are added once the game is closed.
+- Clips the NVIDIA App files under "Desktop" or "Base Profile" get the game that was in the
+  foreground in the two minutes before saving: known games by their NVIDIA folder name, others
+  by window title.
+- "Beim Spielen pausieren" in the client, on by default: while a game fills the screen
+  (fullscreen or borderless window), analysis and uploads wait, and resume one minute after the
+  game left the foreground. Browsers, video players and maximised windows do not count.
 - "Voice-Chat mitschreiben (Spaßclips)" in the client: Parakeet TDT 0.6B v3 via sherpa-onnx
   transcribes the microphone track (or the mixed track) on the CPU in a separate process, a few
   seconds per clip; the models (about 670 MB) are downloaded once on first use and checked by
@@ -117,6 +127,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- R6 text recognition with the PP-OCRv5 reader: it reads banners without spaces
+  ("NIGHTHAVENLABS", "WONROUND2"), so neither maps nor round results were found. Map names are
+  now compared without spaces and with one misread letter allowed for long names, banners are
+  split back into words, and a round banner read in pieces ("YOURTEAA" | "WONROUND2") still
+  counts. Only capitalised lines count as a map, so the room "Tower" on Skyscraper is not one.
+  In 12 R6 clips: 8 maps and 6 round results instead of 5 maps (one wrong) and none.
+- Clips up to 30 seconds, usually trimmed by hand, count as one moment, so an early kill
+  names the title. A title about the own death must say whose elimination it was
+  ("Ausgeschaltet von …"), and fallback titles put the map after the first event.
+- Clips in the old NVIDIA folder "R6siege" are recognised as Rainbow Six, so text
+  recognition and your R6 names apply to them.
+- Titles: with a recognised map and an event, the map is required ("… auf Oregon"); a
+  multikill says how many kills were headshots ("Doppel-Kill per Kopfschuss"), plural
+  "Kopfschüsse" counts as a kill, and a title claiming more headshots than proven is rejected.
 - Steam game info for Rainbow Six Siege: Steam answers the old app id under its new one.
 - Closing a dialog opened from a clip menu in the library, collections or clip detail returns
   focus to the menu button.

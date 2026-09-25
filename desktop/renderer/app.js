@@ -72,6 +72,8 @@ function settings() {
     fortniteReplays: $('fortnite-replays').checked,
     r6Texts: $('r6-texts').checked,
     speech: $('speech').checked,
+    pauseWhileGaming: $('pause-while-gaming').checked,
+    keepR6Replays: $('keep-r6-replays').checked,
     epicAccounts: $('epic-accounts')
       .value.split(/[\s,;]+/)
       .filter(Boolean),
@@ -145,6 +147,8 @@ void run(async () => {
   $('fortnite-replays').checked = config.fortniteReplays;
   $('r6-texts').checked = config.r6Texts;
   $('speech').checked = config.speech;
+  $('pause-while-gaming').checked = config.pauseWhileGaming;
+  $('keep-r6-replays').checked = config.keepR6Replays;
   $('epic-accounts').value = config.epicAccounts.join(', ');
   if (config.hasToken)
     $('token-info').textContent =

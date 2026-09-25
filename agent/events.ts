@@ -57,6 +57,8 @@ export interface GameEvent {
   count?: number;
   /** Mehrfach-Kill über den ganzen Clip verteilt statt kurz nacheinander. */
   spread?: boolean;
+  /** Mehrfach-Kill: so viele der Kills waren Kopfschüsse. */
+  headshots?: number;
   /**
    * Nur bei gelesenen Meldungen: das letzte Bild davor, auf dem sie noch fehlte. Das Ereignis
    * liegt zwischen diesem Bild und `seconds`; eine Einblendung erscheint erst nach dem Kill.
@@ -263,6 +265,12 @@ export function seriesOf(events: GameEvent[], source: GameEvent['source']): Game
   const kills = events.filter((e) => e.kind === 'kill' && e.seconds !== null);
   if (kills.length < 2) return undefined;
   const quick = kills.every((k, i) => i === 0 || k.seconds! - kills[i - 1].seconds! <= 12);
+  // Ein Kopfschuss steht in derselben Meldung wie sein Kill ("Head Shot +20", Killfeed-Symbol).
+  const headshots = kills.filter((k) =>
+    events.some(
+      (h) => h.kind === 'headshot' && h.seconds !== null && Math.abs(h.seconds - k.seconds!) <= 1.5,
+    ),
+  ).length;
   return {
     kind: 'multikill',
     seconds: kills.at(-1)!.seconds,
@@ -271,6 +279,7 @@ export function seriesOf(events: GameEvent[], source: GameEvent['source']): Game
     source,
     count: kills.length,
     ...(quick ? {} : { spread: true }),
+    ...(headshots ? { headshots } : {}),
   };
 }
 
@@ -555,7 +564,11 @@ export function phrase(event: GameEvent) {
   const sentence = details.length
     ? `${base.slice(0, cut)} ${details.join(' ')}${base.slice(cut)}`
     : base;
-  return `${sentence}${event.kind === 'death' && event.other ? ` (von ${event.other})` : ''}`;
+  const heads =
+    event.kind === 'multikill' && event.headshots && event.count
+      ? `, ${event.headshots >= event.count ? (event.count === 2 ? 'beide' : 'alle') : `${event.headshots === 1 ? 'einer' : countWord(event.headshots)} davon`} per Kopfschuss`
+      : '';
+  return `${sentence}${heads}${event.kind === 'death' && event.other ? ` (von ${event.other})` : ''}`;
 }
 
 /** Die belegten Ereignisse als Tatsachen für den Prompt der Zusammenfassung. */

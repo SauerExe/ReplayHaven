@@ -25,10 +25,12 @@ import {
 import { playerNamesSchema, savedPlayerNames, tidyPlayerNames } from '../agent/players';
 import { defaultDemosFolder, FortniteReplays } from '../agent/fortnite';
 import { LATIN_KEYS, LATIN_REC, missingLibrary } from '../agent/ocr';
-import { WorkerTexts } from '../agent/r6';
+import { isR6, WorkerTexts } from '../agent/r6';
 import { MediaProcessor } from '../server/media';
 import { SPEECH_BYTES, speechFolder } from '../agent/parakeet';
 import { SpeechProcess } from './speech';
+import { GameWatch } from '../agent/gaming';
+import { keepMatchForClip } from '../agent/r6-replays';
 
 const configSchema = z.object({
   folder: z.string().max(1000),
@@ -51,6 +53,10 @@ const configSchema = z.object({
   r6Texts: z.boolean().default(false),
   // Voice-Chat mitschreiben (agent/parakeet.ts): Parakeet auf der CPU, Modelle einmalig ~670 MB.
   speech: z.boolean().default(false),
+  // Solange ein Spiel im Vollbild läuft, warten Analyse und Upload (agent/gaming.ts).
+  pauseWhileGaming: z.boolean().default(true),
+  // Das R6-Match zu jedem R6-Clip sichern (agent/r6-replays.ts), rund 30 MB je Match.
+  keepR6Replays: z.boolean().default(true),
 });
 type ClientConfig = z.infer<typeof configSchema>;
 let config: ClientConfig = {
@@ -66,6 +72,8 @@ let config: ClientConfig = {
   epicAccounts: [],
   r6Texts: false,
   speech: false,
+  pauseWhileGaming: true,
+  keepR6Replays: true,
 };
 let window: BrowserWindow;
 let tray: Tray;
@@ -75,6 +83,11 @@ let loop: ReturnType<typeof setInterval> | undefined;
 let working = false;
 let starting = false;
 let paused = true;
+/** Das Spiel im Vordergrund, solange eins läuft; leer sonst. */
+let gaming = '';
+let watch: GameWatch | undefined;
+/** Ob Warteschlange und KI gerade warten: von Hand pausiert oder beim Spielen. */
+const waiting = () => paused || !!gaming;
 let aborter = new AbortController();
 let downloadAbort: AbortController | undefined;
 /** Zuletzt im Dialog gewählter Ordner, auch wenn er noch nicht gespeichert ist. */
@@ -88,6 +101,7 @@ let status = {
   ollama: false,
   model: false,
   downloading: false,
+  gaming: '',
 };
 const root = () => app.getPath('userData');
 function emit(patch: Partial<typeof status> = {}) {
@@ -215,7 +229,25 @@ function media() {
     ffprobe: join(binaries, 'ffprobe.exe'),
   });
 }
+/** R6-Clips, deren Match beim Sichern womöglich noch lief; sie werden später vervollständigt. */
+const runningMatches = new Set<number>();
+let lastMatchSync = 0;
+async function keepR6Match(savedAt: number) {
+  try {
+    const kept = await keepMatchForClip(savedAt);
+    if (kept?.running) runningMatches.add(savedAt);
+    else runningMatches.delete(savedAt);
+  } catch (error) {
+    // Das Sichern ist eine Zugabe; der Clip ist hochgeladen.
+    runningMatches.delete(savedAt);
+    console.error('R6-Match nicht gesichert:', error instanceof Error ? error.message : error);
+  }
+}
 async function tick() {
+  if (!waiting() && runningMatches.size && Date.now() - lastMatchSync > 60_000) {
+    lastMatchSync = Date.now();
+    for (const savedAt of runningMatches) await keepR6Match(savedAt);
+  }
   if (working || !agent) return;
   working = true;
   try {
@@ -273,6 +305,8 @@ async function launch() {
   }
   aborter = new AbortController();
   paused = false;
+  // Der Vordergrund wird immer beobachtet: Er nennt auch das Spiel von Clips aus "Desktop".
+  watchGames();
   const processor = media();
   const replays =
     config.analyze && config.fortniteReplays && defaultDemosFolder()
@@ -290,7 +324,7 @@ async function launch() {
     ...(config.frames === 0 ? { spacing: FRAME_SPACING } : {}),
     cacheDir: join(root(), 'cache'),
     media: processor,
-    isPaused: () => paused,
+    isPaused: waiting,
     signal: aborter.signal,
     playerNames: config.playerNames,
     ...(replays
@@ -328,10 +362,14 @@ async function launch() {
     ...(config.analyze
       ? { analyze: (path: string, game: string) => analyzer.analyze(path, game) }
       : {}),
-    isPaused: () => paused,
+    isPaused: waiting,
     signal: aborter.signal,
     onStatus: (message) => emit({ message }),
     onQueued: (queued) => emit({ queued }),
+    gameFor: (_path, savedAt) => watch?.gameAt(savedAt),
+    onUploaded: (_path, game, savedAt) => {
+      if (config.keepR6Replays && isR6(game)) void keepR6Match(savedAt);
+    },
   });
   await agent.initialize();
   if (loop) clearInterval(loop);
@@ -342,8 +380,28 @@ async function launch() {
   });
   void tick();
 }
+function watchGames() {
+  watch ??= new GameWatch((game) => {
+    if (!config.pauseWhileGaming && !gaming) return;
+    gaming = config.pauseWhileGaming ? game : '';
+    emit({
+      gaming: game,
+      message: game
+        ? `Spiel läuft (${game}). Analyse und Upload warten, bis du eine Minute nicht mehr spielst.`
+        : 'Kein Spiel mehr im Vordergrund. Die Warteschlange läuft weiter.',
+    });
+    if (!game) void tick();
+  });
+  watch.start();
+}
+function stopWatchingGames() {
+  watch?.stop();
+  watch = undefined;
+  gaming = '';
+}
 function pause() {
   paused = true;
+  stopWatchingGames();
   aborter.abort();
   emit({
     message:
@@ -496,6 +554,7 @@ else {
   app.on('before-quit', (event) => {
     quitting = true;
     paused = true;
+    stopWatchingGames();
     aborter.abort();
     downloadAbort?.abort();
     if (loop) clearInterval(loop);

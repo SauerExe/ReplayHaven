@@ -223,3 +223,23 @@ Seitdem fragt die Pipeline bei Clips ohne belegtes Ereignis zuerst nur mit dem T
 | Chained Together, Chaos am Seil    | Hängt an Kette                 | Hängen an der Kette          | Zuruf an einen Mitspieler           |
 
 Die sechs Clips mit belegtem Ereignis blieben unverändert (6/6 nennen das Ereignis, nichts erfunden); die Themenfrage läuft bei ihnen nicht. Der Chained-Together-Titel ist eine Spielabsprache statt der Pointe („nie wieder in die Mitte“); er ist nicht falsch, aber schwächer. Lachen erkennt Parakeet nicht: es schreibt bei Lachflashs keine Wiederholungen wie Whisper, deshalb entstehen mit ihm keine Lachmarken.
+
+## Größerer Prüfsatz (2026-09-25)
+
+34 handgeprüfte Clips aus 13 Spielen (Stichproben `pruefung` und `neutest`), die nicht zum Entwickeln dienten. Verglichen mit dem Stand vom 23.09. (Qwen3-VL 8B, 24 Bilder aus dem Schlussfenster, ohne Texterkennung und Ton) auf denselben Clips:
+
+| Stand                                                                                        | Tags richtig | Titel nennt belegtes Ereignis | Falsches im Titel | Laufzeit je Clip |
+| -------------------------------------------------------------------------------------------- | ------------ | ----------------------------- | ----------------- | ---------------- |
+| 23.09.                                                                                       | 24/26        | 12/16                         | 0                 | 51 s             |
+| 25.09.: Qwen3.5 9B, ganzer Clip alle 3 s, Texterkennung, Replays, Voice-Chat, Titelprüfungen | 41/41        | 16/16                         | 0                 | 67 s             |
+
+Neu gefunden werden vor allem Kills und Kopfschüsse aus dem Valorant-Killfeed sowie Karte und Rundenausgang in R6: Die Titel lauten jetzt etwa „Runde gewonnen auf Border“, „Von GegnerDrei ausgeschaltet auf Fortress“ oder „Drei Kopfschüsse zum Sieg“. Fünf Abweichungen zwischen Pipeline und Handprüfung lagen an der Handprüfung: Standbilder des Killfeeds zeigten die Kopfschüsse und zweiten Kills, die die Pipeline gemeldet hatte. Die Wahrheit wurde mit Beleg korrigiert, nicht an die Pipeline angepasst.
+
+Dabei behoben:
+
+- **R6-Texterkennung mit PP-OCRv5.** Das Lesemodell schreibt Banner ohne Leerzeichen („NIGHTHAVENLABS“, „WONROUND2“); weder Karte noch Rundenausgang wurden erkannt. An 12 R6-Clips jetzt 8 Karten und 6 Rundenausgänge, jeder Ausgang am Standbild bestätigt, statt 5 Karten (eine falsch: „Tower“ ist auf Skyscraper ein Raum) und keinem Ausgang.
+- **Ordner „R6siege“** älterer Aufnahmen galt nicht als Rainbow Six, die Texterkennung lief für 61 Clips nicht.
+- **Kurze Clips.** Bei Clips bis 30 Sekunden zählt der ganze Clip als Moment; ein Kill nach 1,3 von 12 Sekunden fehlte sonst im Titel.
+- **Messwerkzeug.** Spracherkennung und Texterkennung bringen je eine eigene ONNX Runtime mit; im selben Prozess scheitert die zweite (Fehler 182). Im Client laufen sie getrennt, jetzt auch im Messwerkzeug.
+
+Grenzen: Es gibt nur fünf Valorant-Clips, alle schon in den Stichproben. Keiner der 268 Clips hat eine eigene Mikrofonspur; Ereignisse aus dem Spielton lohnen sich erst mit „Mikrofon als separate Spur“ in der NVIDIA App.

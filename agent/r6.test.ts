@@ -6,7 +6,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { build } from 'esbuild';
 import sharp from 'sharp';
 import { expect, it, vi } from 'vitest';
-import { ClipTexts, isR6, mapIn, r6Findings, WorkerTexts } from './r6';
+import { bannerResult, ClipTexts, isR6, mapIn, r6Findings, respace, WorkerTexts } from './r6';
 import { developmentModels, missingLibrary, TextReader } from './ocr';
 import { MediaProcessor, runFile } from '../server/media';
 import type { FrameText } from './r6';
@@ -21,6 +21,13 @@ it.each([
   ['KAFE DOSTOYEVSKY', 'Kafe Dostoyevsky'],
   ['0REGON', 'Oregon'],
   ['NIGHTHAVEN LABS', 'Nighthaven Labs'],
+  // PP-OCRv5 ohne Leerzeichen, mit einem Lesefehler (R6-Clips vom 2026-09-25).
+  ['NIGHTHAVENLABS', 'Nighthaven Labs'],
+  ['KAFEDOSTOYEVSKI', 'Kafe Dostoyevsky'],
+  ['KAFEDOSTOYEVSK', 'Kafe Dostoyevsky'],
+  ['BANKVAULT', undefined],
+  // Ein Raum in der Ortsanzeige, keine Karte.
+  ['Tower', undefined],
   // Raumnamen und Sätze sind keine Karte.
   ['TOWER STAIRS', undefined],
   ['BANK VAULT', undefined],
@@ -29,9 +36,43 @@ it.each([
   expect(mapIn(text)).toBe(map);
 });
 
+it.each([
+  ['WONROUND2', 'WON ROUND 2'],
+  ['YOURTEAM', 'YOUR TEAM'],
+  ['ENEMIESELIMINATED', 'ENEMIES ELIMINATED'],
+  ['OPPONENTSFOUNDTHEBOMBS', 'OPPONENTS FOUND THE BOMBS'],
+  // Nur ganz aus Bannerwörtern Zusammengesetztes wird zerlegt.
+  ['PICKUPTHEDEFUSER', 'PICKUPTHEDEFUSER'],
+  ['ROUND2', 'ROUND2'],
+  ['Holographic', 'Holographic'],
+])('splits the banner %s into words', (text, spaced) => {
+  expect(respace(text)).toBe(spaced);
+});
+
+it.each([
+  // So gelesen am 2026-09-25 (R6-Clip vom 2024-12-07): Banner in Stücken, "TEAM" verlesen.
+  [['YOURTEAA', 'WONROUND2', 'ENEMIESELIMINATED', 'PU:2.2'], 'YOUR TEAM WON ROUND'],
+  [['WONROUND2', 'PU:2.'], ''],
+  [['WONROUND2', 'ENEMIESELIMINATED'], 'YOUR TEAM WON ROUND'],
+  [['ENEMYTEAM', 'WONROUND3'], 'ENEMY TEAM WON ROUND'],
+  [['OPPONENTS WON ROUND 4'], 'ENEMY TEAM WON ROUND'],
+  [['ROUND2'], ''],
+])('reads the round banner %j as %s', (texts, result) => {
+  expect(bannerResult(texts.map((t) => row(t)))).toBe(result);
+});
+
+it('reads a round result written without spaces', () => {
+  const findings = r6Findings(
+    [at(117.8, 'YOURTEAM', 'WONROUND3'), at(118.3, 'YOURTEAM WONROUND3')],
+    "Tom Clancy's Rainbow Six Siege",
+  );
+  expect(findings.events.map((e) => e.kind)).toEqual(['roundWon']);
+});
+
 it('recognises the game folder of Rainbow Six', () => {
   expect(isR6("Tom Clancy's Rainbow Six Siege")).toBe(true);
   expect(isR6('R6')).toBe(true);
+  expect(isR6('R6siege')).toBe(true);
   expect(isR6('Fortnite')).toBe(false);
 });
 
@@ -102,11 +143,26 @@ it('allows only the recognised map in titles and adds it to the fallback title',
   expect(titleProblems('Doppel-Kill auf Bank', kills, kills, { maps: R6_MAPS }).join(' ')).toMatch(
     /nicht erkannt/,
   );
+  // Mit Ereignis gehört die erkannte Karte in den Titel, die Kurzform genügt.
+  expect(titleProblems('Doppel-Kill', kills, kills, place).join(' ')).toMatch(/auf Oregon/);
+  const kafe = { map: 'Kafe Dostoyevsky', maps: R6_MAPS };
+  expect(titleProblems('Doppel-Kill auf Kafe', kills, kills, kafe)).toEqual([]);
+  expect(titleProblems('Stiller Rundenbeginn', [], [], place)).toEqual([]);
   // Ohne Texterkennung bleibt es wie bisher.
   expect(titleProblems('Doppel-Kill auf Bank', kills, kills)).toEqual([]);
   expect(fallbackTitle([event('roundWon', 100, 'ocr')], [], [], null, 'Oregon')).toBe(
     'Runde gewonnen auf Oregon',
   );
+  // Mit zwei Ereignissen steht die Karte beim ersten.
+  expect(
+    fallbackTitle(
+      [event('roundWon', 118, 'ocr'), { ...event('death', 110, 'screen'), other: 'GegnerEins' }],
+      [],
+      [],
+      null,
+      'Kanal',
+    ),
+  ).toBe('Runde gewonnen auf Kanal – Von GegnerEins ausgeschaltet');
 });
 
 const models = developmentModels();

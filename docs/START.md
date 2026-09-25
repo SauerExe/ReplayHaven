@@ -78,14 +78,27 @@ Mit **Texterkennung: R6-Karte und Rundenausgang, Valorant-Killfeed** liest der C
 Mit **Voice-Chat mitschreiben (Spaßclips)** schreibt der Client mit, was im Clip gesagt wird, und gibt es der KI als Kontext. Clips ohne Kills oder Rundenergebnis bekommen so Titel nach dem Gespräch, etwa „Obi-Wan oder Yoda?“ statt „Spitzhacke am Eiszaun“.
 
 - Die Erkennung läuft mit Parakeet TDT 0.6B v3 über sherpa-onnx auf der CPU, in einem eigenen Prozess neben der KI. Zwei Minuten Ton dauern wenige Sekunden.
-- Beim ersten Start mit der Option lädt der Client die Sprachmodelle einmalig nach `%LOCALAPPDATA%ReplayHavenmodelsparakeet-v3`, rund 670 MB, jede Datei gegen ihre Prüfsumme geprüft.
+- Beim ersten Start mit der Option lädt der Client die Sprachmodelle einmalig nach `%LOCALAPPDATA%\ReplayHaven\models\parakeet-v3`, rund 670 MB, jede Datei gegen ihre Prüfsumme geprüft.
 - Hat die Aufnahme eine eigene Mikrofonspur (NVIDIA App: „Mikrofon als separate Spur“), hört der Client nur diese. Sonst liest er die gemischte Spur; laute Spielgeräusche verschlucken dann einzelne Wörter.
 - Englische Namen im deutschen Gespräch verhört das Modell gelegentlich. Zitate landen deshalb nicht wörtlich im Titel.
 - Das Transkript bleibt auf deinem PC; zum Server gehen wie bisher nur Titel, Beschreibung, Tags und Zeitmarken.
 
+## Beim Spielen pausieren
+
+**Beim Spielen pausieren** ist voreingestellt. Solange ein Spiel im Vollbild oder im randlosen Fenster läuft, warten Analyse und Upload, damit Grafikkarte, Prozessor und Leitung dem Spiel gehören. Eine Minute nachdem kein Spiel mehr im Vordergrund ist, geht es weiter; kurz zu Discord wechseln unterbricht die Pause also nicht.
+
+- Maßstab ist das Fenster im Vordergrund: Füllt es den ganzen Bildschirm, gilt es als Spiel. Ein Spiel im kleinen Fenster wird nicht erkannt.
+- Browser und Videoplayer im Vollbild zählen nicht als Spiel, ein maximiertes Fenster auch nicht.
+- Eine laufende KI-Anfrage läuft noch zu Ende, dann gibt die KI den Grafikspeicher frei. Der Clip bleibt in der Warteschlange und wird später vollständig analysiert.
+- Nebenbei merkt sich der Client, welches Programm vorne war. Legt die NVIDIA App einen Clip unter „Desktop“ oder „Base Profile“ ab, weil sie das Spiel nicht erkannt hat, bekommt er das Spiel, das in den zwei Minuten vor dem Speichern vorne war, etwa „Tom Clancy's Rainbow Six Siege“ oder den Fenstertitel eines unbekannten Spiels. Das gilt nur für Clips, die gespeichert werden, während der Client läuft.
+
+## R6-Replays zu Clips aufbewahren
+
+Rainbow Six schreibt mit „Match Replay“ (Spieleinstellungen) jede Runde als Datei, behält aber nur die letzten rund 30 Matches. **R6-Replays zu Clips aufbewahren** ist voreingestellt: Nach dem Upload eines R6-Clips kopiert der Client das Match, in dem er entstand, nach `%LOCALAPPDATA%\ReplayHaven\r6-replays`, etwa 30 MB je Match. Die Analyse nutzt die Dateien noch nicht; sie sind die Grundlage, um Kills, Kopfschüsse, Ace und Clutch später genau aus dem Spiel zu lesen (docs/R6-REPLAYS.md). Die Dateien enthalten die Namen aller Spieler des Matches und bleiben auf deinem PC.
+
 ## Was tatsächlich passiert
 
-- Die lokale KI erhält 24 oder 48 verkleinerte Einzelbilder in aufeinanderfolgenden Paketen. **Ton wird nicht analysiert.** Schnelle Ereignisse können zwischen den Bildern liegen; Ergebnisse sind Vorschläge.
+- Die lokale KI erhält verkleinerte Einzelbilder in aufeinanderfolgenden Paketen. Ton wertet der Client nur mit **Voice-Chat mitschreiben** aus, und zwar auf deinem PC. Schnelle Ereignisse können zwischen den Bildern liegen; Ergebnisse sind Vorschläge.
 - Im voreingestellten Modus werden keine Aufnahmen an einen Cloud-KI-Anbieter gesendet.
 - Der Server bekommt das unveränderte Original einschließlich eventuell aufgenommenem Ton. Er erstellt ein Thumbnail und bei Bedarf eine H.264-Wiedergabekopie.
 - Nimmt die NVIDIA App das Mikrofon als eigene Spur auf („Mikrofon als separate Spur“), mischt die Wiedergabekopie alle Tonspuren. Ein Browser spielt sonst nur die erste Spur, und deine Stimme fehlt. Weitere Spuren kommen mittig in die Mischung, auch wenn das Mikrofon nur auf einem Kanal liegt. Das Bild wird dabei nur kopiert, das Original behält die getrennten Spuren.

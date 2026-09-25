@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -6,7 +6,9 @@ import {
   closeRounds,
   dissectFile,
   execute,
+  keepMatchForClip,
   matchFolders,
+  matchStarted,
   newerSeason,
   ownRound,
   parseDissect,
@@ -345,4 +347,51 @@ it('runs programs without a shell and reports the end of stderr on failure', asy
   await expect(execute('replayhaven-gibt-es-nicht', [])).rejects.toMatchObject({ code: 'ENOENT' });
   expect(dissectFile('/werkzeuge', 'win32')).toMatch(/r6-dissect-e360e2b\.exe$/);
   expect(dissectFile('/werkzeuge', 'linux')).toMatch(/r6-dissect-e360e2b$/);
+});
+
+it('keeps the match a clip was saved in and adds rounds written later', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'r6-keep-'));
+  try {
+    const replays = join(root, 'MatchReplay');
+    const archive = join(root, 'archiv');
+    const name = 'Match-2026-07-12_20-41-13-36588';
+    const started = matchStarted(name)!;
+    expect(new Date(started).getHours()).toBe(20);
+    const match = join(replays, name);
+    await mkdir(match, { recursive: true });
+    const round = async (n: number, minutes: number, size = 10) => {
+      const file = join(match, `${name}-R0${n}.rec`);
+      await writeFile(file, 'x'.repeat(size));
+      const at = new Date(started + minutes * 60000);
+      await utimes(file, at, at);
+    };
+    await round(1, 4);
+    await round(2, 8);
+    // Ein Clip aus Runde 2, gesichert, während das Match noch läuft.
+    const saved = started + 7 * 60000;
+    const first = await keepMatchForClip(saved, [replays], archive, started + 9 * 60000);
+    expect(first).toMatchObject({ target: join(archive, name), running: true });
+    await round(3, 12);
+    await round(2, 8, 20);
+    const second = await keepMatchForClip(saved, [replays], archive, started + 30 * 60000);
+    expect(second?.running).toBe(false);
+    expect((await readdir(join(archive, name))).sort()).toEqual([
+      `${name}-R01.rec`,
+      `${name}-R02.rec`,
+      `${name}-R03.rec`,
+    ]);
+    // Ein früheres Match, das kurz vorher endete, verliert gegen das laufende.
+    const earlier = join(replays, 'Match-2026-07-12_20-25-52-36588');
+    await mkdir(earlier);
+    await writeFile(join(earlier, 'x-R01.rec'), 'x');
+    const ended = new Date(started - 2 * 60000);
+    await utimes(join(earlier, 'x-R01.rec'), ended, ended);
+    expect((await keepMatchForClip(saved, [replays], archive))?.target).toBe(join(archive, name));
+    // Ein Clip lange nach dem Match oder davor gehört zu keinem.
+    expect(await keepMatchForClip(started + 60 * 60000, [replays], archive)).toBeUndefined();
+    expect(await keepMatchForClip(started - 60 * 60000, [replays], archive)).toBeUndefined();
+    expect(await keepMatchForClip(saved, [join(root, 'fehlt')], archive)).toBeUndefined();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

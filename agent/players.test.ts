@@ -23,6 +23,7 @@ it.each([
   ['Rainbow Six', R6, true],
   ['Siege', R6, true],
   ['R6', "Tom Clancy's Rainbow Six® Siege", true],
+  ['Rainbow Six Siege', 'R6siege', true],
   ['Call of Duty', 'Call of Duty  Black Ops 7', true],
   ['CoD', 'Call of Duty Black Ops 7', true],
   ['CS2', 'Counter-strike 2', true],

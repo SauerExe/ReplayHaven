@@ -20,6 +20,8 @@ export const playerNamesSchema = z.array(playerNameSchema).max(MAX_PLAYER_NAMES)
 const ALIASES: Record<string, string[]> = {
   r6: ['rainbow', 'six'],
   r6s: ['rainbow', 'six'],
+  // Ordnername älterer NVIDIA-Aufnahmen (2024).
+  r6siege: ['rainbow', 'six', 'siege'],
   cod: ['call', 'of', 'duty'],
   cs: ['counter', 'strike'],
   cs2: ['counter', 'strike', '2'],

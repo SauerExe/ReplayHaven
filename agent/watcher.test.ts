@@ -164,3 +164,35 @@ it('keeps a deferred recording queued without reporting an error', async () => {
   expect(analyze).toHaveBeenCalledTimes(2);
   expect(agent.state.uploaded).toBe(1);
 });
+
+it('names the game of a Desktop recording from the foreground and reports the upload', async () => {
+  const desktop = join(options.folder, 'Desktop');
+  await mkdir(desktop);
+  const file = join(desktop, 'Desktop 2026.09.25 - 21.00.00.02.DVR.mp4');
+  await writeFile(file, 'test-only bytes');
+  const games: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url: string, request: RequestInit) => {
+      games.push(decodeURIComponent((request.headers as Record<string, string>)['x-game-name']));
+      return Response.json({ clip: { id: 'test-id' } });
+    }),
+  );
+  const analyze = vi.fn().mockRejectedValue(new Error('nur der Spielname zählt'));
+  const gameFor = vi.fn(() => "Tom Clancy's Rainbow Six Siege");
+  const onUploaded = vi.fn();
+  const uploader = new FolderUploader({ ...options, gameFor, onUploaded });
+  await uploader.initialize();
+  await uploader.scan(100);
+  await uploader.scan(111);
+  expect(gameFor).toHaveBeenCalledWith(file, expect.any(Number));
+  expect(games).toEqual(["Tom Clancy's Rainbow Six Siege"]);
+  expect(onUploaded).toHaveBeenCalledWith(
+    file,
+    "Tom Clancy's Rainbow Six Siege",
+    expect.any(Number),
+  );
+  expect(analyze).not.toHaveBeenCalled();
+  // Ein Spielordner bleibt, wie er ist.
+  expect(gameFor).toHaveBeenCalledTimes(1);
+});

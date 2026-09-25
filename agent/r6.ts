@@ -67,14 +67,116 @@ function letters(text: string) {
  * Ort und Land ("OREGON, USA") — so wird ein Raumname wie "Tower Stairs" nicht zur Karte.
  */
 export function mapIn(text: string): string | undefined {
-  const line = letters(text);
+  // PP-OCRv5 liest Banner ohne Leerzeichen ("NIGHTHAVENLABS", "KAFEDOSTOYEVSKI"): verglichen
+  // wird deshalb ohne sie, und bei langen Namen darf ein Zeichen abweichen.
+  // Allein stehend zählt nur Großschrift wie auf Tafel und Ladebild: "Tower" ist auf Skyscraper
+  // ein Raum in der Ortsanzeige (2026-09-25, 235 Bilder "Tower" gegen 21 "SKYSCRAPER").
+  const line = letters(text).replace(/ /g, '');
+  const capitals = !/\p{Ll}/u.test(text);
   const raw = text.trim().toUpperCase();
   return R6_MAPS.find((map) => {
     const name = map.toUpperCase();
+    const compact = name.replace(/ /g, '');
     return (
-      line === name || (raw.startsWith(name) && /^[,\-–|:]/.test(raw.slice(name.length).trim()))
+      (capitals && line === compact) ||
+      (capitals && compact.length >= 10 && oneApart(line, compact)) ||
+      (raw.startsWith(name) && /^[,\-–|:]/.test(raw.slice(name.length).trim()))
     );
   });
+}
+
+/** Ob sich zwei Wörter um höchstens ein Zeichen unterscheiden (ersetzt, fehlt oder zu viel). */
+function oneApart(a: string, b: string) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return (
+    a.slice(i + 1) === b.slice(i + 1) ||
+    a.slice(i) === b.slice(i + 1) ||
+    a.slice(i + 1) === b.slice(i)
+  );
+}
+
+/** Wörter der R6-Banner, aus denen zusammengeschriebene Zeilen wieder zerlegt werden. */
+const BANNER_WORDS = new Set([
+  'YOUR',
+  'TEAM',
+  'ENEMY',
+  'ENEMIES',
+  'OPPONENT',
+  'OPPONENTS',
+  'WE',
+  'WON',
+  'WIN',
+  'WINS',
+  'LOST',
+  'LOSE',
+  'LOSES',
+  'ROUND',
+  'THE',
+  'MATCH',
+  'VICTORY',
+  'DEFEAT',
+  'ELIMINATED',
+  'BY',
+  'DEFUSER',
+  'DEFUSED',
+  'PLANTED',
+  'DISABLED',
+  'FAILED',
+  'TO',
+  'PROTECT',
+  'FOUND',
+  'BOMB',
+  'BOMBS',
+  'HOSTAGE',
+  'EXTRACTED',
+  'SECURED',
+  'AREA',
+  'TIME',
+  'RAN',
+  'OUT',
+]);
+
+/**
+ * Zerlegt eine ohne Leerzeichen gelesene Bannerzeile in ihre Wörter ("WONROUND2" → "WON ROUND
+ * 2"), damit die Muster aus agent/events.ts greifen. Andere Zeilen bleiben, wie sie sind.
+ */
+export function respace(text: string) {
+  return text.replace(/\b([A-Z]{5,})(\d*)\b/g, (whole, word: string, digits: string) => {
+    // Kürzeste Zerlegung von hinten nach vorn; best[i] = Wörter für word.slice(i).
+    const best: (string[] | undefined)[] = [];
+    best[word.length] = [];
+    for (let i = word.length - 1; i >= 0; i--)
+      for (let j = i + 2; j <= word.length; j++) {
+        const rest = best[j];
+        if (
+          rest &&
+          BANNER_WORDS.has(word.slice(i, j)) &&
+          (!best[i] || rest.length + 1 < best[i]!.length)
+        )
+          best[i] = [word.slice(i, j), ...rest];
+      }
+    const words = best[0];
+    return words && words.length > 1 ? [...words, ...(digits ? [digits] : [])].join(' ') : whole;
+  });
+}
+
+/**
+ * Das Rundenbanner eines Bildes, auch wenn es in Stücken und mit Lesefehlern gelesen wurde
+ * ("YOURTEAA" | "WONROUND2" | "ENEMIESELIMINATED", R6-Clip vom 2024-12-07): als Satz, den
+ * agent/events.ts kennt, oder leer. Wer gewonnen hat, steht vor "WON ROUND"; fehlt das, sagt
+ * der Untertitel "ENEMIES ELIMINATED", dass ihr die Runde geholt habt.
+ */
+export function bannerResult(rows: readonly TextLine[]) {
+  const line = rows.map((r) => letters(r.text).replace(/ /g, '')).join('');
+  const at = line.indexOf('WONROUND');
+  if (at < 0) return '';
+  const before = line.slice(0, at);
+  if (oneApart(before.slice(-8), 'YOURTEAM')) return 'YOUR TEAM WON ROUND';
+  if (oneApart(before.slice(-9), 'ENEMYTEAM') || before.endsWith('OPPONENTS'))
+    return 'ENEMY TEAM WON ROUND';
+  return line.includes('ENEMIESELIMINATED') ? 'YOUR TEAM WON ROUND' : '';
 }
 
 /** Rundenausgänge und Matchergebnisse; nur diese Ereignisse liest die Texterkennung. */
@@ -105,7 +207,9 @@ export function r6Findings(frames: FrameText[], game: string): TextFindings {
   const seen = frames.map((f) => ({
     seconds: f.seconds,
     kind: 'gameplay' as const,
-    visibleText: f.rows.map((r) => r.text).join(' | '),
+    visibleText: [...f.rows.map((r) => respace(r.text)), bannerResult(f.rows)]
+      .filter(Boolean)
+      .join(' | '),
   }));
   // Ohne Dateinamen: NVIDIA-Ereignisse sind nicht Sache der Texterkennung.
   const events = collectEvents(seen, 'ocr', game)

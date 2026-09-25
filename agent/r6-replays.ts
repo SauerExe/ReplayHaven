@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, rename, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, rename, rm, stat } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { localToUtc } from './fortnite';
@@ -500,4 +500,67 @@ export async function buildDissect(target = dissectFile(), log: (line: string) =
 /** Liest eine Runde mit r6-dissect. Eine Runde braucht hier 2 bis 6 Sekunden. */
 export async function readRound(program: string, file: string) {
   return parseDissect(await execute(program, [file], { timeout: 3 * 60000 }));
+}
+
+/**
+ * Wo der Client die Matches zu gespeicherten Clips aufbewahrt. Das Spiel behält nur die jüngsten
+ * Matches (am 2026-09-25 hier 30, zusammen 940 MB) und löscht ältere; ohne Kopie wären die Runden
+ * zu älteren Clips verloren, bevor die Auswertung sie nutzen kann.
+ */
+export function replayArchive(env: NodeJS.ProcessEnv = process.env) {
+  return env.LOCALAPPDATA
+    ? join(env.LOCALAPPDATA, 'ReplayHaven', 'r6-replays')
+    : join(homedir(), '.cache', 'replayhaven', 'r6-replays');
+}
+
+/** Beginn eines Matches laut Ordnername ("Match-2026-07-12_20-41-13-36588"), in Ortszeit. */
+export function matchStarted(name: string) {
+  const m = /^Match-(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/.exec(name);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : undefined;
+}
+
+/** So lange nach der letzten Runde kann ein Clip noch gespeichert werden (Endbildschirm). */
+const AFTER_MATCH_MS = 10 * 60000;
+
+/**
+ * Sichert das Match, in dem ein Clip gespeichert wurde: vom Start laut Ordnername bis kurz nach
+ * der letzten geschriebenen Runde. Schon kopierte Runden bleiben, neue kommen dazu. Liefert den
+ * Zielordner und ob das Match womöglich noch läuft (letzte Runde jünger als fünf Minuten); dann
+ * lohnt ein späterer zweiter Aufruf.
+ */
+export async function keepMatchForClip(
+  savedAt: number,
+  roots: readonly string[] = defaultReplayFolders(),
+  archive = replayArchive(),
+  now = Date.now(),
+): Promise<{ target: string; running: boolean } | undefined> {
+  // Das jüngste Match, das vor dem Clip begann: Das vorige kann noch im Nachlauf liegen
+  // (Clip 20:45, Match von 20:25 endete 20:38, das nächste begann 20:41; Test vom 2026-09-25).
+  let best: { match: MatchFolder; start: number; last: number } | undefined;
+  for (const root of roots) {
+    let matches: MatchFolder[];
+    try {
+      matches = await matchFolders(root);
+    } catch {
+      continue;
+    }
+    for (const match of matches) {
+      const start = matchStarted(match.name);
+      if (start === undefined || savedAt < start || (best && start <= best.start)) continue;
+      const last = Math.max(
+        ...(await Promise.all(match.rounds.map((r) => stat(r)))).map((s) => s.mtimeMs),
+      );
+      if (savedAt <= last + AFTER_MATCH_MS) best = { match, start, last };
+    }
+  }
+  if (!best) return undefined;
+  const target = join(archive, best.match.name);
+  await mkdir(target, { recursive: true });
+  for (const round of best.match.rounds) {
+    const copy = join(target, basename(round));
+    const [from, to] = await Promise.all([stat(round), stat(copy).catch(() => undefined)]);
+    // Eine Runde, die beim letzten Mal noch geschrieben wurde, wird ersetzt.
+    if (!to || to.size !== from.size) await cp(round, copy, { force: true });
+  }
+  return { target, running: now - best.last < 5 * 60000 };
 }
