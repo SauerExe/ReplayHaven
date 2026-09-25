@@ -69,6 +69,8 @@ export interface GameMetadataStatus {
 }
 export interface ServerInfo {
   connected: boolean;
+  /** Release of the server; missing on older servers. */
+  version?: string;
   authRequired?: boolean;
   provider: 'none' | 'local' | 'gemini';
   configured: boolean;

@@ -91,8 +91,10 @@ test('a client result appears, stays editable and is filtered by the detected ga
   await expect(
     page.getByRole('group', { name: 'Filter by game' }).getByRole('button', { name: /^Testspiel/ }),
   ).toHaveAttribute('aria-pressed', 'true');
+  // The old Devices page redirects to the recording PCs in the settings.
   await page.goto('/devices');
-  await expect(page.getByRole('link', { name: 'Download Windows client' })).toHaveAttribute(
+  await expect(page).toHaveURL(/\/settings\/pcs$/);
+  await expect(page.getByRole('link', { name: 'Download', exact: true })).toHaveAttribute(
     'href',
     '/api/downloads/windows',
   );
@@ -174,17 +176,29 @@ test('a plain account only watches, and an SSO-only account sets its first passw
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
 
-  await page.goto('/settings#analysis');
-  await expect(page.getByRole('switch', { name: 'Apply AI titles automatically' })).toBeDisabled();
-  await expect(page.getByText('Preparing smooth playback: 3 clips left')).toBeVisible();
+  // Old anchors still land in the right section; server options are for admins only.
+  await page.goto('/settings#profile');
+  await expect(page).toHaveURL(/\/settings\/account$/);
+  const sections = page.getByRole('navigation', { name: 'Settings sections' });
+  await expect(sections.getByRole('link', { name: 'Account' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(sections.getByRole('link', { name: 'Server' })).toHaveCount(0);
+  await expect(sections.getByRole('link', { name: 'Users' })).toHaveCount(0);
+  await page.goto('/settings/server');
+  await expect(page.getByText('Only admins can change this part of the archive.')).toBeVisible();
+  await expect(page.getByRole('switch')).toHaveCount(0);
+  await page.goto('/settings/account');
   await expect(page.getByRole('link', { name: 'Link Authentik' })).toHaveAttribute(
     'href',
     '/api/auth/oidc/start?link=1',
   );
   await page.getByRole('button', { name: 'Set password' }).click();
   await expect(page.getByLabel('Current password')).toHaveCount(0);
-  await page.getByLabel('New password').fill('a-new-password');
-  await page.locator('.password-form').getByRole('button', { name: 'Save', exact: true }).click();
+  const passwordDialog = page.getByRole('dialog', { name: 'Set password' });
+  await passwordDialog.getByLabel('New password').fill('a-new-password');
+  await passwordDialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Password set')).toBeVisible();
   // Watching must never have sent a change the server would refuse with 403.
   expect(writes).toEqual(['POST /api/auth/password']);

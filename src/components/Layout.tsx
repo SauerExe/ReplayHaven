@@ -25,6 +25,7 @@ import {
 import { useActions } from './Actions';
 import { useVault } from '../data/store';
 import { useIsAdmin } from './AuthGate';
+import { useDevicesHref, useServerHref } from './settings/sections';
 import { t, tp } from '../i18n';
 const scrollPositions = new Map<string, number>();
 function RouteScroll() {
@@ -69,6 +70,7 @@ export function Brand({ linked = true }: { linked?: boolean }) {
 }
 function ProfileMenu({ mobile = false }: { mobile?: boolean }) {
   const { state } = useVault();
+  const devices = useDevicesHref();
   return (
     <Menu.Root modal={false}>
       <Menu.Trigger
@@ -95,9 +97,9 @@ function ProfileMenu({ mobile = false }: { mobile?: boolean }) {
           </Menu.Label>
           <Menu.Separator />
           <Menu.Item asChild>
-            <Link to="/devices">
+            <Link to={devices}>
               <Monitor size={17} />
-              {t('app.layout.devices')}
+              {devices === '/settings/pcs' ? t('settings.pcs.title') : t('app.layout.devices')}
             </Link>
           </Menu.Item>
           <Menu.Item asChild>
@@ -122,6 +124,7 @@ export function Layout() {
   // Uploading from the browser is for admins; plain users only watch.
   const canUpload = useIsAdmin();
   const { state, jobs, storageError, server } = useVault();
+  const serverHref = useServerHref();
   const location = useLocation();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
@@ -176,7 +179,7 @@ export function Layout() {
               </button>
             )}
             <Link
-              to="/devices"
+              to={serverHref}
               className="connection"
               title={server.connected ? t('app.layout.serverConnected') : t('app.layout.noServer')}
             >
@@ -228,7 +231,7 @@ export function Layout() {
           {state.clips.some((c) => !c.server && !c.local) && (
             <span className="demo-label">{t('app.layout.sampleCards')}</span>
           )}
-          <Link to="/devices">
+          <Link to={serverHref}>
             <WifiOff size={13} />{' '}
             {server.connected
               ? t('app.layout.serverConnected')

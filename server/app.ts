@@ -3,7 +3,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import cookie from '@fastify/cookie';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, readFileSync } from 'node:fs';
 import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -23,6 +23,18 @@ import type { AnalysisProvider } from './providers';
 import { AnalysisWorker } from './worker';
 import { PlaybackBackfill } from './playback';
 import { analysisSchema, parseAnalysis, clipPatchSchema, settingsSchema } from './schema';
+
+/** The release this server runs, from package.json in the working directory (also in Docker). */
+const serverVersion = (() => {
+  try {
+    const { version } = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as {
+      version?: unknown;
+    };
+    return typeof version === 'string' ? version : undefined;
+  } catch {
+    return undefined;
+  }
+})();
 const idSchema = z.string().uuid();
 /** The message of the first validation problem, e.g. a too short password. */
 function zodMessage(error: unknown) {
@@ -189,6 +201,7 @@ export async function buildServer(
   });
   app.get('/api/status', async () => ({
     connected: true,
+    version: serverVersion,
     provider: config.provider,
     configured: aiConfigured(config),
     model: config.model,

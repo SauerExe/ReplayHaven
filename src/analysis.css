@@ -164,79 +164,6 @@
   font-size: 11px;
   min-height: 36px;
 }
-.server-status-card {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 20px;
-  border: 1px solid #343144;
-  background: #a78bfa08;
-  border-radius: 9px;
-  margin: 22px 0;
-}
-.server-status-card > svg {
-  color: #b09bd6;
-}
-.server-status-card > div {
-  flex: 1;
-}
-.server-status-card strong {
-  font-size: 13px;
-  font-weight: 550;
-}
-.server-status-card p {
-  font-size: 11px;
-  line-height: 1.7;
-  color: var(--muted);
-  margin-top: 6px;
-}
-.server-login {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  margin-top: 18px;
-}
-.server-login .field {
-  flex: 1;
-  margin-bottom: 0;
-}
-.server-login .button {
-  min-height: 45px;
-}
-.settings-section > h2 {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.settings-section > .text-link {
-  margin-top: 16px;
-}
-.settings-section > .notice {
-  margin-top: 20px;
-}
-.device-downloads {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 13px;
-  margin: 24px 0 4px;
-}
-.device-downloads .notice {
-  max-width: 590px;
-  margin: 0;
-}
-.device-downloads .notice p {
-  overflow-wrap: anywhere;
-}
-.device-example .device-card {
-  margin-bottom: 16px;
-}
-.devices-page > .device-card-footer {
-  margin-top: 25px;
-  border: 1px solid #292d38;
-  border-radius: 8px;
-}
 .upload-mode {
   display: flex;
   align-items: center;
@@ -249,10 +176,6 @@
   width: 16px;
   height: 16px;
   accent-color: #a78bfa;
-}
-.device-card code {
-  overflow-wrap: anywhere;
-  word-break: break-word;
 }
 .analysis-panel .text-button:disabled {
   opacity: 0.5;
@@ -314,32 +237,5 @@
   }
   .analysis-actions {
     gap: 12px;
-  }
-  .server-status-card {
-    padding: 16px 12px;
-    gap: 10px;
-  }
-  .server-status-card strong {
-    font-size: 12px;
-  }
-  .server-status-card p {
-    font-size: 10px;
-  }
-  .server-login {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .server-login .button {
-    align-self: flex-end;
-    min-height: 37px;
-  }
-  .device-downloads .button {
-    font-size: 10px;
-  }
-  .device-downloads > .notice {
-    max-width: 100%;
-  }
-  .device-downloads .notice p {
-    font-size: 10px;
   }
 }

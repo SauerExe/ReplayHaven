@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import type { Clip } from '../domain/models';
 import { useActions } from '../components/Actions';
 import { useIsAdmin } from '../components/AuthGate';
+import { useDevicesHref } from '../components/settings/sections';
 import { canContinue } from '../data/repository';
 import { useVault } from '../data/store';
 import { ClipMenu } from './ClipMenu';
@@ -199,6 +200,7 @@ export function ClipLayers({
 }
 
 export function StreamingHeaderContainer() {
+  const devicesHref = useDevicesHref();
   const action = useActions();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -206,18 +208,22 @@ export function StreamingHeaderContainer() {
   const active =
     pathname === '/'
       ? '/'
-      : (['/library', '/collections', '/devices'].find((path) => pathname.startsWith(path)) ?? '');
+      : pathname.startsWith('/settings')
+        ? devicesHref
+        : (['/library', '/collections'].find((path) => pathname.startsWith(path)) ?? '');
   return (
     <StreamingHeader
       active={active}
       onNavigate={navigate}
       onSearch={(query) => navigate(`/library?q=${encodeURIComponent(query)}`)}
       onAddClip={admin ? () => action({ kind: 'upload' }) : undefined}
+      devicesHref={devicesHref}
     />
   );
 }
 
 export function StreamingHomeContainer({ header = false }: { header?: boolean }) {
+  const devicesHref = useDevicesHref();
   const { server, patchClip } = useVault();
   const action = useActions();
   const navigate = useNavigate();
@@ -244,7 +250,7 @@ export function StreamingHomeContainer({ header = false }: { header?: boolean })
         onNavigate={navigate}
         onAddClip={admin ? () => action({ kind: 'upload' }) : undefined}
         onCreateCollection={() => action({ kind: 'create' })}
-        connectHref="/devices"
+        connectHref={devicesHref}
       />
       <ClipLayers layers={layers} library={library} now={now} />
     </>

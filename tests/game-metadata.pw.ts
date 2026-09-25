@@ -39,7 +39,8 @@ for (const width of [390, 1440]) {
     });
     await page.goto('/settings#games');
     const section = page.getByRole('region', { name: 'Game info', exact: true });
-    await expect(section.getByText('Automatic fetching on', { exact: true })).toBeVisible();
+    await expect(section.getByText('Automatic fetching', { exact: true })).toBeVisible();
+    await expect(section.getByText('On', { exact: true })).toBeVisible();
     await expect(
       section.getByText('2 of 3 games with info · 1 without a clear match'),
     ).toBeVisible();
@@ -76,6 +77,6 @@ test('disabled fetching shows its state and allows no new job', async ({ page })
   );
   await page.goto('/settings#games');
   const section = page.getByRole('region', { name: 'Game info', exact: true });
-  await expect(section.getByText('Automatic fetching off', { exact: true })).toBeVisible();
+  await expect(section.getByText('Off', { exact: true })).toBeVisible();
   await expect(section.getByRole('button', { name: 'Update now' })).toBeDisabled();
 });

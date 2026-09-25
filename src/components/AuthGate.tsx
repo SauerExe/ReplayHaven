@@ -1,8 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
-import { KeyRound, LogIn, ShieldCheck } from 'lucide-react';
-import { api } from '../data/api';
-import { t, tx } from '../i18n';
+import { createContext, useCallback, useContext, useEffect, useId, useState } from 'react';
+import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
+import { CircleAlert, Globe, KeyRound, LoaderCircle } from 'lucide-react';
+import { ApiError, api } from '../data/api';
+import { LANGUAGES, setLanguage, t, tx, useLanguage } from '../i18n';
 
 /** What the server says about this browser's sign-in (server/auth-routes.ts). */
 export interface AuthState {
@@ -108,7 +108,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (window.location.pathname === '/connect') return <ConnectPage />;
   if (auth === undefined)
-    return <div className="auth-screen" aria-busy="true" aria-label={t('auth.checking')} />;
+    return (
+      <div className="auth-screen" aria-busy="true" aria-label={t('auth.checking')}>
+        <div className="auth-backdrop" aria-hidden="true" />
+      </div>
+    );
   if (auth && (auth.setupRequired || !auth.loggedIn))
     return (
       <AuthScreen
@@ -135,14 +139,118 @@ export function AuthGate({ children }: { children: ReactNode }) {
   );
 }
 
-function Brand() {
+/**
+ * The frame of every sign-in screen (Stripe pattern): an angled violet band across the top,
+ * the brand above the card, one quiet help line and a footer with the language switch below.
+ */
+function AuthLayout({
+  titleId,
+  help,
+  helpWideOnly,
+  busy,
+  children,
+}: {
+  titleId: string;
+  help?: ReactNode;
+  /** On phones this help already sits next to the field it concerns. */
+  helpWideOnly?: boolean;
+  busy?: boolean;
+  children: ReactNode;
+}) {
+  const language = useLanguage();
   return (
-    <div className="auth-brand">
-      <img src="/favicon.svg" alt="" width="36" height="36" />
-      <span>
-        Replay<b>Haven</b>
-      </span>
+    <main className="auth-screen">
+      <div className="auth-backdrop" aria-hidden="true" />
+      <div className="auth-shell">
+        <div className="auth-brand">
+          <img src="/icon-192.png" alt="" width="32" height="32" />
+          <span>
+            Replay<span className="auth-brand-light">Haven</span>
+          </span>
+        </div>
+        <section className="auth-card" aria-labelledby={titleId} aria-busy={busy || undefined}>
+          {children}
+        </section>
+        {help && <p className={`auth-help${helpWideOnly ? ' wide-only' : ''}`}>{help}</p>}
+        <footer className="auth-footer">
+          <span>© ReplayHaven</span>
+          <div className="auth-language" role="group" aria-label={t('auth.language')}>
+            <Globe size={14} aria-hidden="true" />
+            {LANGUAGES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                lang={item.id}
+                aria-pressed={language === item.id}
+                onClick={() => setLanguage(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </footer>
+      </div>
+    </main>
+  );
+}
+
+function Alert({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <div className="auth-alert" role="alert" id={id}>
+      <CircleAlert size={18} aria-hidden="true" />
+      <span>{children}</span>
     </div>
+  );
+}
+
+type FieldName = 'name' | 'password' | 'repeat' | 'key';
+
+/** Label above, a 44 px input, an optional helper on the label line and a hint below. */
+function Field({
+  id,
+  label,
+  invalid,
+  errorId,
+  helper,
+  hint,
+  ...input
+}: {
+  id: string;
+  label: string;
+  invalid: boolean;
+  errorId: string;
+  helper?: ReactNode;
+  hint?: ReactNode;
+} & InputHTMLAttributes<HTMLInputElement>) {
+  const hintId = hint ? `${id}-hint` : undefined;
+  const describedBy = [invalid ? errorId : '', hintId ?? ''].filter(Boolean).join(' ');
+  return (
+    <div className={`auth-field${invalid ? ' is-invalid' : ''}`}>
+      <div className="auth-label-row">
+        <label htmlFor={id}>{label}</label>
+        {helper}
+      </div>
+      <input
+        id={id}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy || undefined}
+        {...input}
+      />
+      {hint && (
+        <small className="auth-hint" id={hintId}>
+          {hint}
+        </small>
+      )}
+    </div>
+  );
+}
+
+function SubmitButton({ busy, label }: { busy: boolean; label: string }) {
+  return (
+    <button className="button primary auth-submit" disabled={busy} aria-busy={busy || undefined}>
+      {busy && <LoaderCircle className="auth-spinner" size={18} aria-hidden="true" />}
+      <span>{label}</span>
+    </button>
   );
 }
 
@@ -161,16 +269,48 @@ function AuthScreen({
   initialError: string;
   onDone: () => Promise<void>;
 }) {
+  useLanguage();
+  const uid = useId();
+  const ids = {
+    title: `${uid}title`,
+    error: `${uid}error`,
+    name: `${uid}name`,
+    password: `${uid}password`,
+    repeat: `${uid}repeat`,
+    key: `${uid}key`,
+    qr: `${uid}qr`,
+  };
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [repeat, setRepeat] = useState('');
   const [key, setKey] = useState('');
   const [error, setError] = useState(initialError);
+  const [invalid, setInvalid] = useState<FieldName | null>(null);
   const [busy, setBusy] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+
+  function fail(message: string, field: FieldName | null) {
+    setError(message);
+    setInvalid(field);
+    if (field) requestAnimationFrame(() => document.getElementById(ids[field])?.focus());
+  }
+  /** The first problem the server would refuse anyway, checked here with a clearer message. */
+  function check(): [string, FieldName] | null {
+    if (!name.trim()) return [t('auth.missing.name'), 'name'];
+    if (!password) return [t('auth.missing.password'), 'password'];
+    if (!setup) return null;
+    if (password.length < 8) return [t('auth.passwordShort'), 'password'];
+    if (password !== repeat) return [t('auth.passwordMismatch'), 'repeat'];
+    if (needsKey && !key) return [t('auth.missing.key'), 'key'];
+    return null;
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (busy) return;
     setError('');
-    if (setup && password !== repeat) return setError(t('auth.passwordMismatch'));
+    setInvalid(null);
+    const problem = check();
+    if (problem) return fail(...problem);
     setBusy(true);
     try {
       await api(setup ? '/auth/setup' : '/auth/login', {
@@ -179,56 +319,57 @@ function AuthScreen({
       });
       await onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('auth.failed'));
+      // 401 means the access key (setup) or the name and password (sign-in) were wrong.
+      const field = e instanceof ApiError && e.status === 401 ? (setup ? 'key' : 'password') : null;
+      fail(e instanceof Error ? e.message : t('auth.failed'), field);
     } finally {
       setBusy(false);
     }
   }
+
+  const title = setup ? t('auth.title.setup') : t('auth.title.login');
   const sso = oidcName ? (
     <a
       className={`button ${passwordLogin ? 'secondary' : 'primary'} auth-sso`}
       href="/api/auth/oidc/start"
     >
-      <KeyRound size={17} />
+      <KeyRound size={17} aria-hidden="true" />
       {t('auth.sso.signInWith', { name: oidcName })}
     </a>
   ) : null;
-  const errorBox = error && (
-    <p className="auth-error" role="alert">
-      {error}
-    </p>
-  );
+  const alert = error && <Alert id={ids.error}>{error}</Alert>;
 
   // Single sign-on only: no form, just the button.
   if (!passwordLogin)
     return (
-      <main className="auth-screen">
-        <div className="auth-card">
-          <Brand />
-          <span className="surface-kicker">
-            <ShieldCheck size={15} /> {setup ? t('auth.kicker.setup') : t('auth.kicker.login')}
-          </span>
-          <h1>{setup ? t('auth.sso.setupTitle') : t('auth.title.login')}</h1>
-          <p className="auth-lead">
-            {t(setup ? 'auth.sso.setupLead' : 'auth.sso.loginLead', {
-              name: oidcName || t('auth.sso.generic'),
-            })}
-          </p>
-          {errorBox}
-          {sso ?? <p className="auth-lead">{t('auth.sso.notConfigured')}</p>}
-        </div>
-      </main>
+      <AuthLayout titleId={ids.title} help={setup ? undefined : t('auth.help.login')}>
+        <h1 id={ids.title}>{title}</h1>
+        <p className="auth-lead">
+          {t(setup ? 'auth.sso.setupLead' : 'auth.sso.loginLead', {
+            name: oidcName || t('auth.sso.generic'),
+          })}
+        </p>
+        {alert}
+        {sso ?? <p className="auth-lead">{t('auth.sso.notConfigured')}</p>}
+      </AuthLayout>
     );
 
+  const field = (id: FieldName) => ({
+    id: ids[id],
+    invalid: invalid === id,
+    errorId: ids.error,
+  });
   return (
-    <main className="auth-screen">
-      <form className="auth-card" onSubmit={(e) => void submit(e)}>
-        <Brand />
-        <span className="surface-kicker">
-          <ShieldCheck size={15} /> {setup ? t('auth.kicker.setup') : t('auth.kicker.login')}
-        </span>
-        <h1>{setup ? t('auth.title.setup') : t('auth.title.login')}</h1>
-        <p className="auth-lead">{setup ? t('auth.lead.setup') : t('auth.lead.login')}</p>
+    <AuthLayout
+      titleId={ids.title}
+      busy={busy}
+      help={setup ? t('auth.help.setup') : t('auth.help.login')}
+      helpWideOnly={!setup}
+    >
+      <h1 id={ids.title}>{title}</h1>
+      {setup && <p className="auth-lead">{t('auth.lead.setup')}</p>}
+      <form className="auth-form" noValidate onSubmit={(e) => void submit(e)}>
+        {alert}
         {sso && (
           <>
             {sso}
@@ -237,9 +378,10 @@ function AuthScreen({
             </div>
           </>
         )}
-        <label className="field">
-          {t('auth.field.name')}
-          <input
+        <fieldset className="auth-fields" disabled={busy}>
+          <Field
+            {...field('name')}
+            label={t('auth.field.name')}
             autoComplete="username"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -247,60 +389,74 @@ function AuthScreen({
             maxLength={60}
             autoFocus={!sso}
           />
-        </label>
-        <label className="field">
-          {t('auth.field.password')}
-          <input
+          <Field
+            {...field('password')}
+            label={t('auth.field.password')}
             type="password"
             autoComplete={setup ? 'new-password' : 'current-password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={setup ? 8 : undefined}
+            maxLength={200}
+            hint={setup ? t('auth.field.passwordHint') : undefined}
+            helper={
+              setup ? undefined : (
+                <button
+                  type="button"
+                  className="auth-link auth-qr-toggle"
+                  aria-expanded={qrOpen}
+                  aria-controls={ids.qr}
+                  onClick={() => setQrOpen((open) => !open)}
+                >
+                  {t('auth.qr.toggle')}
+                </button>
+              )
+            }
           />
-        </label>
-        {setup && (
-          <label className="field">
-            {t('auth.field.repeat')}
-            <input
+          {!setup && (
+            <p className="auth-qr" id={ids.qr} hidden={!qrOpen}>
+              {t('auth.qr.steps')}
+            </p>
+          )}
+          {setup && (
+            <Field
+              {...field('repeat')}
+              label={t('auth.field.repeat')}
               type="password"
               autoComplete="new-password"
               value={repeat}
               onChange={(e) => setRepeat(e.target.value)}
               required
+              maxLength={200}
             />
-          </label>
-        )}
-        {setup && needsKey && (
-          <label className="field">
-            {t('auth.field.key')}
-            <input
+          )}
+          {setup && needsKey && (
+            <Field
+              {...field('key')}
+              label={t('auth.field.key')}
               type="password"
               autoComplete="off"
               value={key}
               onChange={(e) => setKey(e.target.value)}
               required
-            />
-            <small className="auth-hint">
-              {tx('auth.field.keyHint', {
+              hint={tx('auth.field.keyHint', {
                 file: <code>.env</code>,
                 name: <code>REPLAYHAVEN_ACCESS_TOKEN</code>,
               })}
-            </small>
-          </label>
-        )}
-        {errorBox}
-        <button className="button primary" disabled={busy}>
-          <LogIn size={17} />
-          {setup ? t('auth.submit.setup') : t('auth.submit.login')}
-        </button>
+            />
+          )}
+        </fieldset>
+        <SubmitButton busy={busy} label={setup ? t('auth.submit.setup') : t('auth.submit.login')} />
       </form>
-    </main>
+    </AuthLayout>
   );
 }
 
 /** Target of the QR code: signs this device in with the one-time code and opens the library. */
 function ConnectPage() {
+  useLanguage();
+  const uid = useId();
   const [error, setError] = useState('');
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('code') || '';
@@ -310,20 +466,24 @@ function ConnectPage() {
         setError(e instanceof Error ? e.message : t('auth.connect.codeFailed')),
       );
   }, []);
+  const titleId = `${uid}title`;
+  if (!error)
+    return (
+      <AuthLayout titleId={titleId} busy>
+        <div className="auth-pending">
+          <LoaderCircle className="auth-spinner" size={22} aria-hidden="true" />
+          <h1 id={titleId}>{t('auth.connect.signingIn')}</h1>
+        </div>
+      </AuthLayout>
+    );
   return (
-    <main className="auth-screen">
-      <div className="auth-card">
-        <Brand />
-        <h1>{error ? t('auth.failed') : t('auth.connect.signingIn')}</h1>
-        {error && (
-          <>
-            <p className="auth-lead">{error}</p>
-            <a className="button secondary" href="/">
-              {t('auth.connect.toLogin')}
-            </a>
-          </>
-        )}
-      </div>
-    </main>
+    <AuthLayout titleId={titleId} help={t('auth.help.connect')}>
+      <h1 id={titleId}>{t('auth.connect.failedTitle')}</h1>
+      <Alert id={`${uid}error`}>{error}</Alert>
+      <p className="auth-lead">{t('auth.connect.failedLead')}</p>
+      <a className="button primary auth-submit" href="/">
+        {t('auth.connect.toLogin')}
+      </a>
+    </AuthLayout>
   );
 }

@@ -38,8 +38,9 @@ for (const width of [390, 768, 1440, 1920]) {
     '/library',
     '/collections',
     '/collections/clutches',
-    '/devices',
     '/settings',
+    '/settings/appearance',
+    '/setup',
     '/clips/elden-1',
   ]) {
     await page.goto(`http://localhost:5173${route}`);

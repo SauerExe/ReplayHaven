@@ -157,8 +157,8 @@ Routes:
 * `/clips/:id`
 * `/collections`
 * `/collections/:id`
-* `/devices`
-* `/settings`
+* `/settings` and `/settings/:section` (old `/devices` and `/users` redirect there)
+* `/setup`
 * `/share/:token`
 
 ## 7. Home Page

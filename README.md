@@ -189,7 +189,7 @@ Operations, backups, reverse proxies and server-side AI are covered in [docs/SER
 
 ## What's next
 
-Ideas for later: share links, translations of the interface, and audio cues such as laughs in the microphone track. Audio and Rainbow Six replay events only go into the analysis once measurements on real clips show that they help.
+Ideas for later: share links, clip titles in English, and audio cues such as laughs in the microphone track. Audio and Rainbow Six replay events only go into the analysis once measurements on real clips show that they help.
 
 ## FAQ
 

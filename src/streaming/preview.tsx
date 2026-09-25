@@ -73,7 +73,7 @@ function SamplePreview() {
           onNavigate={navigate}
           onAddClip={inApp('Dialog „Clips hinzufügen“')}
           onCreateCollection={inApp('Dialog „Neue Sammlung“')}
-          connectHref="/devices"
+          connectHref="/settings/pcs"
         />
       </main>
       <DetailDialog

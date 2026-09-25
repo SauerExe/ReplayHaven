@@ -66,13 +66,11 @@ function setLanguage(lang) {
   applyLanguage();
   if (config) {
     fillTokenPlaceholder();
+    fillFolder();
     if (!$('settings').hidden) void describeFolder();
   }
-  $('save-result').textContent = '';
-  if (status) {
-    render(status);
-    renderSettingsPairing(status.pairing);
-  }
+  if (status) render(status);
+  renderConnection();
   if (!$('wizard').hidden) renderWizard();
 }
 /** Saves only the language, which the main process allows even while the client is running. */
@@ -462,7 +460,53 @@ function suggestGames(games) {
 
 /* ---------- Settings ---------- */
 
+/*
+ * One section at a time (docs/SETTINGS-DESIGN.md). Switches, selects and the folder picker save
+ * right away with the saved config plus the one change; text fields belong to a form group
+ * (data-form) whose Save/Cancel appear as soon as a value differs from the saved one.
+ */
+const SECTIONS = ['connection', 'recordings', 'names', 'ai', 'recognition', 'behavior', 'language'];
+let section = 'connection';
+try {
+  const remembered = localStorage.getItem('settings.section');
+  if (SECTIONS.includes(remembered)) section = remembered;
+} catch {
+  /* Without storage the first section opens. */
+}
+function showSection(name, focus = false) {
+  section = name;
+  try {
+    localStorage.setItem('settings.section', name);
+  } catch {
+    /* Only a convenience. */
+  }
+  for (const item of document.querySelectorAll('.set-nav-item')) {
+    if (item.dataset.section === name) item.setAttribute('aria-current', 'page');
+    else item.removeAttribute('aria-current');
+  }
+  for (const page of document.querySelectorAll('.set-section'))
+    page.hidden = page.dataset.section !== name;
+  $('settings-scroll').scrollTop = 0;
+  if (focus) $(`sec-${name}`).focus();
+}
+for (const item of document.querySelectorAll('.set-nav-item')) {
+  item.onclick = () => showSection(item.dataset.section, true);
+  // Arrow keys move through the section list.
+  item.onkeydown = (event) => {
+    const step = { ArrowDown: 1, ArrowUp: -1 }[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const items = [...document.querySelectorAll('.set-nav-item')];
+    const next = items[(items.indexOf(item) + step + items.length) % items.length];
+    next.focus();
+    showSection(next.dataset.section);
+  };
+}
+showSection(section);
+
 let settingsNames;
+let locked = false;
+let serverMessage = null;
 const CHECKS = {
   analyze: 'analyze',
   'r6-texts': 'r6Texts',
@@ -475,59 +519,208 @@ const CHECKS = {
   notify: 'notify',
   'include-existing': 'includeExisting',
 };
+
+/** Saves the stored config with only the given changes; an empty token keeps the saved key. */
+async function saveConfig(changes) {
+  const values = { ...config, token: '', language, ...changes };
+  delete values.hasToken;
+  config = await call('save', values);
+  return config;
+}
+/** A short "Saved" next to the control that was saved; calls done when it disappears. */
+function flashSaved(host, done) {
+  host.querySelector('.saved')?.remove();
+  const note = el('span', { className: 'saved', textContent: t('result.saved') });
+  note.setAttribute('role', 'status');
+  // In a row it sits left of the control, in a group footer at the right end.
+  if (host.classList.contains('group-foot')) host.append(note);
+  else host.prepend(note);
+  setTimeout(() => {
+    note.remove();
+    done?.();
+  }, 2200);
+}
+function controlOf(node) {
+  return node.closest('.row-control') || node.parentElement;
+}
+
+function epicList() {
+  return $('epic-accounts')
+    .value.split(/[\s,;]+/)
+    .filter(Boolean);
+}
+const namesKey = (names) => JSON.stringify(names.map(({ name, game }) => ({ name, game })));
+/** The text field groups: fill from the saved config, read the changes, compare. */
+const FORMS = {
+  server: {
+    fill: () => ($('server').value = config.server),
+    read: () => ({ server: $('server').value.trim() }),
+    dirty: () => $('server').value.trim() !== config.server,
+  },
+  token: {
+    fill: () => {
+      $('token').value = '';
+      fillTokenPlaceholder();
+    },
+    read: () => ({ token: $('token').value }),
+    dirty: () => $('token').value !== '',
+  },
+  game: {
+    fill: () => ($('game').value = config.game),
+    read: () => ({ game: $('game').value.trim() }),
+    dirty: () => $('game').value.trim() !== config.game,
+  },
+  epic: {
+    fill: () => ($('epic-accounts').value = config.epicAccounts.join(', ')),
+    read: () => ({ epicAccounts: epicList() }),
+    dirty: () => epicList().join() !== config.epicAccounts.join(),
+  },
+  names: {
+    fill: () => {
+      settingsNames = nameRows($('player-names'), config.playerNames);
+      applyLock();
+    },
+    read: () => ({ playerNames: settingsNames.read() }),
+    dirty: () => namesKey(settingsNames.read()) !== namesKey(config.playerNames),
+  },
+};
+function formGroup(name) {
+  return document.querySelector(`[data-form="${name}"]`);
+}
+/** Shows Save/Cancel only while the group differs from the saved values. */
+function refreshForm(name) {
+  const group = formGroup(name);
+  const dirty = !!config && FORMS[name].dirty();
+  const foot = group.querySelector('.group-foot');
+  group.querySelector('.foot-actions').hidden = !dirty;
+  group.dataset.dirty = String(dirty);
+  foot.hidden = !dirty && !foot.querySelector('.foot-note, .saved');
+}
+async function saveForm(name) {
+  const group = formGroup(name);
+  const button = group.querySelector('[data-save]');
+  button.disabled = true;
+  try {
+    await saveConfig(FORMS[name].read());
+    FORMS[name].fill();
+    if (name === 'server' || name === 'token') renderConnection();
+    const foot = group.querySelector('.group-foot');
+    foot.hidden = false;
+    flashSaved(foot, () => refreshForm(name));
+  } finally {
+    button.disabled = locked;
+    refreshForm(name);
+  }
+}
+for (const group of document.querySelectorAll('[data-form]')) {
+  const name = group.dataset.form;
+  const update = () => queueMicrotask(() => config && refreshForm(name));
+  group.addEventListener('input', update);
+  group.addEventListener('click', update);
+  group.querySelector('[data-save]').onclick = () => run(() => saveForm(name));
+  group.querySelector('[data-cancel]').onclick = () => {
+    FORMS[name].fill();
+    refreshForm(name);
+  };
+  // Enter saves the group, Escape discards its changes.
+  group.addEventListener('keydown', (event) => {
+    if (event.target.tagName !== 'INPUT') return;
+    if (event.key === 'Enter' && !locked && FORMS[name].dirty()) {
+      event.preventDefault();
+      void run(() => saveForm(name));
+    } else if (event.key === 'Escape' && FORMS[name].dirty()) {
+      FORMS[name].fill();
+      refreshForm(name);
+    }
+  });
+}
+
+function setSwitch(button, on) {
+  button.setAttribute('aria-checked', String(!!on));
+}
+for (const [id, key] of Object.entries(CHECKS)) {
+  const button = $(id);
+  button.onclick = () =>
+    run(async () => {
+      const on = button.getAttribute('aria-checked') !== 'true';
+      setSwitch(button, on);
+      button.disabled = true;
+      try {
+        await saveConfig({ [key]: on });
+        if (key === 'openAtLogin') await call('open-at-login', on);
+        flashSaved(controlOf(button));
+      } catch (e) {
+        setSwitch(button, !on);
+        throw e;
+      } finally {
+        button.disabled = locked;
+        if (!locked) button.focus();
+      }
+    });
+}
+$('frames').onchange = () =>
+  run(async () => {
+    const frames = Number($('frames').value);
+    try {
+      await saveConfig({ frames });
+      flashSaved(controlOf($('frames')));
+    } catch (e) {
+      $('frames').value = String(config.frames);
+      throw e;
+    }
+  });
+
 function fillTokenPlaceholder() {
   $('token').placeholder = config.hasToken ? t('token.saved') : t('token.new');
 }
+function fillFolder() {
+  $('folder').textContent = config.folder || t('folder.none');
+  $('folder').title = config.folder;
+}
 function fillSettings() {
   if (!config) return;
-  $('server').value = config.server;
-  $('token').value = '';
-  fillTokenPlaceholder();
-  $('folder').value = config.folder;
-  $('game').value = config.game;
+  for (const [name, form] of Object.entries(FORMS)) {
+    form.fill();
+    refreshForm(name);
+  }
+  fillFolder();
   $('frames').value = String(config.frames);
   $('language').value = language;
-  $('epic-accounts').value = config.epicAccounts.join(', ');
-  for (const [id, key] of Object.entries(CHECKS)) $(id).checked = !!config[key];
-  settingsNames = nameRows($('player-names'), config.playerNames);
-  $('server-result').textContent = '';
-  $('save-result').textContent = '';
+  for (const [id, key] of Object.entries(CHECKS)) setSwitch($(id), config[key]);
+  serverMessage = null;
+  renderConnection();
   void describeFolder();
   renderSettingsLock(status);
 }
-function readSettings() {
-  const values = {
-    ...config,
-    server: $('server').value.trim(),
-    token: $('token').value,
-    folder: $('folder').value,
-    game: $('game').value.trim(),
-    frames: Number($('frames').value),
-    language,
-    playerNames: settingsNames.read(),
-    epicAccounts: $('epic-accounts')
-      .value.split(/[\s,;]+/)
-      .filter(Boolean),
-  };
-  delete values.hasToken;
-  for (const [id, key] of Object.entries(CHECKS)) values[key] = $(id).checked;
-  return values;
+/** Everything that changes the config waits while the client is working (except the language). */
+function applyLock() {
+  for (const node of document.querySelectorAll(
+    '#settings [data-lock], #player-names input, #player-names button',
+  ))
+    node.disabled = locked;
 }
 function renderSettingsLock(s) {
   if (!s) return;
-  const locked = s.running && !s.paused;
+  const wasLocked = locked;
+  locked = s.running && !s.paused;
   $('settings-lock').hidden = !locked;
-  $('save').disabled = locked;
+  if (locked !== wasLocked) applyLock();
   $('model-state').textContent = s.model
     ? t('model.ready')
     : s.ollama
       ? t('model.missing')
       : t('model.unchecked');
   $('model-state').dataset.tone = s.model ? 'ok' : s.ollama ? 'warn' : '';
-  $('download-model').disabled = s.downloading || s.model;
+  $('ollama-state').hidden = !s.ollama;
+  $('install-ollama').hidden = !!s.ollama;
+  $('model-installed').hidden = !s.model;
+  $('download-model').hidden = s.model || s.downloading;
   $('cancel-download').hidden = !s.downloading;
   const percent = s.downloading ? /(\d+)\s*%/.exec(s.message)?.[1] : undefined;
   $('model-progress').hidden = !s.downloading;
+  $('download-text').textContent = s.downloading
+    ? localizeMessage(s.message)
+    : t('row.downloadText');
   if (percent) $('model-progress').firstElementChild.style.width = `${percent}%`;
 }
 async function describeFolder() {
@@ -541,43 +734,38 @@ async function describeFolder() {
           .map((g) => gameName(g.game))
           .join(', ')}${info.games.length > 5 ? ' …' : ''}`,
       })
-    : '';
+    : config?.folder
+      ? t('folder.empty')
+      : '';
   suggestGames(info.games.map((g) => g.game));
   return info;
 }
-$('settings-form').onsubmit = (event) => {
-  event.preventDefault();
-  void run(async () => {
-    config = await call('save', readSettings());
-    await call('open-at-login', config.openAtLogin);
-    $('token').value = '';
-    $('save-result').textContent = t('result.saved');
-    $('save-result').dataset.tone = 'ok';
-  });
-};
 $('settings-pause').onclick = () => run(() => call('pause'));
 $('test-server').onclick = () =>
   run(async () => {
-    $('server-result').textContent = t('result.checking');
-    $('server-result').dataset.tone = '';
+    serverMessage = { text: t('result.checking'), tone: '' };
+    renderConnection();
     try {
       const result = await call('test-server', {
         server: $('server').value.trim(),
         token: $('token').value,
       });
-      $('server-result').textContent = t('result.connected', {
-        clips: t('count.clips', { count: result.clips }),
-      });
-      $('server-result').dataset.tone = 'ok';
+      serverMessage = {
+        text: t('result.connected', { clips: t('count.clips', { count: result.clips }) }),
+        tone: 'ok',
+      };
     } catch (e) {
-      $('server-result').textContent = e.message;
-      $('server-result').dataset.tone = 'bad';
+      serverMessage = { text: e.message, tone: 'bad' };
     }
+    renderConnection();
   });
 $('pick-folder').onclick = () =>
   run(async () => {
     const folder = await call('folder');
-    if (folder) $('folder').value = folder;
+    if (!folder) return;
+    await saveConfig({ folder });
+    fillFolder();
+    flashSaved(controlOf($('pick-folder')));
     await describeFolder();
   });
 $('add-name').onclick = () => settingsNames.add().focus();
@@ -1201,19 +1389,52 @@ void run(async () => {
 
 /* ---------- Pairing in the settings ---------- */
 
-function renderSettingsPairing(pairing) {
-  if (!pairing) return;
+/** Status row of the connection: badge, message (pairing or test result) and the pair button. */
+function renderConnection() {
+  if (!config) return;
+  const pairing = status?.pairing;
+  const waiting = pairing?.state === 'waiting';
+  const [key, tone] = waiting
+    ? ['conn.waiting', 'accent']
+    : config.hasToken
+      ? ['conn.paired', 'ok']
+      : ['conn.none', 'warn'];
+  $('conn-state').textContent = t(key);
+  $('conn-state').dataset.tone = tone;
+  const message =
+    serverMessage ||
+    (pairing && {
+      text: waiting
+        ? t('pair.settings', { code: `${pairing.code.slice(0, 3)} ${pairing.code.slice(3)}` })
+        : pairing.message,
+      tone: pairing.state === 'approved' ? 'ok' : waiting ? '' : 'bad',
+    });
   const result = $('server-result');
-  result.textContent =
-    pairing.state === 'waiting'
-      ? t('pair.settings', { code: `${pairing.code.slice(0, 3)} ${pairing.code.slice(3)}` })
-      : pairing.message;
-  result.dataset.tone =
-    pairing.state === 'approved' ? 'ok' : pairing.state === 'waiting' ? '' : 'bad';
-  if (pairing.state === 'approved' && config) {
+  result.textContent = message
+    ? message.text
+    : config.hasToken
+      ? t('conn.pairedText')
+      : t('conn.noneText');
+  result.dataset.tone = message?.tone ?? '';
+  $('pair-server').textContent = waiting ? t('btn.cancel') : t('btn.pair');
+  $('open-devices').hidden = !waiting;
+}
+function renderSettingsPairing(pairing) {
+  // A new pairing state replaces an older test result.
+  if (pairing) serverMessage = null;
+  if (pairing?.state === 'approved' && config) {
     config.server = pairing.server;
     config.hasToken = true;
-    $('server').value = pairing.server;
+    FORMS.server.fill();
+    refreshForm('server');
+    fillTokenPlaceholder();
   }
+  renderConnection();
 }
-$('pair-server').onclick = () => run(() => call('pair-start', $('server').value.trim()));
+$('pair-server').onclick = () =>
+  run(() =>
+    status?.pairing?.state === 'waiting'
+      ? call('pair-cancel')
+      : call('pair-start', $('server').value.trim()),
+  );
+$('open-devices').onclick = () => run(() => call('open-devices'));

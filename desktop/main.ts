@@ -1032,7 +1032,7 @@ else {
       // Opens the devices page of the server where the approval is waiting.
       handle('vault:open-devices', () => {
         const server = status.pairing?.server ?? config.server;
-        return shell.openExternal(`${validateServer(server)}/devices`);
+        return shell.openExternal(`${validateServer(server)}/settings/pcs`);
       });
       handle('vault:open-at-login', (value) => {
         if (app.isPackaged)

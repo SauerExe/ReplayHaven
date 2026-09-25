@@ -6,7 +6,7 @@ import { common } from './common';
 import { library } from './library';
 import { pages } from './pages';
 import { streaming } from './streaming';
-import { users } from './users';
+import { settings } from './settings';
 
 export const de: Translation<typeof en> = {
   ...common,
@@ -15,5 +15,5 @@ export const de: Translation<typeof en> = {
   ...pages,
   ...library,
   ...auth,
-  ...users,
+  ...settings,
 };

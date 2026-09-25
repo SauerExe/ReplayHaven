@@ -28,15 +28,15 @@ bash setup-server.sh
 
 The script asks for the server address, generates the access key, builds the image and starts the server. The first build needs internet access and takes a few minutes.
 
-Then open the server address in the browser and **create your account**: name, password and, once, the access key from setup. It prevents someone else from creating the first account if the server is already reachable from the internet. The Windows download is then available under **Devices**.
+Then open the server address in the browser and **create your account**: name, password and, once, the access key from setup. It prevents someone else from creating the first account if the server is already reachable from the internet. The Windows download is then available under **Settings → Recording PCs**.
 
-**Other devices** such as a phone or laptop simply open the server address and sign in with name and password. A QR code is faster: on a signed-in device go to **Devices → Connect phone**, then scan with the phone camera. The code is valid for five minutes and signs in exactly one device. Sign-ins last 30 days and are extended with every use; under **Devices** you can see all of them and remove each one individually.
+**Other devices** such as a phone or laptop simply open the server address and sign in with name and password. A QR code is faster: on a signed-in device go to **Settings → Devices → Connect phone**, then scan with the phone camera. The code is valid for five minutes and signs in exactly one device. Sign-ins last 30 days and are extended with every use; under **Settings → Devices** you can see all of them and remove each one individually.
 
 ## 2. Set up the Windows client
 
 1. Install `ReplayHaven-Client-Setup.exe` and open ReplayHaven Client. You do not need to install Node.js, Python or FFmpeg separately.
 2. Choose the recordings folder. Subfolders are included.
-3. Enter the server address, for example `replay.your-domain.com` or `192.168.1.20:8787`, and click **Connect**. The client shows a six-digit code. In the web interface, the same code appears under **Devices** with your PC's name; click **Approve** there. The PC gets its own access, which the client stores encrypted with your Windows account and which you can revoke at any time under **Devices**. Older servers without accounts are connected via **Use access key instead**.
+3. Enter the server address, for example `replay.your-domain.com` or `192.168.1.20:8787`, and click **Connect**. The client shows a six-digit code. In the web interface, the same code appears under **Settings → Recording PCs** with your PC's name; click **Approve** there. The PC gets its own access, which the client stores encrypted with your Windows account and which you can revoke at any time under **Settings → Recording PCs**. Older servers without accounts are connected via **Use access key instead**.
 4. **Install Ollama** opens the official download. Install and start Ollama, then click **Check connection** in the client.
 5. **Download model** downloads Qwen3.5 9B once, about 6.6 GB. This only happens when you click.
 6. Start with **24 frames** and click **Start analysis & upload**.
@@ -123,7 +123,7 @@ With "Match Replay" (game settings), Rainbow Six writes every round as a file bu
 | Fortnite clip stays pending                | It is waiting for its match to end. It continues after the match or after 45 minutes at the latest.                                  |
 | Start reports "Visual C++ Redistributable" | R6 text recognition needs it. Install the current x64 version from Microsoft and start again, or turn off the R6 option.             |
 | No AI title                                | Check whether client analysis was active. Files already archived are not re-analysed automatically when you turn it on later.        |
-| No Windows download under Devices          | The image has no download address. Set `REPLAYHAVEN_CLIENT_DOWNLOAD_URL` in `.env` or put the installer in `release/`.               |
+| No Windows download under Recording PCs    | The image has no download address. Set `REPLAYHAVEN_CLIENT_DOWNLOAD_URL` in `.env` or put the installer in `release/`.               |
 
 ## Limits
 

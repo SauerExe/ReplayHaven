@@ -185,7 +185,11 @@ test('mobile menus, filters, focus and error pages', async ({ page }) => {
     .getByRole('button', { name: 'Profile menu' })
     .click();
   await page.getByRole('menuitem', { name: 'Settings' }).click();
+  // Phones get the section list first, then one section with a way back.
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Appearance' }).click();
+  await expect(page.getByRole('heading', { name: 'Appearance', level: 1 })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
   await page.getByRole('switch', { name: 'Reduce motion' }).click();
   await page.reload();
   await expect(page.getByRole('switch', { name: 'Reduce motion' })).toBeChecked();

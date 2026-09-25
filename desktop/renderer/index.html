@@ -160,257 +160,828 @@
         </div>
       </main>
 
-      <main id="settings" class="view" role="tabpanel" aria-labelledby="tab-settings" hidden>
-        <div id="settings-lock" class="banner" hidden>
-          <span data-i18n="settings.lock">Settings can be changed while the client is paused.</span>
-          <button id="settings-pause" class="secondary" data-i18n="settings.pauseNow">
-            Pause now
-          </button>
-        </div>
-        <form id="settings-form" class="settings" novalidate>
-          <section class="card">
-            <h2 data-i18n="card.server">Archive server</h2>
-            <label class="field"
-              ><span data-i18n="field.server">Server address</span
-              ><input
-                id="server"
-                type="url"
-                placeholder="http://server-address:8787"
-                data-i18n-placeholder="field.serverPlaceholder"
-            /></label>
-            <label class="field"
-              ><span data-i18n="field.token">Access key</span
-              ><input
-                id="token"
-                type="password"
-                autocomplete="off"
-                placeholder="Leave empty to keep the saved one"
-                data-i18n-placeholder="token.keep"
-            /></label>
-            <div class="row">
-              <button id="pair-server" type="button" class="primary" data-i18n="btn.pair">
-                Pair with server
+      <!-- Settings: a section list on the left, one section at a time on the right
+           (docs/SETTINGS-DESIGN.md). Switches and selects save right away; text fields get
+           Save/Cancel in their group footer as soon as they differ from the saved value. -->
+      <main
+        id="settings"
+        class="view settings-view"
+        role="tabpanel"
+        aria-labelledby="tab-settings"
+        hidden
+      >
+        <nav class="set-nav" aria-label="Settings sections" data-i18n-aria-label="settings.aria">
+          <ul id="settings-nav">
+            <li>
+              <button type="button" class="set-nav-item" data-section="connection">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3.5" y="4" width="17" height="7" rx="2" />
+                  <rect x="3.5" y="13" width="17" height="7" rx="2" />
+                  <path d="M7.5 7.5h.01M7.5 16.5h.01" />
+                </svg>
+                <span data-i18n="section.connection">Connection</span>
               </button>
-              <button id="test-server" type="button" class="secondary" data-i18n="btn.test">
-                Test connection
+            </li>
+            <li>
+              <button type="button" class="set-nav-item" data-section="recordings">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"
+                  />
+                </svg>
+                <span data-i18n="section.recordings">Recordings</span>
               </button>
-              <span id="server-result" class="result" role="status"></span>
+            </li>
+            <li>
+              <button type="button" class="set-nav-item" data-section="names">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="8.5" r="3.8" />
+                  <path d="M4.5 20c.6-3.6 3.6-5.6 7.5-5.6s6.9 2 7.5 5.6" />
+                </svg>
+                <span data-i18n="section.names">Player names</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="set-nav-item" data-section="ai">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1-5.1-1.9 5.1-1.9z" />
+                  <path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" />
+                </svg>
+                <span data-i18n="section.ai">Local AI</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="set-nav-item" data-section="recognition">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M4 8.5V6.5a2.5 2.5 0 0 1 2.5-2.5h2M15.5 4h2A2.5 2.5 0 0 1 20 6.5v2M20 15.5v2a2.5 2.5 0 0 1-2.5 2.5h-2M8.5 20h-2A2.5 2.5 0 0 1 4 17.5v-2"
+                  />
+                  <path d="M8.5 12h7" />
+                </svg>
+                <span data-i18n="section.recognition">Recognition</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="set-nav-item" data-section="behavior">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1" />
+                  <circle cx="15" cy="7" r="2" />
+                  <circle cx="9" cy="12" r="2" />
+                  <circle cx="17" cy="17" r="2" />
+                </svg>
+                <span data-i18n="section.behavior">Behavior</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="set-nav-item" data-section="language">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="8.5" />
+                  <path d="M3.5 12h17M12 3.5c2.3 2.4 3.4 5.2 3.4 8.5s-1.1 6.1-3.4 8.5" />
+                  <path d="M12 3.5c-2.3 2.4-3.4 5.2-3.4 8.5s1.1 6.1 3.4 8.5" />
+                </svg>
+                <span data-i18n="section.language">Language</span>
+              </button>
+            </li>
+          </ul>
+        </nav>
+
+        <div id="settings-scroll" class="set-scroll">
+          <div class="set-page">
+            <div id="settings-lock" class="banner" role="status" hidden>
+              <span data-i18n="settings.lock"
+                >Settings can be changed while the client is paused.</span
+              >
+              <button
+                id="settings-pause"
+                type="button"
+                class="secondary"
+                data-i18n="settings.pauseNow"
+              >
+                Pause now
+              </button>
             </div>
-          </section>
 
-          <section class="card">
-            <h2 data-i18n="card.recordings">Recordings</h2>
-            <label class="field"
-              ><span data-i18n="field.folder">Recordings folder</span>
-              <span class="input-row">
-                <input
-                  id="folder"
-                  readonly
-                  placeholder="NVIDIA recordings folder"
-                  data-i18n-placeholder="field.folderPlaceholder"
-                />
-                <button id="pick-folder" type="button" class="secondary" data-i18n="btn.choose">
-                  Choose
-                </button>
-              </span>
-            </label>
-            <p id="folder-info" class="hint"></p>
-            <label class="field"
-              ><span
-                ><span data-i18n="field.game">Game for all clips</span>
-                <small data-i18n="field.optional">optional</small></span
-              ><input
-                id="game"
-                maxlength="100"
-                placeholder="Otherwise the NVIDIA App subfolder is used"
-                data-i18n-placeholder="field.gamePlaceholder"
-            /></label>
-          </section>
-
-          <section class="card">
-            <h2 data-i18n="card.names">Your player names</h2>
-            <p class="hint" data-i18n="names.hint">
-              If your name differs per game, enter each name with its game. A name without a game
-              applies everywhere. This is how the AI knows which kills are yours.
-            </p>
-            <div id="player-names" class="name-rows"></div>
-            <datalist id="game-suggestions"></datalist>
-            <button id="add-name" type="button" class="link" data-i18n="names.add">
-              + Another name
-            </button>
-          </section>
-
-          <section class="card">
-            <h2 data-i18n="card.ai">Local AI</h2>
-            <div class="model">
-              <span class="model-mark" aria-hidden="true">✦</span>
-              <div>
-                <strong data-i18n="ai.model">Qwen3.5 · 9B via Ollama</strong>
-                <p class="muted" data-i18n="ai.local">
-                  Runs on your graphics card, nothing leaves your PC.
-                </p>
+            <!-- Connection -->
+            <section class="set-section" data-section="connection" aria-labelledby="sec-connection">
+              <header class="set-head">
+                <h2 id="sec-connection" tabindex="-1" data-i18n="section.connection">Connection</h2>
+                <p data-i18n="section.connectionText">The archive server this PC uploads to.</p>
+              </header>
+              <div class="set-group" data-form="server">
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-conn" class="row-label" data-i18n="row.status">Status</span>
+                    <span id="server-result" class="row-desc" role="status"></span>
+                  </div>
+                  <div class="row-control">
+                    <span id="conn-state" class="chip"></span>
+                    <button id="test-server" type="button" class="secondary" data-i18n="btn.test">
+                      Test connection
+                    </button>
+                  </div>
+                </div>
+                <div class="set-row stack">
+                  <div class="row-text">
+                    <span id="l-server" class="row-label" data-i18n="field.server"
+                      >Server address</span
+                    >
+                    <span class="row-desc" data-i18n="row.serverText"
+                      >Address of your ReplayHaven server.</span
+                    >
+                  </div>
+                  <div class="row-control wide">
+                    <input
+                      id="server"
+                      type="url"
+                      spellcheck="false"
+                      aria-labelledby="l-server"
+                      placeholder="http://server-address:8787"
+                      data-i18n-placeholder="field.serverPlaceholder"
+                      data-lock
+                    />
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-pair" class="row-label" data-i18n="row.pair">Pair this PC</span>
+                    <span class="row-desc" data-i18n="row.pairText"
+                      >Sends a request that you approve in the web interface under “Devices”.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="open-devices"
+                      type="button"
+                      class="secondary"
+                      data-i18n="w.server.openDevices"
+                      hidden
+                    >
+                      Open devices page ↗
+                    </button>
+                    <button
+                      id="pair-server"
+                      type="button"
+                      class="secondary"
+                      aria-describedby="l-pair"
+                    >
+                      Pair with server
+                    </button>
+                  </div>
+                </div>
+                <div class="group-foot" hidden>
+                  <div class="foot-actions" hidden>
+                    <button type="button" class="ghost" data-cancel data-i18n="btn.cancel">
+                      Cancel
+                    </button>
+                    <button type="button" class="primary" data-save data-lock data-i18n="btn.save">
+                      Save
+                    </button>
+                  </div>
+                </div>
               </div>
-              <span id="model-state" class="chip">Not checked</span>
-            </div>
-            <div class="row">
-              <button id="check-model" type="button" class="secondary" data-i18n="btn.check">
-                Check
-              </button>
-              <button
-                id="install-ollama"
-                type="button"
-                class="secondary"
-                data-i18n="btn.installOllama"
-              >
-                Install Ollama ↗
-              </button>
-              <button
-                id="download-model"
-                type="button"
-                class="secondary"
-                data-i18n="btn.downloadModel"
-              >
-                Download model · 6.6 GB
-              </button>
-              <button
-                id="cancel-download"
-                type="button"
-                class="secondary"
-                data-i18n="btn.cancel"
-                hidden
-              >
-                Cancel
-              </button>
-            </div>
-            <div id="model-progress" class="progress thin" hidden><span></span></div>
-            <label class="toggle"
-              ><input id="analyze" type="checkbox" /><span
-                ><b data-i18n="opt.analyze">Analyze clips before upload</b
-                ><small data-i18n="opt.analyzeNote"
-                  >Title, tags and highlights from the local AI.</small
-                ></span
-              ></label
-            >
-            <label class="field"
-              ><span data-i18n="field.frames">Analysis scope</span>
-              <select id="frames">
-                <option value="0" data-i18n="frames.whole">
-                  Whole clip · one frame every 3 seconds (recommended)
-                </option>
-                <option value="24" data-i18n="frames.24">24 frames · faster</option>
-                <option value="48" data-i18n="frames.48">48 frames</option>
-              </select>
-            </label>
-          </section>
+              <div class="set-group" data-form="token">
+                <div class="group-head">
+                  <h3 data-i18n="group.key">Access key</h3>
+                  <p data-i18n="group.keyText">
+                    For servers without accounts. Pairing replaces it.
+                  </p>
+                </div>
+                <div class="set-row stack">
+                  <div class="row-text">
+                    <span id="l-token" class="row-label" data-i18n="row.token">Key</span>
+                    <span class="row-desc" data-i18n="row.tokenText"
+                      >Stored encrypted by Windows and never shown again.</span
+                    >
+                  </div>
+                  <div class="row-control wide">
+                    <input
+                      id="token"
+                      type="password"
+                      autocomplete="off"
+                      aria-labelledby="l-token"
+                      data-lock
+                    />
+                  </div>
+                </div>
+                <div class="group-foot" hidden>
+                  <div class="foot-actions" hidden>
+                    <button type="button" class="ghost" data-cancel data-i18n="btn.cancel">
+                      Cancel
+                    </button>
+                    <button type="button" class="primary" data-save data-lock data-i18n="btn.save">
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-          <section class="card">
-            <h2 data-i18n="card.detection">Detection</h2>
-            <label class="toggle"
-              ><input id="r6-texts" type="checkbox" /><span
-                ><b data-i18n="opt.texts">Text recognition</b
-                ><small data-i18n="opt.textsNote"
-                  >R6: map and round result. Valorant: kills, headshots and deaths from the
-                  killfeed. About a minute of CPU per clip.</small
-                ></span
-              ></label
+            <!-- Recordings -->
+            <section
+              class="set-section"
+              data-section="recordings"
+              aria-labelledby="sec-recordings"
+              hidden
             >
-            <label class="toggle"
-              ><input id="speech" type="checkbox" /><span
-                ><b data-i18n="opt.speech">Transcribe voice chat</b
-                ><small data-i18n="opt.speechNote"
-                  >Titles based on the conversation for clips without kills. One-time download of
-                  about 670 MB of speech models, everything stays on your PC.</small
-                ></span
-              ></label
-            >
-            <label class="toggle"
-              ><input id="fortnite-replays" type="checkbox" /><span
-                ><b data-i18n="opt.fortnite">Fortnite replays</b
-                ><small data-i18n="opt.fortniteNote"
-                  >Exact kills, weapon and distance from the replays. Clips wait until the match
-                  ends.</small
-                ></span
-              ></label
-            >
-            <label class="field"
-              ><span
-                ><span data-i18n="field.epic">Epic account ID</span>
-                <small data-i18n="field.optional">optional</small></span
-              ><input
-                id="epic-accounts"
-                maxlength="340"
-                autocomplete="off"
-                placeholder="Only needed with regular teammates"
-                data-i18n-placeholder="field.epicPlaceholder"
-            /></label>
-            <label class="toggle"
-              ><input id="keep-r6-replays" type="checkbox" /><span
-                ><b data-i18n="opt.keepR6">Keep R6 replays with clips</b
-                ><small data-i18n="opt.keepR6Note"
-                  >Saves the match for every R6 clip, about 30 MB, for exact analysis later.</small
-                ></span
-              ></label
-            >
-          </section>
+              <header class="set-head">
+                <h2 id="sec-recordings" tabindex="-1" data-i18n="section.recordings">Recordings</h2>
+                <p data-i18n="section.recordingsText">Where your clips come from.</p>
+              </header>
+              <div class="set-group">
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-folder" class="row-label" data-i18n="field.folder"
+                      >Recordings folder</span
+                    >
+                    <span id="folder" class="row-desc path"></span>
+                    <span id="folder-info" class="row-meta"></span>
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="pick-folder"
+                      type="button"
+                      class="secondary"
+                      aria-describedby="l-folder"
+                      data-i18n="btn.choose"
+                      data-lock
+                    >
+                      Choose
+                    </button>
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-existing" class="row-label" data-i18n="opt.existing"
+                      >Include existing recordings</span
+                    >
+                    <span id="d-existing" class="row-desc" data-i18n="opt.existingNote"
+                      >Applies on the first start with a new folder or server.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="include-existing"
+                      type="button"
+                      class="switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-labelledby="l-existing"
+                      aria-describedby="d-existing"
+                      data-lock
+                    ></button>
+                  </div>
+                </div>
+              </div>
+              <div class="set-group" data-form="game">
+                <div class="set-row stack">
+                  <div class="row-text">
+                    <span id="l-game" class="row-label" data-i18n="field.game"
+                      >Game for all clips</span
+                    >
+                    <span class="row-desc" data-i18n="row.gameText"
+                      >Only if all your clips come from one game.</span
+                    >
+                  </div>
+                  <div class="row-control wide">
+                    <input
+                      id="game"
+                      maxlength="100"
+                      aria-labelledby="l-game"
+                      placeholder="optional"
+                      data-i18n-placeholder="field.optional"
+                      data-lock
+                    />
+                  </div>
+                </div>
+                <div class="group-foot">
+                  <p class="foot-note" data-i18n="group.gameNote">
+                    Left empty, the game comes from the NVIDIA App subfolder of each clip.
+                  </p>
+                  <div class="foot-actions" hidden>
+                    <button type="button" class="ghost" data-cancel data-i18n="btn.cancel">
+                      Cancel
+                    </button>
+                    <button type="button" class="primary" data-save data-lock data-i18n="btn.save">
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-          <section class="card">
-            <h2 data-i18n="card.behavior">Behavior</h2>
-            <!-- The language applies and is saved right away, independent of the Save button. -->
-            <label class="field"
-              ><span data-i18n="field.language">Language</span>
-              <select id="language">
-                <option value="en">English</option>
-                <option value="de">Deutsch</option>
-              </select>
-            </label>
-            <label class="toggle"
-              ><input id="pause-while-gaming" type="checkbox" /><span
-                ><b data-i18n="opt.pauseGaming">Pause while gaming</b
-                ><small data-i18n="opt.pauseGamingNote"
-                  >Analysis and upload wait while a game fills the screen and continue one minute
-                  afterwards.</small
-                ></span
-              ></label
-            >
-            <label class="toggle"
-              ><input id="auto-start" type="checkbox" /><span
-                ><b data-i18n="opt.autoStart">Resume work when opened</b
-                ><small data-i18n="opt.autoStartNote">Without clicking “Start”.</small></span
-              ></label
-            >
-            <label class="toggle"
-              ><input id="open-at-login" type="checkbox" /><span
-                ><b data-i18n="opt.openAtLogin">Start with Windows</b
-                ><small data-i18n="opt.openAtLoginNote"
-                  >Quietly in the notification area.</small
-                ></span
-              ></label
-            >
-            <label class="toggle"
-              ><input id="notify" type="checkbox" /><span
-                ><b data-i18n="opt.notify">Notification for every archived clip</b
-                ><small data-i18n="opt.notifyNote">Never during a game.</small></span
-              ></label
-            >
-            <label class="toggle"
-              ><input id="include-existing" type="checkbox" /><span
-                ><b data-i18n="opt.existing">Include existing recordings</b
-                ><small data-i18n="opt.existingNote"
-                  >Applies on the first start with a new folder or server.</small
-                ></span
-              ></label
-            >
-          </section>
+            <!-- Player names -->
+            <section class="set-section" data-section="names" aria-labelledby="sec-names" hidden>
+              <header class="set-head">
+                <h2 id="sec-names" tabindex="-1" data-i18n="section.names">Player names</h2>
+                <p data-i18n="section.namesText">How the AI recognizes you in the killfeed.</p>
+              </header>
+              <div class="set-group" data-form="names">
+                <div class="group-head">
+                  <h3 data-i18n="card.names">Your player names</h3>
+                  <p data-i18n="names.hint">
+                    If your name differs per game, enter each name with its game. A name without a
+                    game applies everywhere. This is how the AI knows which kills are yours.
+                  </p>
+                </div>
+                <div id="player-names" class="name-rows set-names"></div>
+                <datalist id="game-suggestions"></datalist>
+                <div class="group-foot">
+                  <div class="foot-note">
+                    <button
+                      id="add-name"
+                      type="button"
+                      class="link"
+                      data-i18n="names.add"
+                      data-lock
+                    >
+                      + Another name
+                    </button>
+                  </div>
+                  <div class="foot-actions" hidden>
+                    <button type="button" class="ghost" data-cancel data-i18n="btn.cancel">
+                      Cancel
+                    </button>
+                    <button type="button" class="primary" data-save data-lock data-i18n="btn.save">
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-          <div class="settings-actions">
-            <button id="rerun-setup" type="button" class="link" data-i18n="btn.rerun">
-              Run setup again
-            </button>
-            <span class="spacer"></span>
-            <span id="save-result" class="result" role="status"></span>
-            <button id="save" type="submit" class="primary" data-i18n="btn.save">Save</button>
+            <!-- Local AI -->
+            <section class="set-section" data-section="ai" aria-labelledby="sec-ai" hidden>
+              <header class="set-head">
+                <h2 id="sec-ai" tabindex="-1" data-i18n="section.ai">Local AI</h2>
+                <p data-i18n="section.aiText">
+                  The model that watches your clips and writes titles.
+                </p>
+              </header>
+              <div class="set-group">
+                <div class="set-row model">
+                  <div class="row-text">
+                    <strong id="l-model" class="row-label" data-i18n="ai.model"
+                      >Qwen3.5 · 9B via Ollama</strong
+                    >
+                    <span class="row-desc" data-i18n="ai.local"
+                      >Runs on your graphics card, nothing leaves your PC.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <span id="model-state" class="chip">Not checked</span>
+                    <button
+                      id="check-model"
+                      type="button"
+                      class="secondary"
+                      aria-describedby="l-model"
+                      data-i18n="btn.check"
+                    >
+                      Check
+                    </button>
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-ollama" class="row-label">Ollama</span>
+                    <span class="row-desc" data-i18n="row.ollamaText"
+                      >The free app that runs the model on your PC.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <span
+                      id="ollama-state"
+                      class="chip"
+                      data-tone="ok"
+                      data-i18n="ollama.running"
+                      hidden
+                      >Running</span
+                    >
+                    <button
+                      id="install-ollama"
+                      type="button"
+                      class="secondary"
+                      aria-describedby="l-ollama"
+                      data-i18n="btn.installOllama"
+                    >
+                      Install Ollama ↗
+                    </button>
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-download" class="row-label" data-i18n="row.download">Model</span>
+                    <span id="download-text" class="row-desc" data-i18n="row.downloadText"
+                      >Qwen3.5 9B, about 6.6 GB, downloaded once.</span
+                    >
+                    <div id="model-progress" class="progress thin" hidden><span></span></div>
+                  </div>
+                  <div class="row-control">
+                    <span
+                      id="model-installed"
+                      class="chip"
+                      data-tone="ok"
+                      data-i18n="model.installed"
+                      hidden
+                      >Installed</span
+                    >
+                    <button
+                      id="download-model"
+                      type="button"
+                      class="secondary"
+                      aria-describedby="l-download"
+                      data-i18n="btn.download"
+                    >
+                      Download
+                    </button>
+                    <button
+                      id="cancel-download"
+                      type="button"
+                      class="secondary"
+                      data-i18n="btn.cancel"
+                      hidden
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="set-group">
+                <div class="group-head">
+                  <h3 data-i18n="group.analysis">Analysis</h3>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-analyze" class="row-label" data-i18n="opt.analyze"
+                      >Analyze clips before upload</span
+                    >
+                    <span id="d-analyze" class="row-desc" data-i18n="opt.analyzeNote"
+                      >Title, tags and highlights from the local AI.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="analyze"
+                      type="button"
+                      class="switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-labelledby="l-analyze"
+                      aria-describedby="d-analyze"
+                      data-lock
+                    ></button>
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-frames" class="row-label" data-i18n="field.frames"
+                      >Analysis scope</span
+                    >
+                    <span id="d-frames" class="row-desc" data-i18n="row.framesText"
+                      >The whole clip means one frame every 3 seconds. Fewer frames are
+                      faster.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <select
+                      id="frames"
+                      aria-labelledby="l-frames"
+                      aria-describedby="d-frames"
+                      data-lock
+                    >
+                      <option value="0" data-i18n="frames.wholeShort">
+                        Whole clip (recommended)
+                      </option>
+                      <option value="24" data-i18n="frames.24">24 frames · faster</option>
+                      <option value="48" data-i18n="frames.48">48 frames</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Recognition -->
+            <section
+              class="set-section"
+              data-section="recognition"
+              aria-labelledby="sec-recognition"
+              hidden
+            >
+              <header class="set-head">
+                <h2 id="sec-recognition" tabindex="-1" data-i18n="section.recognition">
+                  Recognition
+                </h2>
+                <p data-i18n="section.recognitionText">
+                  Extra sources that make titles more precise. Everything runs on your PC.
+                </p>
+              </header>
+              <div class="set-group">
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-texts" class="row-label" data-i18n="opt.texts"
+                      >Text recognition</span
+                    >
+                    <span id="d-texts" class="row-desc" data-i18n="opt.textsNote"
+                      >R6: map and round result. Valorant: kills, headshots and deaths from the
+                      killfeed. About a minute of CPU per clip.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="r6-texts"
+                      type="button"
+                      class="switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-labelledby="l-texts"
+                      aria-describedby="d-texts"
+                      data-lock
+                    ></button>
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-speech" class="row-label" data-i18n="opt.speech"
+                      >Transcribe voice chat</span
+                    >
+                    <span id="d-speech" class="row-desc" data-i18n="opt.speechNote"
+                      >Titles based on the conversation for clips without kills. One-time download
+                      of about 670 MB of speech models, everything stays on your PC.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="speech"
+                      type="button"
+                      class="switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-labelledby="l-speech"
+                      aria-describedby="d-speech"
+                      data-lock
+                    ></button>
+                  </div>
+                </div>
+              </div>
+              <div class="set-group" data-form="epic">
+                <div class="group-head">
+                  <h3>Fortnite</h3>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-fortnite" class="row-label" data-i18n="opt.fortnite"
+                      >Fortnite replays</span
+                    >
+                    <span id="d-fortnite" class="row-desc" data-i18n="opt.fortniteNote"
+                      >Exact kills, weapon and distance from the replays. Clips wait until the match
+                      ends.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="fortnite-replays"
+                      type="button"
+                      class="switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-labelledby="l-fortnite"
+                      aria-describedby="d-fortnite"
+                      data-lock
+                    ></button>
+                  </div>
+                </div>
+                <div class="set-row stack">
+                  <div class="row-text">
+                    <span id="l-epic" class="row-label" data-i18n="field.epic"
+                      >Epic account ID</span
+                    >
+                    <span class="row-desc" data-i18n="row.epicText"
+                      >Only needed when you play with regular teammates.</span
+                    >
+                  </div>
+                  <div class="row-control wide">
+                    <input
+                      id="epic-accounts"
+                      maxlength="340"
+                      autocomplete="off"
+                      spellcheck="false"
+                      aria-labelledby="l-epic"
+                      placeholder="optional"
+                      data-i18n-placeholder="field.optional"
+                      data-lock
+                    />
+                  </div>
+                </div>
+                <div class="group-foot">
+                  <p class="foot-note" data-i18n="group.epicNote">
+                    32 characters, found on epicgames.com in your account settings. Separate several
+                    IDs with commas.
+                  </p>
+                  <div class="foot-actions" hidden>
+                    <button type="button" class="ghost" data-cancel data-i18n="btn.cancel">
+                      Cancel
+                    </button>
+                    <button type="button" class="primary" data-save data-lock data-i18n="btn.save">
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="set-group">
+                <div class="group-head">
+                  <h3>Rainbow Six Siege</h3>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-keep-r6" class="row-label" data-i18n="opt.keepR6"
+                      >Keep R6 replays with clips</span
+                    >
+                    <span id="d-keep-r6" class="row-desc" data-i18n="opt.keepR6Note"
+                      >Saves the match for every R6 clip, about 30 MB, for exact analysis
+                      later.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="keep-r6-replays"
+                      type="button"
+                      class="switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-labelledby="l-keep-r6"
+                      aria-describedby="d-keep-r6"
+                      data-lock
+                    ></button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Behavior -->
+            <section
+              class="set-section"
+              data-section="behavior"
+              aria-labelledby="sec-behavior"
+              hidden
+            >
+              <header class="set-head">
+                <h2 id="sec-behavior" tabindex="-1" data-i18n="section.behavior">Behavior</h2>
+                <p data-i18n="section.behaviorText">
+                  When the client works and how it lets you know.
+                </p>
+              </header>
+              <div class="set-group">
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-pause-gaming" class="row-label" data-i18n="opt.pauseGaming"
+                      >Pause while gaming</span
+                    >
+                    <span id="d-pause-gaming" class="row-desc" data-i18n="opt.pauseGamingNote"
+                      >Analysis and upload wait while a game fills the screen and continue one
+                      minute afterwards.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="pause-while-gaming"
+                      type="button"
+                      class="switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-labelledby="l-pause-gaming"
+                      aria-describedby="d-pause-gaming"
+                      data-lock
+                    ></button>
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-notify" class="row-label" data-i18n="opt.notify"
+                      >Notification for every archived clip</span
+                    >
+                    <span id="d-notify" class="row-desc" data-i18n="opt.notifyNote"
+                      >Never during a game.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="notify"
+                      type="button"
+                      class="switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-labelledby="l-notify"
+                      aria-describedby="d-notify"
+                      data-lock
+                    ></button>
+                  </div>
+                </div>
+              </div>
+              <div class="set-group">
+                <div class="group-head">
+                  <h3 data-i18n="group.startup">Startup</h3>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-auto-start" class="row-label" data-i18n="opt.autoStart"
+                      >Resume work when opened</span
+                    >
+                    <span id="d-auto-start" class="row-desc" data-i18n="opt.autoStartNote"
+                      >Without clicking “Start”.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="auto-start"
+                      type="button"
+                      class="switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-labelledby="l-auto-start"
+                      aria-describedby="d-auto-start"
+                      data-lock
+                    ></button>
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-login" class="row-label" data-i18n="opt.openAtLogin"
+                      >Start with Windows</span
+                    >
+                    <span id="d-login" class="row-desc" data-i18n="opt.openAtLoginNote"
+                      >Quietly in the notification area.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="open-at-login"
+                      type="button"
+                      class="switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-labelledby="l-login"
+                      aria-describedby="d-login"
+                      data-lock
+                    ></button>
+                  </div>
+                </div>
+              </div>
+              <div class="set-group">
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-rerun" class="row-label" data-i18n="btn.rerun"
+                      >Run setup again</span
+                    >
+                    <span class="row-desc" data-i18n="row.rerunText"
+                      >Walks you through server, recordings, AI and player names once more.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <button
+                      id="rerun-setup"
+                      type="button"
+                      class="secondary"
+                      aria-describedby="l-rerun"
+                      data-i18n="btn.openSetup"
+                    >
+                      Open setup
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Language: applies and saves right away, also while the client is running. -->
+            <section
+              class="set-section"
+              data-section="language"
+              aria-labelledby="sec-language"
+              hidden
+            >
+              <header class="set-head">
+                <h2 id="sec-language" tabindex="-1" data-i18n="section.language">Language</h2>
+                <p data-i18n="section.languageText">The language of this window.</p>
+              </header>
+              <div class="set-group">
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-language" class="row-label" data-i18n="field.language"
+                      >Language</span
+                    >
+                    <span class="row-desc" data-i18n="row.languageText"
+                      >Changes right away, even while the client is working.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <select id="language" aria-labelledby="l-language">
+                      <option value="en">English</option>
+                      <option value="de">Deutsch</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
-        </form>
+        </div>
       </main>
       <p id="toast" class="toast" role="alert" hidden></p>
     </div>

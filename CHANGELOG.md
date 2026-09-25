@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- One settings area for everything that is configured (docs/SETTINGS-DESIGN.md): a grouped
+  navigation (You: Account, Devices, Appearance, Playback; Archive: Server, Recording PCs,
+  Users, Game info, Storage) and one section per page, built from the same groups, rows,
+  switches, badges and list rows. `/devices` and `/users` now lead to Settings → Recording PCs
+  and Users. Users are added in a dialog, destructive actions confirm, and the Server section
+  shows status, version, activity and the smooth-playback progress. The setup guide follows
+  the same system.
+- Sign-in screens in the style of the Stripe sign-in: brand above a single card, inline errors
+  that mark the field, single sign-on above an "or" divider, a QR hint on phones and a language
+  switch.
+- The Windows client's settings are split into sections (Connection, Recordings, Player names,
+  Local AI, Recognition, Behavior, Language); switches save at once, text fields get Save and
+  Cancel.
+
 ### Fixed
 
 - Changing the server address (for example from the LAN address to a domain) made the client

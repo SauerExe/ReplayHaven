@@ -196,7 +196,7 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
             {result ? t('app.analysis.reanalyze') : t('app.analysis.analyze')}
           </button>
         ) : (
-          <Link className="text-link" to="/devices">
+          <Link className="text-link" to="/settings/pcs">
             {analysis?.provider === 'client'
               ? t('app.analysis.analyzedOnPc')
               : t('app.analysis.setupClient')}

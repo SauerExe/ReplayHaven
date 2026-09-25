@@ -193,16 +193,6 @@ export const app: Translation<typeof source> = {
   'app.analysis.gemini': 'Analyse über Gemini',
   'app.analysis.geminiAudio': 'Analyse über Gemini einschließlich Ton',
 
-  // Vault illustration
-  'app.vault.label': 'Dein Aufnahme-PC überträgt Clips an deinen persönlichen Archiv-Server.',
-  'app.vault.topline': 'DEIN PERSÖNLICHES ARCHIV',
-  'app.vault.pc': 'Dein PC',
-  'app.vault.record': 'Aufnehmen',
-  'app.vault.vault': 'Dein Vault',
-  'app.vault.keep': 'Aufbewahren',
-  'app.vault.recordings': 'DEINE AUFNAHMEN',
-  'app.vault.server': 'DEIN SERVER',
-
   // Layout
   'app.layout.brandHome': 'ReplayHaven Startseite',
   'app.layout.profileMenu': 'Profilmenü',

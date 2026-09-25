@@ -7,10 +7,13 @@ for (const width of [390, 1440]) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto('/devices');
-    await page.getByRole('link', { name: /02 Install the Windows client/ }).click();
+    await page.goto('/setup');
+    await page
+      .getByRole('navigation', { name: 'Setup steps' })
+      .getByRole('link', { name: /02 Connect your PC/ })
+      .click();
     await expect(page).toHaveURL(/\/setup#client$/);
-    const client = page.getByRole('region', { name: 'Bring your PC into the game.' });
+    const client = page.getByRole('region', { name: 'Connect your recording PC' });
     await expect
       .poll(async () => (await client.boundingBox())?.y ?? Infinity)
       .toBeLessThan(width < 850 ? 220 : 150);

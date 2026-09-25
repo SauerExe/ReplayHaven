@@ -393,7 +393,7 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
         const account = accounts.user(flow.link);
         if (!account || account.disabled) return failed(reply, 'Your account is not available.');
         accounts.linkIdentity(profile.issuer, profile.sub, account.id);
-        return reply.redirect('/devices?linked=1', 302);
+        return reply.redirect('/settings/account?linked=1', 302);
       }
       let account = accounts.identityUser(profile.issuer, profile.sub);
       if (!account) {

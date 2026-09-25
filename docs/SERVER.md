@@ -41,7 +41,7 @@ docker compose stop
 
 Port 8787 is meant for your home network. To reach the server from outside, use a VPN or an HTTPS reverse proxy; [Deploy behind Coolify/Traefik](#deploy-behind-coolifytraefik) covers the proxy settings (public origin, trusted proxy, 2 GB uploads, 30-minute requests).
 
-Only signed-in users get in. On first visit you create an account; for this one step the server asks for the access key from `.env`, so nobody else can create the first account on a server that is already reachable. After that every device signs in with name and password or by QR code and gets its own session (HttpOnly cookie, 30 days, extended while in use). Recording PCs pair by sending a request that an admin approves under **Devices**; from then on they send their own credential as a bearer token. Any session can be revoked under **Devices**. The access key still works as a bearer token for older clients and scripts. Roles and single sign-on are described in [Users and roles](#users-and-roles) and [Sign in with Authelia (OIDC)](#sign-in-with-authelia-oidc). There are no public share links yet. Failed sign-ins are throttled after 20 attempts within 15 minutes. The database only stores scrypt hashes of passwords and SHA-256 hashes of credentials.
+Only signed-in users get in. On first visit you create an account; for this one step the server asks for the access key from `.env`, so nobody else can create the first account on a server that is already reachable. After that every device signs in with name and password or by QR code and gets its own session (HttpOnly cookie, 30 days, extended while in use). Recording PCs pair by sending a request that an admin approves under **Settings → Recording PCs**; from then on they send their own credential as a bearer token. Any session can be revoked under **Settings → Devices** (browsers and phones) or **Settings → Recording PCs** (PCs). The access key still works as a bearer token for older clients and scripts. Roles and single sign-on are described in [Users and roles](#users-and-roles) and [Sign in with Authelia (OIDC)](#sign-in-with-authelia-oidc). There are no public share links yet. Failed sign-ins are throttled after 20 attempts within 15 minutes. The database only stores scrypt hashes of passwords and SHA-256 hashes of credentials.
 
 ## Users and roles
 
@@ -52,7 +52,7 @@ Every account has one of two roles:
 | `user`  | Watch the archive (clips, games, thumbnails, video, downloads, status), manage its own password, sessions and QR logins, link or unlink its own single sign-on                         |
 | `admin` | Everything above, plus upload from the browser, edit/delete/re-analyse clips, analysis settings, game info refresh, approve or deny PC pairing, manage users and other users' sessions |
 
-The first account on a server is always an admin. Accounts created before roles existed are migrated automatically: the first one becomes admin. Admins manage accounts under **Devices → Users** (`/users`): create an account (name, password, role), change the role, disable/enable, reset the password (signs that user's browsers out), sign a user out everywhere, or delete an account. You cannot disable or delete yourself, and the server never lets the last active admin be demoted, disabled or deleted.
+The first account on a server is always an admin. Accounts created before roles existed are migrated automatically: the first one becomes admin. Admins manage accounts under **Settings → Users** (`/settings/users`): create an account (name, password, role), change the role, disable/enable, reset the password (signs that user's browsers out), sign a user out everywhere, or delete an account. You cannot disable or delete yourself, and the server never lets the last active admin be demoted, disabled or deleted.
 
 A paired recording PC keeps its rights to upload, report its heartbeat and deliver client analysis results; it belongs to the admin who approved it and stops working when that account is disabled or deleted. The access key (`REPLAYHAVEN_ACCESS_TOKEN` as bearer token, or the legacy key login) acts as admin. Forbidden requests are answered with `403` and an English error message.
 
@@ -154,7 +154,7 @@ REPLAYHAVEN_OIDC_ADMIN_GROUP=replayhaven-admins
 
 Authelia returns groups and profile claims from the UserInfo endpoint; ReplayHaven reads both the ID token and UserInfo. Use `authorization_policy` or Authelia access control rules to decide who may sign in at all.
 
-**Existing local account.** Sign in with your password, open **Devices → Account access** and choose **Link**. After the round trip through the provider, your OIDC identity belongs to that account and you can sign in either way. **Unlink** is refused while the account has no password, so nobody locks themselves out.
+**Existing local account.** Sign in with your password, open **Settings → Account** and choose **Link**. After the round trip through the provider, your OIDC identity belongs to that account and you can sign in either way. **Unlink** is refused while the account has no password, so nobody locks themselves out.
 
 **Without auto-create** (`REPLAYHAVEN_OIDC_AUTO_CREATE=false`) only known identities get in. An admin prepares an account under **Users** with the person's provider user name and no password; their first OIDC sign-in with that `preferred_username` claims it. Only accounts without a password and without a linked identity can be claimed this way.
 
@@ -187,7 +187,7 @@ If you prefer the data in a folder instead of a named volume, replace the line `
 
 ## Windows client download
 
-The download button under **Devices** points to, in this order:
+The download button under **Settings → Recording PCs** points to, in this order:
 
 1. `release/ReplayHaven-Client-Setup.exe`, if the file sits next to `compose.yaml` (mounted read-only).
 2. `REPLAYHAVEN_CLIENT_DOWNLOAD_URL`. Published images already contain the matching GitHub release address.

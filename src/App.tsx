@@ -1,10 +1,11 @@
 import { lazy, Suspense } from 'react';
-import { Link, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { ActionProvider } from './components/Actions';
 import { Layout } from './components/Layout';
 import { EmptyState } from './components/Cards';
 import { StreamingHomeContainer } from './streaming';
 import { t } from './i18n';
+import { useDevicesHref } from './components/settings/sections';
 const Library = lazy(() => import('./streaming/LibraryPage'));
 const Collections = lazy(() =>
   import('./streaming/CollectionsPage').then((m) => ({ default: m.StreamingCollectionsPage })),
@@ -17,10 +18,15 @@ const SmartCollection = lazy(() =>
 );
 const ClipDetail = lazy(() => import('./pages/ClipDetail'));
 const SharePage = lazy(() => import('./pages/ClipDetail').then((m) => ({ default: m.SharePage })));
-const Devices = lazy(() => import('./pages/Devices'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Setup = lazy(() => import('./pages/Setup'));
-const Users = lazy(() => import('./pages/Users'));
+/** The old Devices page; back from linking single sign-on it carries `?linked=1`. */
+function DevicesRedirect() {
+  const { search } = useLocation();
+  const devices = useDevicesHref();
+  const linked = new URLSearchParams(search).get('linked') === '1';
+  return <Navigate replace to={linked ? `/settings/account${search}` : devices} />;
+}
 export function App() {
   return (
     <ActionProvider>
@@ -44,10 +50,11 @@ export function App() {
             <Route path="collections" element={<Collections />} />
             <Route path="collections/:id" element={<CollectionDetail />} />
             <Route path="collections/auto/:id" element={<SmartCollection />} />
-            <Route path="devices" element={<Devices />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="settings/:section" element={<Settings />} />
+            <Route path="devices" element={<DevicesRedirect />} />
+            <Route path="users" element={<Navigate replace to="/settings/users" />} />
             <Route path="setup" element={<Setup />} />
-            <Route path="users" element={<Users />} />
             <Route
               path="*"
               element={

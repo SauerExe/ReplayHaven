@@ -188,16 +188,6 @@ export const app = {
   'app.analysis.gemini': 'Analysis via Gemini',
   'app.analysis.geminiAudio': 'Analysis via Gemini including audio',
 
-  // Vault illustration
-  'app.vault.label': 'Your recording PC sends clips to your personal archive server.',
-  'app.vault.topline': 'YOUR PERSONAL ARCHIVE',
-  'app.vault.pc': 'Your PC',
-  'app.vault.record': 'Record',
-  'app.vault.vault': 'Your vault',
-  'app.vault.keep': 'Keep',
-  'app.vault.recordings': 'YOUR RECORDINGS',
-  'app.vault.server': 'YOUR SERVER',
-
   // Layout
   'app.layout.brandHome': 'ReplayHaven home',
   'app.layout.profileMenu': 'Profile menu',

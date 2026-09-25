@@ -207,7 +207,7 @@ it('links an OIDC identity to a signed-in local account', async () => {
     url: `/api/auth/oidc/callback?code=${code}&state=${state}`,
     headers: { cookie: cookieOf(started, 'rh_oidc') },
   });
-  expect(callback.headers.location).toBe('/devices?linked=1');
+  expect(callback.headers.location).toBe('/settings/account?linked=1');
   const again = await signIn(second.app, { sub: 'authelia-timo' });
   const state2 = (
     await second.app.inject({ url: '/api/auth/state', headers: { cookie: again.session } })

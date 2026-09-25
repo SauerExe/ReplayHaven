@@ -8,6 +8,7 @@ import './streaming/streaming.css';
 import './subpages.css';
 import './interactions.css';
 import './auth.css';
+import './settings.css';
 import { VaultProvider } from './data/store';
 import { AuthGate } from './components/AuthGate';
 import { App } from './App';

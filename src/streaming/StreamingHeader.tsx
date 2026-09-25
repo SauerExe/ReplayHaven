@@ -4,11 +4,11 @@ import { t, type MessageKey } from '../i18n';
 import { BrandMark } from './icons';
 import { linkHandler, type Navigate } from './links';
 
-const NAV: { href: string; label: MessageKey; icon: typeof House }[] = [
+const nav = (devicesHref: string): { href: string; label: MessageKey; icon: typeof House }[] => [
   { href: '/', label: 'stream.nav.home', icon: House },
   { href: '/library', label: 'stream.nav.library', icon: LayoutGrid },
   { href: '/collections', label: 'stream.nav.collections', icon: Layers },
-  { href: '/devices', label: 'stream.nav.devices', icon: Monitor },
+  { href: devicesHref, label: 'stream.nav.devices', icon: Monitor },
 ];
 
 export interface StreamingHeaderProps {
@@ -18,6 +18,8 @@ export interface StreamingHeaderProps {
   onSearch?: (query: string) => void;
   onAddClip?: () => void;
   profileHref?: string;
+  /** Target of the "Devices" item: recording PCs for admins, own devices for users. */
+  devicesHref?: string;
 }
 
 export function StreamingHeader({
@@ -26,7 +28,9 @@ export function StreamingHeader({
   onSearch,
   onAddClip,
   profileHref = '/settings',
+  devicesHref = '/settings/pcs',
 }: StreamingHeaderProps) {
+  const NAV = nav(devicesHref);
   const [solid, setSolid] = useState(false);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');

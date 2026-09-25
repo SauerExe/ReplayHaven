@@ -291,7 +291,9 @@ test('the language can be switched to German in the settings', async ({ page }) 
   await page.getByLabel('Language').selectOption('de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await expect(page.getByLabel('Sprache')).toHaveValue('de');
-  await expect(page.getByRole('heading', { name: 'Einstellungen', level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/\/settings\/appearance$/);
+  await expect(page.getByRole('heading', { name: 'Darstellung', level: 1 })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Einstellungsbereiche' })).toBeVisible();
   // The choice survives a reload and applies to the home page.
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
