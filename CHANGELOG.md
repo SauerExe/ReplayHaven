@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-25
+
 ### Changed
 
 - One settings area for everything that is configured (docs/SETTINGS-DESIGN.md): a grouped
@@ -20,7 +22,11 @@ All notable changes to this project are documented here. The format follows
   switch.
 - The Windows client's settings are split into sections (Connection, Recordings, Player names,
   Local AI, Recognition, Behavior, Language); switches save at once, text fields get Save and
-  Cancel.
+  Cancel. The setup assistant now points to Settings → Recording PCs for approving a PC.
+- `setup-server.sh` speaks English and ends with the account setup instead of the old access
+  key hint.
+- README, setup guide and screenshots show the English interface, the new client overview and
+  the settings area.
 
 ### Fixed
 
@@ -252,6 +258,7 @@ All notable changes to this project are documented here. The format follows
 - Time marks outside the clip no longer discard the whole analysis.
 - "Apply game & tags" no longer replaces the folder game name with the model's guess.
 
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/SauerExe/ReplayHaven/releases/tag/v1.0.0

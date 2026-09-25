@@ -36,7 +36,8 @@ for (const game of games) {
     `https://store.steampowered.com/api/appdetails?appids=${game.appId}&l=english`,
   );
   const body = await r.json();
-  const data = body[game.appId]?.data;
+  // Steam sometimes answers under another id (e.g. the ELDEN RING edition bundle).
+  const data = body[game.appId]?.data ?? Object.values(body)[0]?.data;
   if (!data) throw new Error(`Missing ${game.name}`);
   const screenshots = await Promise.all(
     data.screenshots.slice(0, 6).map((s, i) => cache(s.path_full, `${game.id}-${i}.jpg`)),

@@ -9,30 +9,30 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 mode="build"
 if [[ "${1:-}" == "--pull" ]]; then mode="pull"; fi
-printf '\nReplayHaven · Archiv-Server einrichten\n\n'
+printf '\nReplayHaven · archive server setup\n\n'
 if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
-  printf 'Bitte zuerst Docker Engine und das Compose-Plugin installieren:\nhttps://docs.docker.com/engine/install/\nDanach diesen Befehl erneut ausführen: bash setup-server.sh\n'
+  printf 'Install Docker Engine and the Compose plugin first:\nhttps://docs.docker.com/engine/install/\nThen run this command again: bash setup-server.sh\n'
   exit 1
 fi
 if [[ "$mode" == "build" && ! -f Dockerfile ]]; then
-  printf 'Kein Quellcode in diesem Verzeichnis. Für das veröffentlichte Image: bash setup-server.sh --pull\n'
+  printf 'No source code in this directory. For the published image: bash setup-server.sh --pull\n'
   exit 1
 fi
 if [[ ! -f .env && -f .server.env ]]; then
   mv .server.env .env
-  printf 'Vorhandene Einrichtung aus .server.env übernommen.\n'
+  printf 'Took over the existing setup from .server.env.\n'
 fi
 if [[ ! -f .env ]]; then
   if ! command -v openssl >/dev/null 2>&1; then
-    printf 'OpenSSL fehlt. Einmalig installieren: sudo apt-get install openssl\n'
+    printf 'OpenSSL is missing. Install it once: sudo apt-get install openssl\n'
     exit 1
   fi
   detected="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
   suggested="http://${detected:-localhost}:8787"
-  read -r -p "Serveradresse für den Browser [${suggested}]: " vault_origin
+  read -r -p "Server address for the browser [${suggested}]: " vault_origin
   vault_origin="${vault_origin:-$suggested}"
   if [[ ! "$vault_origin" =~ ^https?://[a-zA-Z0-9.:_-]+$ ]]; then
-    printf 'Ungültige Serveradresse. Erwartet: http://host-oder-ip:8787\n'
+    printf 'Invalid server address. Expected: http://host-or-ip:8787\n'
     exit 1
   fi
   umask 077
@@ -40,9 +40,9 @@ if [[ ! -f .env ]]; then
     printf 'REPLAYHAVEN_ACCESS_TOKEN=%s\n' "$(openssl rand -hex 24)"
     printf 'REPLAYHAVEN_PUBLIC_ORIGIN=%s\n' "$vault_origin"
   } > .env
-  printf '\nEinrichtung gespeichert. Dein Zugangsschlüssel für Browser und Windows-Client:\n'
+  printf '\nSetup saved. Your access key, needed once to create the first account:\n'
   sed -n 's/^REPLAYHAVEN_ACCESS_TOKEN=//p' .env
-  printf '\nBewahre ihn auf. Du findest ihn später in .env.\n'
+  printf '\nKeep it safe. You will find it in .env later.\n'
 fi
 mkdir -p release
 if [[ "$mode" == "build" ]]; then
@@ -54,4 +54,4 @@ else
 fi
 docker compose up -d
 origin="$(sed -n 's/^REPLAYHAVEN_PUBLIC_ORIGIN=//p' .env)"
-printf '\nReplayHaven läuft: %s\nIm Browser unter Einstellungen → KI & Server den Zugangsschlüssel eingeben.\nDen Windows-Client findest du danach unter Geräte.\n' "$origin"
+printf '\nReplayHaven is running: %s\nOpen it in the browser and create your account with the access key.\nThe Windows client is under Settings → Recording PCs.\n' "$origin"

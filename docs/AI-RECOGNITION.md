@@ -6,6 +6,8 @@ It is based on research from 2026-09-24 (sources at the end). None of it has bee
 
 ## What already exists
 
+_This section describes the state on 2026-09-24, when the concept was written. Since then Qwen3.5 9B is the default model, the whole clip can be analysed, text recognition uses PP-OCRv5 and also reads the Valorant killfeed, and voice chat is transcribed with Parakeet; see the measurements below._
+
 - `server/media.ts`: ffmpeg extracts frames at 1280 px width, two thirds from the last 30 seconds.
 - `agent/ollama.ts`: Qwen3-VL 8B classifies four frames at a time (gameplay, result, menu, loading screen, respawn) and copies messages verbatim; every frame carries its timestamp as text, the way the model was trained.
 - `agent/events.ts`: fixed code interprets the messages as kills, deaths, round and match results; the model does not interpret on its own.

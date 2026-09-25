@@ -34,14 +34,14 @@ Then open the server address in the browser and **create your account**: name, p
 
 ## 2. Set up the Windows client
 
-1. Install `ReplayHaven-Client-Setup.exe` and open ReplayHaven Client. You do not need to install Node.js, Python or FFmpeg separately.
-2. Choose the recordings folder. Subfolders are included.
-3. Enter the server address, for example `replay.your-domain.com` or `192.168.1.20:8787`, and click **Connect**. The client shows a six-digit code. In the web interface, the same code appears under **Settings → Recording PCs** with your PC's name; click **Approve** there. The PC gets its own access, which the client stores encrypted with your Windows account and which you can revoke at any time under **Settings → Recording PCs**. Older servers without accounts are connected via **Use access key instead**.
-4. **Install Ollama** opens the official download. Install and start Ollama, then click **Check connection** in the client.
-5. **Download model** downloads Qwen3.5 9B once, about 6.6 GB. This only happens when you click.
-6. Start with **24 frames** and click **Start analysis & upload**.
+1. Install `ReplayHaven-Client-Setup.exe` and open ReplayHaven Client. You do not need to install Node.js, Python or FFmpeg separately. On the first start a setup assistant guides you through the next steps; you can run it again later under Settings.
+2. **Server:** enter the server address, for example `replay.your-domain.com` or `192.168.1.20:8787`, and click **Connect**. The client shows a six-digit code. In the web interface, the same code appears under **Settings → Recording PCs** with your PC's name; click **Approve** there. The PC gets its own access, which the client stores encrypted with your Windows account and which you can revoke at any time under **Settings → Recording PCs**. Older servers without accounts are connected via **Use access key instead**.
+3. **Recordings:** choose the folder the NVIDIA App (or another recorder) saves clips to. Subfolders are included.
+4. **Local AI:** **Install Ollama** opens the official download. Install and start Ollama, then click **Check connection**. **Download model** downloads Qwen3.5 9B once, about 6.6 GB. This only happens when you click.
+5. **Player names** and **extras** such as replays, text recognition and voice chat (see below).
+6. **All set:** the client starts working and switches to the overview, which shows the clip in work, the queue and the recently archived clips.
 
-Enable **Include existing recordings on first start** before starting for the first time if you want to import old clips as well. Otherwise they are marked as skipped. This choice applies per recordings folder and server. The game name is optional; without it, the subfolder name serves as a hint for the AI.
+Enable **Include existing recordings** before starting for the first time if you want to import old clips as well. Otherwise they are marked as skipped. This choice applies per recordings folder and server. The game name is optional; without it, the subfolder name serves as a hint for the AI.
 
 Under **Your player names**, enter what you are called in-game. If your name differs per game, give each name its game; the game folders of your recordings are suggested so that entry and folder match. A name without a game applies everywhere. The AI only learns the names that match the clip's game and uses them to tell which side of the killfeed is yours.
 
@@ -51,7 +51,7 @@ The installer is currently not signed with a publisher certificate. Windows Smar
 
 Save your clips as usual, for example the last two minutes via the NVIDIA App. After at least ten seconds without file changes, the client analyses the recording. Then it uploads **original video and result**. The clip appears in the archive automatically. Title, description and tags are editable; timestamps jump to the spot in the video.
 
-While gaming you can **pause** and then resume with **Start analysis & upload**. An FFmpeg step already running may still finish. Closing the window keeps the client running in the Windows notification area; **Quit** in the tray menu ends it. After a Windows restart, start the client again. Starting automatically with Windows is not set up yet.
+While you play, the client waits on its own (see [Pause while gaming](#pause-while-gaming)); you can also **pause** by hand in the overview or the tray menu and resume there. An FFmpeg step already running may still finish. Closing the window keeps the client running in the Windows notification area; **Quit** in the tray menu ends it. With **Start with Windows** under Settings → Behavior, the client starts after sign-in and, with **Resume work when opened**, continues where it stopped. If the server or Ollama is not up yet, it retries every 30 seconds.
 
 For a first connection test you can turn off **Analyse new clips locally before upload**. Originals are then archived without an AI result; Ollama is not required for that. Manual uploads in the browser do not call the PC's AI either.
 
