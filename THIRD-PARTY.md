@@ -1,6 +1,6 @@
 # Third-party notices
 
-The ReplayHaven source code is licensed under the [MIT License](LICENSE). The following
+The ReplayHaven source code is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). The following
 components ship alongside it under their own terms.
 
 ## Demo media (`public/media`, `src/data/media.json`)
@@ -9,7 +9,7 @@ The example library shows official publisher artwork and streams publisher trail
 the Steam CDN. The artwork is **not** part of this repository: `npm run media:refresh` downloads
 it from the Steam store into `public/media` on your machine (ignored by Git) and lists the
 sources in `public/media/SOURCES.json`. All rights remain with the respective publishers and
-rights holders; the assets are not covered by the MIT License and only demonstrate the
+rights holders; the assets are not covered by that license and only demonstrate the
 interface. The Docker image and the Windows installer do not contain them.
 
 ## Fonts (`src/streaming/fonts`)

@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- ReplayHaven is now licensed under the PolyForm Noncommercial License 1.0.0 instead of MIT:
+  free for personal, hobby and other non-commercial use, including changes and sharing, but not
+  for selling it or commercial use. Releases up to and including 1.2.2 remain available under the
+  MIT License.
+
 ## [1.2.2] - 2026-09-26
 
 ### Added

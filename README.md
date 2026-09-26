@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/SauerExe/ReplayHaven/actions/workflows/ci.yml"><img src="https://github.com/SauerExe/ReplayHaven/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-a78bfa" alt="MIT license"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-a78bfa" alt="PolyForm Noncommercial license"></a>
   <img src="https://img.shields.io/badge/client-Windows%2010%20%7C%2011-1e1e27" alt="Windows client">
   <img src="https://img.shields.io/badge/server-Docker%20amd64%20%7C%20arm64-1e1e27" alt="Docker server for amd64 and arm64">
   <img src="https://img.shields.io/badge/AI-local%20with%20Ollama-1e1e27" alt="Local AI with Ollama">
@@ -333,4 +333,6 @@ Bug reports, ideas and pull requests are welcome, see [CONTRIBUTING.md](CONTRIBU
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The demo artwork and trailers belong to their publishers, and the Windows installer bundles GPL-licensed FFmpeg builds; details in [THIRD-PARTY.md](THIRD-PARTY.md).
+[PolyForm Noncommercial 1.0.0](LICENSE): free for personal use, hobby projects, research, schools, charities and other non-commercial purposes, including changing and sharing it on the same terms. Selling ReplayHaven, offering it as a paid service or using it for commercial purposes is not allowed without permission; ask via [GitHub](https://github.com/SauerExe/ReplayHaven/issues) if you need that. Releases up to and including 1.2.2 were published under the MIT License and stay available under it.
+
+The demo artwork and trailers belong to their publishers, and the Windows installer bundles GPL-licensed FFmpeg builds; details in [THIRD-PARTY.md](THIRD-PARTY.md).

@@ -13,7 +13,7 @@ test-results/
 playwright-report/
 artifacts/
 
-# Demo artwork, fetched locally with `npm run media:refresh` (publisher rights, not MIT)
+# Demo artwork, fetched locally with `npm run media:refresh` (publisher rights, not covered by LICENSE)
 public/media/
 
 # Runtime data (server archive, client state)
