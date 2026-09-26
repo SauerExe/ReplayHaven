@@ -89,6 +89,9 @@ export const settings: Translation<typeof source> = {
   'settings.devices.qr.valid': 'Noch {time} Minuten gültig.',
   'settings.devices.qr.expired': 'Dieser Code ist abgelaufen.',
   'settings.devices.qr.renew': 'Neuen Code zeigen',
+  'settings.devices.qr.done': 'Verbunden',
+  'settings.devices.qr.doneDevice': '{label} ist jetzt mit deinem Konto angemeldet.',
+  'settings.devices.qr.doneText': 'Das Gerät ist jetzt mit deinem Konto angemeldet.',
   'settings.devices.qr.failed': 'Der QR-Code ließ sich nicht erstellen.',
 
   // Appearance

@@ -71,6 +71,13 @@ export class AccountError extends Error {
 export const SESSION_DAYS = 30;
 const PAIRING_MINUTES = 10;
 const LOGIN_CODE_MINUTES = 5;
+interface LoginCode {
+  userId: string;
+  expiresAt: string;
+  usedAt?: string;
+  /** The device that signed in with the code. */
+  label?: string;
+}
 const DEVICE_PREFIX = 'rhd_';
 
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -436,23 +443,51 @@ export class Accounts {
 
   /* Signing in another device with a QR code */
 
+  /** The id is the code's hash: the showing page can ask for its state, but not redeem it. */
   loginCode(userId: string, now = Date.now()) {
     const code = token();
+    const id = sha(code);
     const expiresAt = new Date(now + LOGIN_CODE_MINUTES * 60000).toISOString();
+    // Old codes are only kept long enough for the showing page to learn their outcome.
+    const stale = now - (LOGIN_CODE_MINUTES + 10) * 60000;
+    for (const row of this.db.prepare('SELECT key, data FROM login_codes').all() as {
+      key: string;
+      data: string;
+    }[])
+      if (Date.parse((JSON.parse(row.data) as LoginCode).expiresAt) < stale)
+        this.db.prepare('DELETE FROM login_codes WHERE key=?').run(row.key);
     this.db
       .prepare('INSERT INTO login_codes(key,data) VALUES(?,?)')
-      .run(sha(code), JSON.stringify({ userId, expiresAt }));
-    return { code, expiresAt };
+      .run(id, JSON.stringify({ userId, expiresAt } satisfies LoginCode));
+    return { code, id, expiresAt };
   }
-  /** Redeems a QR code exactly once. */
+  /** Redeems a QR code exactly once and notes which device used it. */
   redeemLoginCode(code: string, now = Date.now()) {
     const key = sha(code);
     const row = this.db.prepare('SELECT data FROM login_codes WHERE key=?').get(key) as
       { data: string } | undefined;
-    this.db.prepare('DELETE FROM login_codes WHERE key=?').run(key);
     if (!row) return undefined;
-    const { userId, expiresAt } = JSON.parse(row.data) as { userId: string; expiresAt: string };
-    return Date.parse(expiresAt) > now ? userId : undefined;
+    const data = JSON.parse(row.data) as LoginCode;
+    if (data.usedAt || Date.parse(data.expiresAt) <= now) return undefined;
+    return {
+      userId: data.userId,
+      /** Called once the session exists, with the device's label. */
+      used: (label: string) =>
+        this.db
+          .prepare('UPDATE login_codes SET data=? WHERE key=?')
+          .run(JSON.stringify({ ...data, usedAt: new Date(now).toISOString(), label }), key),
+    };
+  }
+  /** What became of a QR code, for the account that created it. */
+  loginCodeState(userId: string, id: string, now = Date.now()) {
+    const row = this.db.prepare('SELECT data FROM login_codes WHERE key=?').get(id) as
+      { data: string } | undefined;
+    const data = row && (JSON.parse(row.data) as LoginCode);
+    if (!data || data.userId !== userId) return undefined;
+    if (data.usedAt) return { status: 'used' as const, label: data.label };
+    return {
+      status: Date.parse(data.expiresAt) > now ? ('waiting' as const) : ('expired' as const),
+    };
   }
 }
 

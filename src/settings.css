@@ -829,6 +829,39 @@
   color: var(--st-text);
   font-variant-numeric: tabular-nums;
 }
+/* Success after a device used the code; same height as the code so the dialog keeps its size. */
+.st-qr-done {
+  justify-content: center;
+  min-height: 262px;
+}
+.st-qr-done strong {
+  font-size: 18px;
+  font-weight: 650;
+}
+.st-qr-done p {
+  max-width: 34ch;
+}
+.st-qr-check {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgb(52 211 153 / 14%);
+  color: #34d399;
+  animation: st-qr-pop 260ms ease-out;
+}
+@keyframes st-qr-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-qr-check {
+    animation: none;
+  }
+}
 
 /* Tablet: narrower navigation */
 @media (max-width: 1100px) {

@@ -195,6 +195,9 @@ it('denies a pairing request and signs in another device once per QR code', asyn
   const url = new URL(qr.json().url);
   expect(url.origin + url.pathname).toBe('https://replay.example.org/connect');
   const code = url.searchParams.get('code')!;
+  const state = async () =>
+    (await app.inject({ url: `/api/auth/qr/${qr.json().id}`, headers: { cookie } })).json();
+  expect(await state()).toEqual({ status: 'waiting' });
   const phone = await app.inject({
     method: 'POST',
     url: '/api/auth/qr/redeem',
@@ -202,6 +205,7 @@ it('denies a pairing request and signs in another device once per QR code', asyn
     headers: { 'user-agent': 'Mozilla/5.0 (iPhone) Safari/604.1' },
   });
   expect(phone.statusCode).toBe(200);
+  expect(await state()).toEqual({ status: 'used', label: 'Safari on iPhone/iPad' });
   expect(
     (await app.inject({ url: '/api/clips', headers: { cookie: cookieOf(phone) } })).statusCode,
   ).toBe(200);

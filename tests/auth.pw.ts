@@ -140,3 +140,42 @@ test('a failed QR code explains what to do next', async ({ page }) => {
   await expect(page.getByRole('alert')).toHaveText('The code has expired.');
   await expect(page.getByRole('link', { name: 'Go to sign-in' })).toHaveAttribute('href', '/');
 });
+
+test('the QR dialog confirms when the phone has signed in', async ({ page }) => {
+  const id = 'a'.repeat(64);
+  let checks = 0;
+  await page.route('**/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/auth/state')
+      return route.fulfill({
+        json: {
+          ...signedOut,
+          loggedIn: true,
+          kind: 'browser',
+          role: 'admin',
+          user: { id: 'u1', name: 'Timo', role: 'admin' },
+        },
+      });
+    if (path === '/api/auth/qr')
+      return route.fulfill({
+        json: {
+          url: 'http://localhost:5173/connect?code=x',
+          id,
+          expiresAt: new Date(Date.now() + 300000).toISOString(),
+        },
+      });
+    if (path === `/api/auth/qr/${id}`)
+      return route.fulfill({
+        json:
+          ++checks < 2 ? { status: 'waiting' } : { status: 'used', label: 'Safari on iPhone/iPad' },
+      });
+    return route.fulfill({ json: [] });
+  });
+  await page.goto('/settings/devices');
+  await page.getByRole('button', { name: 'Connect phone' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByAltText('QR code to sign in another device')).toBeVisible();
+  await expect(dialog.getByText('Connected')).toBeVisible({ timeout: 10000 });
+  await expect(dialog).toContainText('Safari on iPhone/iPad is now signed in to your account.');
+  await expect(dialog.getByAltText('QR code to sign in another device')).toHaveCount(0);
+});

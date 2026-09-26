@@ -311,24 +311,37 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
   app.post('/api/auth/qr', async (req, reply) => {
     const userId = owner(req, reply);
     if (!userId) return;
-    const { code, expiresAt } = accounts.loginCode(userId);
+    const { code, id, expiresAt } = accounts.loginCode(userId);
     // The origin header was checked against the allowed origins in app.ts.
     const origin = req.headers.origin || config.publicOrigin;
-    return { url: `${origin}/connect?code=${code}`, expiresAt };
+    return { url: `${origin}/connect?code=${code}`, id, expiresAt };
+  });
+  // The page showing the code asks whether a device has used it yet.
+  app.get<{ Params: { id: string } }>('/api/auth/qr/:id', async (req, reply) => {
+    const userId = owner(req, reply);
+    if (!userId) return;
+    const id = z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .parse(req.params.id);
+    const state = accounts.loginCodeState(userId, id);
+    if (!state) return reply.code(404).send({ error: 'Code not found.' });
+    return state;
   });
   app.post('/api/auth/qr/redeem', async (req, reply) => {
     const { code } = z.object({ code: z.string().min(20).max(100) }).parse(req.body);
     if (throttle.blocked())
       return reply.code(429).send({ error: 'Too many failed attempts. Wait a few minutes.' });
-    const userId = accounts.redeemLoginCode(code);
-    const account = userId ? accounts.user(userId) : undefined;
-    if (!account || account.disabled) {
+    const redeemed = accounts.redeemLoginCode(code);
+    const account = redeemed ? accounts.user(redeemed.userId) : undefined;
+    if (!redeemed || !account || account.disabled) {
       throttle.fail();
       return reply.code(401).send({
         error: 'The code has expired or was already used. Show a new one.',
       });
     }
     startSession(req, reply, account.id);
+    redeemed.used(browserLabel(req.headers['user-agent']));
     return { user: publicUser(account) };
   });
 

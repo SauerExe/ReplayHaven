@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-09-26
+
+### Added
+
+- "Connect phone" confirms the sign-in: as soon as the phone has used the QR code, the dialog
+  shows "Connected" with the device name, and the device appears in the list. The server keeps
+  the outcome of each code for a few minutes (`GET /api/auth/qr/:id`, only for the account that
+  created it); a code still works exactly once.
+
 ## [1.2.1] - 2026-09-26
 
 ### Changed
@@ -266,7 +275,8 @@ All notable changes to this project are documented here. The format follows
 - Time marks outside the clip no longer discard the whole analysis.
 - "Apply game & tags" no longer replaces the folder game name with the model's guess.
 
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...v1.1.0

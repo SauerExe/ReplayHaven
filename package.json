@@ -1,6 +1,6 @@
 {
   "name": "replayhaven",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Self-hosted game clip archive: Windows client with local AI analysis, Docker server with accounts and single sign-on, streaming-style web library.",
   "license": "MIT",
   "private": true,

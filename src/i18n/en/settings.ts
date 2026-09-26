@@ -89,6 +89,9 @@ export const settings = {
   'settings.devices.qr.valid': 'Valid for {time} more minutes.',
   'settings.devices.qr.expired': 'This code has expired.',
   'settings.devices.qr.renew': 'Show a new code',
+  'settings.devices.qr.done': 'Connected',
+  'settings.devices.qr.doneDevice': '{label} is now signed in to your account.',
+  'settings.devices.qr.doneText': 'The device is now signed in to your account.',
   'settings.devices.qr.failed': 'The QR code could not be created.',
 
   // Appearance
