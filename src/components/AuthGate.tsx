@@ -1,6 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useId, useState } from 'react';
 import type { FormEvent, InputHTMLAttributes, ReactNode } from 'react';
-import { CircleAlert, Globe, KeyRound, LoaderCircle } from 'lucide-react';
+import {
+  CircleAlert,
+  Globe,
+  KeyRound,
+  LoaderCircle,
+  MonitorSmartphone,
+  Play,
+  Server,
+  Sparkles,
+} from 'lucide-react';
 import { ApiError, api } from '../data/api';
 import { LANGUAGES, setLanguage, t, tx, useLanguage } from '../i18n';
 
@@ -140,9 +149,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 /**
- * The frame of every sign-in screen (Stripe pattern): an angled violet band across the top,
- * the brand above the card, one quiet help line and a footer with the language switch below.
+ * The frame of every sign-in screen: split in two, the product on the left (brand, promise,
+ * three features, a sample clip) and the form on the right with one quiet help line and the
+ * language switch. On phones the left side shrinks to the brand and the promise.
  */
+const POINTS = [
+  { icon: Sparkles, key: 'ai' },
+  { icon: Server, key: 'server' },
+  { icon: MonitorSmartphone, key: 'devices' },
+] as const;
+
 function AuthLayout({
   titleId,
   help,
@@ -160,9 +176,54 @@ function AuthLayout({
   const language = useLanguage();
   return (
     <main className="auth-screen">
-      <div className="auth-backdrop" aria-hidden="true" />
-      <div className="auth-shell">
+      <aside className="auth-aside">
+        <div className="auth-backdrop" aria-hidden="true" />
         <div className="auth-brand">
+          <img src="/icon-192.png" alt="" width="36" height="36" />
+          <span>
+            Replay<span className="auth-brand-light">Haven</span>
+          </span>
+        </div>
+        <div className="auth-pitch">
+          <p className="auth-eyebrow">{t('auth.aside.eyebrow')}</p>
+          <p className="auth-headline">{t('auth.aside.title')}</p>
+          <p className="auth-pitch-lead">{t('auth.aside.lead')}</p>
+          <ul className="auth-points">
+            {POINTS.map(({ icon: Icon, key }) => (
+              <li key={key}>
+                <span className="auth-point-icon" aria-hidden="true">
+                  <Icon size={18} />
+                </span>
+                <span>
+                  <strong>{t(`auth.aside.${key}.title`)}</strong>
+                  {t(`auth.aside.${key}.text`)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="auth-sample" aria-hidden="true">
+          <div className="auth-sample-thumb">
+            <span className="auth-sample-play">
+              <Play size={16} fill="currentColor" />
+            </span>
+            <span className="auth-sample-time">0:54</span>
+          </div>
+          <div className="auth-sample-body">
+            <span className="auth-sample-game">Counter-Strike 2</span>
+            <span className="auth-sample-title">Ace auf Inferno</span>
+            <span className="auth-sample-tags">
+              <span>
+                <Sparkles size={12} /> {t('auth.aside.sampleTag')}
+              </span>
+              <span>Ace</span>
+              <span>Headshot</span>
+            </span>
+          </div>
+        </div>
+      </aside>
+      <div className="auth-shell">
+        <div className="auth-brand auth-brand-mobile">
           <img src="/icon-192.png" alt="" width="32" height="32" />
           <span>
             Replay<span className="auth-brand-light">Haven</span>

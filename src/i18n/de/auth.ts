@@ -40,6 +40,19 @@ export const auth: Translation<typeof source> = {
   'auth.submit.login': 'Anmelden',
   'auth.submitting': 'Bitte warten',
   'auth.language': 'Sprache',
+  'auth.aside.eyebrow': 'Dein Clip-Archiv',
+  'auth.aside.title': 'Jedes Highlight, benannt und sicher.',
+  'auth.aside.lead':
+    'Dein PC beobachtet den Aufnahmeordner, benennt jeden Clip mit lokaler KI und gibt das Original an deinen eigenen Server.',
+  'auth.aside.ai.title': 'Benannt auf deinem PC',
+  'auth.aside.ai.text':
+    'Kills, Karte und Moment, gelesen von einem lokalen Modell. Nichts verlässt dein Zuhause.',
+  'auth.aside.server.title': 'Originale auf deinem Server',
+  'auth.aside.server.text': 'Volle Qualität, dazu eine flüssige Fassung für unterwegs.',
+  'auth.aside.devices.title': 'Auf jedem Gerät',
+  'auth.aside.devices.text':
+    'Browser, Handy oder Fernseher. Einmal anmelden, 30 Tage angemeldet bleiben.',
+  'auth.aside.sampleTag': 'KI-Titel',
   'auth.connect.codeFailed': 'Der Code ließ sich nicht einlösen.',
   'auth.connect.signingIn': 'Gerät wird angemeldet …',
   'auth.connect.failedTitle': 'Dieser Code hat nicht geklappt',

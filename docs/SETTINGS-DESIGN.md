@@ -96,12 +96,16 @@ exception and lives next to the section.
 
 ## Sign-in screens
 
-Sign in, first-account setup, single sign-on and the QR connect page follow the Stripe sign-in
-pattern, in ReplayHaven's dark theme:
+Sign in, first-account setup, single sign-on and the QR connect page share one split screen in
+ReplayHaven's dark theme:
 
-- Background: the page background with a wide, angled band of soft violet gradients across the
-  top third (static, subtle), no busy imagery. Respect reduced motion (no animation at all).
-- Brand: logo and wordmark above the card, aligned with the card's left edge, not inside it.
+- Left half (product): a deep violet surface with soft light and a faint grid, the logo and
+  wordmark at the top, then an eyebrow, a large headline, one sentence on what ReplayHaven does,
+  three features with icons (named on your PC, originals on your server, on every device) and a
+  decorative sample clip with its AI title at the bottom. Static; nothing moves.
+- Right half (form): the card centred in its column, the help line and the footer below.
+- Below 1000 px the left half becomes a header above the form (brand, headline, sentence); on
+  phones only brand and headline remain, and the card blends into the page.
 - Card: 440 px wide, 40–48 px padding, radius 16, one surface, soft shadow. Title 24/32 600
   ("Sign in to your account", "Create your admin account"), no eyebrow chips.
 - Fields: label above (14/500), 44 px tall inputs, a helper link aligned right on the label line

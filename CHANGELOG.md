@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-09-26
+
+### Changed
+
+- The sign-in screens are split in two: ReplayHaven on the left (headline, what it does, three
+  features and a sample clip), the form on the right. On narrow screens the left side becomes a
+  compact header.
+
 ## [1.2.0] - 2026-09-25
 
 ### Changed
@@ -258,7 +266,8 @@ All notable changes to this project are documented here. The format follows
 - Time marks outside the clip no longer discard the whole analysis.
 - "Apply game & tags" no longer replaces the folder game name with the model's guess.
 
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/SauerExe/ReplayHaven/releases/tag/v1.0.0
