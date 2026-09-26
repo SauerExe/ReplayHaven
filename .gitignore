@@ -1,0 +1,37 @@
+# Dependencies and build output
+node_modules/
+dist/
+desktop-bundle/
+server-bundle/
+release/
+release-*/
+*.tsbuildinfo
+.vite/
+
+# Test and review output
+test-results/
+playwright-report/
+artifacts/
+
+# Demo artwork, fetched locally with `npm run media:refresh` (publisher rights, not covered by LICENSE)
+public/media/
+
+# Runtime data (server archive, client state)
+vault-data/
+agent-state/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+.server.env
+# Local Compose overrides (ports, volumes) stay on the machine
+compose.override.yaml
+compose.override.yml
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

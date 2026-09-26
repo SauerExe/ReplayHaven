@@ -1,0 +1,19 @@
+# Keep line endings stable across Windows, macOS and Linux.
+# Everything text-like is stored and checked out with LF, which is what
+# Prettier expects and what the shell scripts and Dockerfile need to run on Linux.
+* text=auto eol=lf
+
+# Files that must never be converted.
+*.webp binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.exe binary
+*.gz binary
+*.mp4 binary
+*.woff binary
+*.woff2 binary
+
+# Keep generated and vendored files out of diffs and language statistics.
+package-lock.json linguist-generated=true -diff
+public/media/** linguist-vendored=true

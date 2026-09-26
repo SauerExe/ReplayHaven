@@ -1,0 +1,683 @@
+import { spawn } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { chromium } from '@playwright/test';
+import ffmpeg from 'ffmpeg-static';
+import sharp from 'sharp';
+
+/**
+ * Generates the README images in docs/images: the web library and settings with sample data and
+ * a mocked server (an admin signed in, interface in English), the Windows client with a clip in
+ * work, and from docs/images/src the banner, social preview and architecture graphic. Needs the
+ * demo artwork in public/media (npm run media:refresh). After UI changes, just run it again:
+ * npm run readme:images
+ */
+
+const root = resolve(import.meta.dirname, '..');
+const out = join(root, 'docs', 'images');
+const port = 5199;
+const base = `http://localhost:${port}`;
+const now = Date.now();
+const HOUR = 3600000;
+
+function run(command, args) {
+  return new Promise((done, fail) => {
+    const child = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let log = '';
+    child.stderr.on('data', (text) => (log += text));
+    child.on('error', fail);
+    child.on('close', (code) =>
+      code === 0 ? done() : fail(new Error(`${command} exited with ${code}: ${log}`)),
+    );
+  });
+}
+
+/** Vite serves the app, the preview and the templates under docs/images/src. */
+async function startVite() {
+  const vite = spawn(
+    process.execPath,
+    [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), '--port', String(port), '--strictPort'],
+    { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  for (let i = 0; i < 120; i++) {
+    if (
+      await fetch(base).then(
+        (r) => r.ok,
+        () => false,
+      )
+    )
+      return vite;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  vite.kill();
+  throw new Error(`Vite is not responding on ${base}.`);
+}
+
+/** A still image as VP9 video: screenshots need a loadable video, not motion. */
+async function demoVideo(folder) {
+  const file = join(folder, 'demo.webm');
+  await run(ffmpeg, [
+    '-v',
+    'error',
+    '-y',
+    '-loop',
+    '1',
+    '-i',
+    join(root, 'public', 'media', 'cs2-4.webp'),
+    '-t',
+    '54',
+    '-r',
+    '6',
+    '-vf',
+    'scale=1280:720,format=yuv420p',
+    '-c:v',
+    'libvpx-vp9',
+    '-deadline',
+    'realtime',
+    '-cpu-used',
+    '8',
+    '-b:v',
+    '0',
+    '-crf',
+    '45',
+    file,
+  ]);
+  return file;
+}
+
+const iso = (hoursAgo) => new Date(now - hoursAgo * HOUR).toISOString();
+
+/**
+ * Sample clips as the server serves them after upload and analysis by the client. Titles, tags
+ * and descriptions are German product content.
+ */
+function demoClips() {
+  const clip = (id, gameName, image, title, hoursAgo, duration, extra = {}) => {
+    const tags = extra.tags ?? [];
+    const description = extra.description ?? '';
+    return {
+      id,
+      title,
+      gameId: 'recording',
+      gameName,
+      thumbnail: `/media/${image}.webp`,
+      videoSource: '/demo/clip.webm',
+      duration,
+      recordedAt: iso(hoursAgo),
+      size: Math.round(duration * 0.82 * 1024 * 1024),
+      resolution: '1080p',
+      tags,
+      favorite: !!extra.favorite,
+      status: 'ready',
+      note: '',
+      server: true,
+      description,
+      deviceName: 'Gaming-PC',
+      originalName: `${gameName} ${new Date(now - hoursAgo * HOUR).toISOString().slice(0, 10)}.mp4`,
+      analysis: {
+        status: 'ready',
+        provider: 'client',
+        model: 'qwen3-vl:8b',
+        input: 'frames',
+        updatedAt: iso(hoursAgo - 0.02),
+        result: {
+          title,
+          description: description || `${title}.`,
+          game: gameName,
+          tags,
+          confidence: extra.confidence ?? 'high',
+          uncertainty: '',
+          highlights: extra.highlights ?? [],
+        },
+      },
+    };
+  };
+  return [
+    clip('ace-inferno', 'Counter-Strike 2', 'cs2-4', 'Ace auf Inferno', 1.5, 54, {
+      tags: ['Ace', 'Multikill', 'Headshot', 'Rundensieg'],
+      favorite: true,
+      description:
+        'Fünf Gegner in einer Runde, der letzte hinter den Fässern in der Gasse. Die Runde endet mit dem Rundensieg.',
+      highlights: [
+        { seconds: 12, title: 'Erster Kill', description: 'Am Eingang der Gasse.' },
+        { seconds: 21, title: 'Doppel-Kill', description: 'Zwei Gegner kurz hintereinander.' },
+        { seconds: 38, title: 'Triple Kill', description: 'Hinter den Fässern.' },
+        { seconds: 47, title: 'Ace', description: 'Der fünfte Gegner der Runde.' },
+        { seconds: 51, title: 'Rundensieg', description: 'Die Runde ist gewonnen.' },
+      ],
+    }),
+    clip('apex-final', 'Apex Legends', 'apex-2', 'Champion mit dem letzten Schuss', 3, 51, {
+      tags: ['Sieg', 'Clutch', 'Teamplay'],
+      description:
+        'Der letzte Trupp fällt am Kraterrand, danach erscheint der Champion-Bildschirm.',
+    }),
+    clip('elden-boss', 'ELDEN RING', 'elden-1', 'Dieser Boss hatte andere Pläne', 5, 66, {
+      tags: ['Bosskampf'],
+      favorite: true,
+      description: 'Ein langer Bosskampf mit knappem Ende.',
+    }),
+    clip('mirage-triple', 'Counter-Strike 2', 'cs2-2', 'Triple Kill auf Mirage', 7, 47, {
+      tags: ['Multikill', 'Rundensieg', 'Mirage'],
+    }),
+    clip('forza-drift', 'Forza Horizon 5', 'forza-2', 'Der sauberste Drift bisher', 26, 31, {
+      tags: ['Drift'],
+      favorite: true,
+    }),
+    clip('night-city', 'Cyberpunk 2077', 'cyberpunk-1', 'Nachts gehört uns die Stadt', 28, 58, {
+      tags: ['Open World'],
+    }),
+    clip('apex-third', 'Apex Legends', 'apex-4', 'Dritter Trupp, keine Chance', 30, 43, {
+      tags: ['Teamplay'],
+    }),
+    clip('clutch-inferno', 'Counter-Strike 2', 'cs2-1', 'Clutch 1 gegen 3 auf Inferno', 50, 58, {
+      tags: ['Clutch', 'Rundensieg', 'Inferno'],
+      favorite: true,
+    }),
+    clip('elden-view', 'ELDEN RING', 'elden-3', 'Die Aussicht war es wert', 74, 31, {
+      tags: ['Atmosphäre'],
+    }),
+    clip('forza-rain', 'Forza Horizon 5', 'forza-4', 'Nur noch diese eine Kurve', 98, 36, {
+      tags: ['Lustig', 'Crash'],
+    }),
+    clip('night-drive', 'Cyberpunk 2077', 'cyberpunk-3', 'Plan B: einfach weiterfahren', 120, 64, {
+      tags: ['Fail', 'Lustig'],
+    }),
+    clip('headshot-dust', 'Counter-Strike 2', 'cs2-3', 'Doppel-Kill per Headshot', 140, 23, {
+      tags: ['Multikill', 'Headshot'],
+    }),
+  ];
+}
+
+const games = [
+  'Counter-Strike 2',
+  'Apex Legends',
+  'ELDEN RING',
+  'Forza Horizon 5',
+  'Cyberpunk 2077',
+];
+const covers = {
+  'Counter-Strike 2': 'cs2',
+  'Apex Legends': 'apex',
+  'ELDEN RING': 'elden',
+  'Forza Horizon 5': 'forza',
+  'Cyberpunk 2077': 'cyberpunk',
+};
+/**
+ * What the server looks up on Steam (in German, like server/metadata.ts); the descriptions are
+ * our own short texts.
+ */
+const details = {
+  'Counter-Strike 2': {
+    genre: 'Action, Free to Play',
+    released: '21. Aug. 2012',
+    description: 'Taktischer Team-Shooter: zwei Teams, eine Bombe, Runde für Runde.',
+    source: 'https://store.steampowered.com/app/730/',
+  },
+  'Apex Legends': {
+    genre: 'Action, Free to Play',
+    released: '4. Nov. 2020',
+    description: 'Hero-Shooter im Battle-Royale-Format, in dem Trupps aus drei Legenden kämpfen.',
+    source: 'https://store.steampowered.com/app/1172470/',
+  },
+  'ELDEN RING': {
+    genre: 'Action, Rollenspiel',
+    released: '25. Feb. 2022',
+    description: 'Action-Rollenspiel in einer offenen Welt voller Ruinen und harter Bosse.',
+    source: 'https://store.steampowered.com/app/1245620/',
+  },
+  'Forza Horizon 5': {
+    genre: 'Rennspiel',
+    released: '9. Nov. 2021',
+    description: 'Open-World-Rennspiel quer durch Mexiko.',
+    source: 'https://store.steampowered.com/app/1551360/',
+  },
+  'Cyberpunk 2077': {
+    genre: 'Rollenspiel',
+    released: '10. Dez. 2020',
+    description: 'Rollenspiel in der Megastadt Night City.',
+    source: 'https://store.steampowered.com/app/1091500/',
+  },
+};
+
+/** What the web app stores locally: collections, progress and display name. */
+const vault = {
+  version: 1,
+  clips: [],
+  collections: [
+    {
+      id: 'clutches',
+      title: 'Best Clutches',
+      description: "It ain't over till it's over.",
+      clipIds: ['clutch-inferno', 'ace-inferno', 'apex-final'],
+      updatedAt: iso(2),
+    },
+    {
+      id: 'friends',
+      title: 'With Friends',
+      description: 'Good company, questionable decisions.',
+      clipIds: ['apex-third', 'mirage-triple', 'forza-drift'],
+      updatedAt: iso(20),
+    },
+    {
+      id: 'montage',
+      title: 'Montage Material',
+      description: 'For the next video.',
+      clipIds: ['forza-drift', 'night-city', 'headshot-dust'],
+      updatedAt: iso(40),
+    },
+    {
+      id: 'bosses',
+      title: 'Boss Fights',
+      description: 'One more try.',
+      clipIds: ['elden-boss', 'elden-view'],
+      updatedAt: iso(80),
+    },
+  ],
+  progress: {
+    'elden-boss': { seconds: 25, duration: 66, updatedAt: iso(1) },
+    'night-city': { seconds: 41, duration: 58, updatedAt: iso(3) },
+    'forza-drift': { seconds: 9, duration: 31, updatedAt: iso(6) },
+  },
+  preferences: { name: 'Player', speed: 1, reducedMotion: false, compact: false },
+};
+
+/** The admin's devices: this browser, a phone signed in by QR code and the paired gaming PC. */
+const sessions = [
+  { id: 's-browser', kind: 'browser', label: 'Chrome on Windows', current: true, since: 400 },
+  { id: 's-phone', kind: 'browser', label: 'Safari on iPhone', current: false, since: 200 },
+  { id: 's-pc', kind: 'client', label: 'Gaming-PC', current: false, since: 900 },
+].map(({ since, ...session }) => ({ ...session, createdAt: iso(since), lastSeen: iso(0.1) }));
+
+/**
+ * Mocks the server: an admin signed in, status with a connected gaming PC, a second PC waiting
+ * for approval, clips, game info and the video.
+ */
+async function mockServer(context, video) {
+  const clips = demoClips();
+  await context.route(`${base}/api/**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/auth/state')
+      return route.fulfill({
+        json: {
+          accounts: true,
+          setupRequired: false,
+          setupNeedsKey: false,
+          loggedIn: true,
+          kind: 'browser',
+          role: 'admin',
+          user: {
+            id: 'admin',
+            name: 'Player',
+            role: 'admin',
+            hasPassword: true,
+            oidcLinked: false,
+          },
+          passwordLogin: true,
+          oidc: { enabled: true, name: 'Authelia' },
+        },
+      });
+    if (path === '/api/auth/sessions') return route.fulfill({ json: sessions });
+    if (path === '/api/pair/pending')
+      return route.fulfill({
+        json: [
+          {
+            id: 'pair-1',
+            code: '482913',
+            name: 'Living-Room-PC',
+            createdAt: iso(0.02),
+            expiresAt: iso(-0.15),
+          },
+        ],
+      });
+    if (path === '/api/status')
+      return route.fulfill({
+        json: {
+          connected: true,
+          version: '1.0.0',
+          authRequired: true,
+          playback: { mode: 'auto', pending: 0, done: clips.length },
+          provider: 'none',
+          configured: false,
+          model: '',
+          settings: { autoAnalyze: true, autoTitle: true, includeAudio: false },
+          queue: 0,
+          clientDownloadAvailable: true,
+          devices: [
+            {
+              id: 'pc',
+              name: 'Gaming-PC',
+              folder: 'D:\\Clips',
+              lastSeen: new Date().toISOString(),
+              error: '',
+              uploaded: 214,
+              analysisLocation: 'client',
+              paused: false,
+            },
+          ],
+        },
+      });
+    if (path === '/api/clips' && route.request().method() === 'GET')
+      return route.fulfill({ json: clips });
+    if (path === '/api/games')
+      return route.fulfill({
+        json: games.map((name) => ({
+          key: name.toLowerCase(),
+          label: name,
+          name,
+          ...details[name],
+          cover: `/media/${covers[name]}-cover.webp`,
+        })),
+      });
+    return route.fulfill({ status: 404, json: { error: 'Not part of the demo.' } });
+  });
+  // With byte ranges, otherwise Chromium cannot seek in the video.
+  const bytes = await readFile(video);
+  await context.route(`${base}/demo/clip.webm`, (route) => {
+    const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers().range ?? '');
+    const start = range ? Number(range[1]) : 0;
+    const end = range?.[2] ? Number(range[2]) : bytes.length - 1;
+    return route.fulfill({
+      status: range ? 206 : 200,
+      body: bytes.subarray(start, end + 1),
+      contentType: 'video/webm',
+      headers: {
+        'accept-ranges': 'bytes',
+        ...(range ? { 'content-range': `bytes ${start}-${end}/${bytes.length}` } : {}),
+      },
+    });
+  });
+  await context.addInitScript((state) => {
+    localStorage.setItem('replayhaven.v1', JSON.stringify(state));
+    localStorage.setItem('replayhaven.language', 'en');
+  }, vault);
+}
+
+/**
+ * Screenshot as JPEG (game footage compresses to a fraction that way) or PNG. `palette` quantises
+ * a PNG to 256 colours: a third of the size for the dark client window, without visible banding.
+ */
+async function save(page, name, { palette = false, ...options } = {}) {
+  const buffer = await page.screenshot(options);
+  const target = join(out, name);
+  if (name.endsWith('.png'))
+    await sharp(buffer)
+      .png({ compressionLevel: 9, ...(palette && { palette, quality: 95, effort: 10 }) })
+      .toFile(target);
+  else await sharp(buffer).jpeg({ quality: 84, mozjpeg: true }).toFile(target);
+  console.log(`  ${name}`);
+}
+
+/** Waits for fonts and visible images; images below the fold never load due to lazy loading. */
+const settle = (page) =>
+  page.evaluate(async () => {
+    await document.fonts.ready;
+    const visible = [...document.images].filter((image) => {
+      const box = image.getBoundingClientRect();
+      return !image.complete && box.bottom > 0 && box.top < innerHeight;
+    });
+    const loaded = Promise.all(
+      visible.map((image) => new Promise((done) => (image.onload = image.onerror = done))),
+    );
+    await Promise.race([loaded, new Promise((done) => setTimeout(done, 5000))]);
+  });
+
+async function appShots(browser, video) {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1,
+  });
+  await mockServer(context, video);
+  const page = await context.newPage();
+  await page.goto(`${base}/`);
+  await page.getByRole('heading', { name: 'Ace auf Inferno', level: 1 }).waitFor();
+  await page.waitForTimeout(600);
+  await settle(page);
+  await save(page, 'app-home.jpg');
+
+  // Details and player on the home page hang off ?clip= and ?play=. Opened by a click, the
+  // dialog shows no keyboard focus ring.
+  await page.getByRole('button', { name: 'Details', exact: true }).first().click();
+  await page.getByRole('dialog').waitFor();
+  await page.waitForTimeout(500);
+  await settle(page);
+  await save(page, 'app-detail.jpg');
+
+  await page.goto(`${base}/?play=ace-inferno`);
+  await page.waitForFunction(
+    () => (document.querySelector('.stream-player video')?.readyState ?? 0) >= 2,
+  );
+  // While paused the controls stay visible; skipping ahead twice shows some progress.
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Forward 10 seconds' }).click();
+  await page.getByRole('button', { name: 'Forward 10 seconds' }).click();
+  await page.mouse.move(720, 400);
+  await page.waitForTimeout(500);
+  await save(page, 'app-player.jpg');
+
+  await page.goto(`${base}/library`);
+  await page.getByText('Triple Kill auf Mirage').first().waitFor();
+  // The mouse was last in the middle of the page and would otherwise highlight a cover.
+  await page.mouse.move(1420, 140);
+  await settle(page);
+  await save(page, 'app-library.jpg');
+
+  // A game selected: the game bar at the top, below it the game info and the first clips.
+  await page.goto(`${base}/library?game=${encodeURIComponent('name:Counter-Strike 2')}`);
+  await page.locator('.stream-spotlight').waitFor();
+  await page
+    .locator('.stream-shelf')
+    .evaluate((shelf) => scrollTo(0, shelf.getBoundingClientRect().top + scrollY - 110));
+  await page.waitForTimeout(300);
+  await settle(page);
+  await save(page, 'app-game.jpg');
+
+  // An automatic collection: created from the clips' tags alone (the slug stays German).
+  await page.goto(`${base}/collections/auto/mehrfach-kills`);
+  await page.getByRole('heading', { name: 'Multi-kills', level: 1 }).waitFor();
+  await page.waitForTimeout(300);
+  await settle(page);
+  await save(page, 'app-smart.jpg');
+
+  // Settings → Recording PCs: a second PC asks to join and shows its pairing code.
+  await page.goto(`${base}/settings/pcs`);
+  await page.getByText('482 913').waitFor();
+  await page.mouse.move(1420, 880);
+  await page.waitForTimeout(300);
+  await settle(page);
+  await save(page, 'app-settings.jpg');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${base}/`);
+  await page.getByRole('heading', { name: 'Ace auf Inferno', level: 1 }).waitFor();
+  await page.waitForTimeout(600);
+  await settle(page);
+  await save(page, 'app-mobile.jpg');
+  await context.close();
+}
+
+/**
+ * The Windows client's Overview with a clip in work, like `REPLAYHAVEN_PREVIEW=1` (startPreview()
+ * in desktop/main.ts), but with the sample clips of the web library. The bridge to the main
+ * process is mocked.
+ */
+async function clientShot(browser) {
+  const thumbnail = await sharp(join(root, 'public', 'media', 'cs2-2.webp'))
+    .resize({ width: 480 })
+    .jpeg({ quality: 80 })
+    .toBuffer();
+  // The window's default width; tall enough for the queue and the recently archived clips.
+  const page = await browser.newPage({ viewport: { width: 1040, height: 950 } });
+  await page.addInitScript(
+    ({ now, thumbnail }) => {
+      const MINUTE = 60000;
+      const two = (n) => String(n).padStart(2, '0');
+      // File names as the NVIDIA App writes them, e.g. "Apex Legends 2026.09.25 - 21.14.02.03.DVR.mp4".
+      const file = (game, minutes) => {
+        const at = new Date(now - minutes * MINUTE);
+        const date = `${at.getFullYear()}.${two(at.getMonth() + 1)}.${two(at.getDate())}`;
+        const time = `${two(at.getHours())}.${two(at.getMinutes())}.${two(at.getSeconds())}.02`;
+        return `${game} ${date} - ${time}.DVR.mp4`;
+      };
+      const clip = (game, minutes, extra = {}) => ({
+        path: `D:/Clips/${game}/${file(game, minutes)}`,
+        name: file(game, minutes),
+        game,
+        size: 180e6 + minutes * 9e6,
+        savedAt: now - minutes * MINUTE,
+        state: 'waiting',
+        ...extra,
+      });
+      const archived = (game, title, tags, minutes, seconds) => ({
+        name: file(game, minutes + 2),
+        game,
+        title,
+        tags,
+        clipId: title,
+        at: now - minutes * MINUTE,
+        seconds,
+      });
+      const config = {
+        folder: 'D:\\Clips',
+        server: 'https://clips.example.com',
+        token: '',
+        hasToken: true,
+        game: '',
+        playerNames: [{ name: 'PlayerOne', game: '' }],
+        includeExisting: false,
+        analyze: true,
+        frames: 24,
+        fortniteReplays: false,
+        epicAccounts: [],
+        r6Texts: false,
+        speech: false,
+        pauseWhileGaming: true,
+        keepR6Replays: true,
+        onboarded: true,
+        autoStart: true,
+        openAtLogin: true,
+        notify: true,
+        language: 'en',
+      };
+      const status = {
+        running: true,
+        paused: false,
+        message: 'Local AI is reviewing section 7 of 11 …',
+        queued: 4,
+        uploaded: 214,
+        ollama: true,
+        model: true,
+        downloading: false,
+        gaming: '',
+        pairing: null,
+        queue: [
+          clip('Apex Legends', 6),
+          clip('Counter-Strike 2', 3),
+          clip('ELDEN RING', 1, { state: 'settling' }),
+        ],
+        active: {
+          ...clip('Counter-Strike 2', 14),
+          stage: 'analyzing',
+          since: now - 38000,
+          step: 'view',
+          current: 7,
+          total: 11,
+          thumbnail,
+        },
+        recent: [
+          archived('Counter-Strike 2', 'Ace auf Inferno', ['Ace', 'Multikill'], 21, 71),
+          archived('Apex Legends', 'Champion mit dem letzten Schuss', ['Sieg', 'Clutch'], 48, 80),
+          archived('ELDEN RING', 'Dieser Boss hatte andere Pläne', ['Bosskampf'], 95, 96),
+          archived('Counter-Strike 2', 'Triple Kill auf Mirage', ['Multikill'], 130, 74),
+        ],
+      };
+      window.vault = {
+        call: async (action) =>
+          action === 'load'
+            ? { ok: true, value: { config, status } }
+            : action === 'games'
+              ? { ok: true, value: ['Counter-Strike 2', 'Apex Legends', 'ELDEN RING'] }
+              : { ok: true, value: null },
+        onStatus: () => () => {},
+      };
+    },
+    { now, thumbnail: `data:image/jpeg;base64,${thumbnail.toString('base64')}` },
+  );
+  // Vite serves the renderer; icon and fonts only land next to it in the client build
+  // (scripts/build-client.mjs), so they are handed out from their sources here.
+  const renderer = `${base}/desktop/renderer`;
+  const icon = await sharp(join(root, 'desktop', 'icon-source.png'))
+    .resize(256, 256)
+    .toBuffer();
+  await page.route(`${renderer}/icon.png`, (route) =>
+    route.fulfill({ body: icon, contentType: 'image/png' }),
+  );
+  const fonts = {
+    'inter-latin-wght-normal.woff2': join(
+      root,
+      'node_modules',
+      '@fontsource-variable',
+      'inter',
+      'files',
+      'inter-latin-wght-normal.woff2',
+    ),
+    'archivo-latin-wdth-normal.woff2': join(
+      root,
+      'src',
+      'streaming',
+      'fonts',
+      'archivo-latin-wdth-normal.woff2',
+    ),
+  };
+  await page.route(`${renderer}/fonts/*`, (route) =>
+    route.fulfill({
+      path: fonts[new URL(route.request().url()).pathname.split('/').pop()],
+      contentType: 'font/woff2',
+    }),
+  );
+  await page.goto(`${renderer}/index.html`);
+  await page.locator('#hero-title').getByText('Working on your clip').waitFor();
+  await page.locator('#now-thumb').waitFor();
+  await settle(page);
+  await save(page, 'client.png', { fullPage: true, palette: true });
+  await page.close();
+}
+
+async function graphics(browser) {
+  const page = await browser.newPage({
+    viewport: { width: 1600, height: 620 },
+    deviceScaleFactor: 1,
+  });
+  await page.goto(`${base}/docs/images/src/banner.html`);
+  await settle(page);
+  await save(page, 'banner.jpg');
+
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await page.goto(`${base}/docs/images/src/social.html`);
+  await settle(page);
+  await save(page, 'social-preview.jpg');
+
+  await page.setViewportSize({ width: 1600, height: 760 });
+  for (const theme of ['dark', 'light']) {
+    await page.goto(`${base}/docs/images/src/architecture.html?theme=${theme}`);
+    await settle(page);
+    await save(page, `architecture-${theme}.png`);
+  }
+  await page.close();
+}
+
+await mkdir(out, { recursive: true });
+const work = await mkdtemp(join(tmpdir(), 'replayhaven-readme-'));
+const vite = await startVite();
+const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+try {
+  console.log(`Images to ${out}:`);
+  const video = await demoVideo(work);
+  await appShots(browser, video);
+  await clientShot(browser);
+  await graphics(browser);
+} finally {
+  await browser.close();
+  vite.kill();
+  await rm(work, { recursive: true, force: true });
+}

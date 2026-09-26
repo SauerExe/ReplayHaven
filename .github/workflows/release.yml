@@ -1,0 +1,147 @@
+name: Release
+
+# Tag a commit as vX.Y.Z and push the tag. This builds the Windows installer,
+# publishes the multi-arch server image to GHCR and creates the GitHub release.
+# "Run workflow" starts a dry run: it builds the same things but publishes nothing.
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  # Only a version tag publishes the image and the release.
+  PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') }}
+
+jobs:
+  client:
+    name: Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Version from tag
+        if: env.PUBLISH == 'true'
+        shell: bash
+        run: echo "REPLAYHAVEN_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      # The release job does the upload; electron-builder must never publish on its own.
+      - run: npm run client:build -- --publish never
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-client
+          path: release/ReplayHaven-Client-Setup.exe
+          if-no-files-found: error
+
+  image:
+    name: Server image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        if: env.PUBLISH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image name and tags
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            REPLAYHAVEN_VERSION=${{ github.ref_name }}
+            REPLAYHAVEN_CLIENT_DOWNLOAD_URL=https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ReplayHaven-Client-Setup.exe
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    name: GitHub release
+    needs: [client, image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-client
+          path: assets
+      - name: Prepare release assets
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          # The dry run takes the version from package.json and pretends its tag exists.
+          if [ "$PUBLISH" = true ]; then TAG="${GITHUB_REF_NAME}"; else TAG="v$(node -p "require('./package.json').version")"; fi
+          VERSION="${TAG#v}"
+          # Ready-to-run compose file, pinned to this release's image, plus the env template.
+          sed -E "s#^( *image: ).*#\1${IMAGE}:${VERSION}#" compose.yaml > assets/compose.yaml
+          grep -q "^ *image: ${IMAGE}:${VERSION}$" assets/compose.yaml
+          cp .env.example assets/env.example
+          cp setup-server.sh assets/setup-server.sh
+          (cd assets && sha256sum ReplayHaven-Client-Setup.exe compose.yaml env.example setup-server.sh > SHA256SUMS.txt)
+          # This version's section from CHANGELOG.md goes at the top of the release notes.
+          awk -v version="${VERSION}" '
+            index($0, "## [" version "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > assets/CHANGES.md
+          {
+            if [ -s assets/CHANGES.md ]; then
+              echo "## What's new"
+              cat assets/CHANGES.md
+              echo
+            fi
+            echo "## Self-host the server"
+            echo
+            echo '```bash'
+            echo "mkdir -p replayhaven && cd replayhaven"
+            echo "curl -fsSLO https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/compose.yaml"
+            echo "curl -fsSL  https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/env.example -o .env"
+            echo "# edit .env: REPLAYHAVEN_ACCESS_TOKEN (openssl rand -hex 24) and REPLAYHAVEN_PUBLIC_ORIGIN"
+            echo "docker compose up -d"
+            echo '```'
+            echo
+            echo "Image: \`${IMAGE}:${VERSION}\` (linux/amd64, linux/arm64)."
+            echo
+            echo "## Windows client"
+            echo
+            echo "Install \`ReplayHaven-Client-Setup.exe\` on the gaming PC, or download it later from the server's Devices page."
+            echo "The installer is not code-signed yet, so Windows SmartScreen asks for confirmation."
+          } > assets/NOTES.md
+      - uses: softprops/action-gh-release@v3
+        if: env.PUBLISH == 'true'
+        with:
+          body_path: assets/NOTES.md
+          generate_release_notes: true
+          files: |
+            assets/ReplayHaven-Client-Setup.exe
+            assets/compose.yaml
+            assets/env.example
+            assets/setup-server.sh
+            assets/SHA256SUMS.txt
+      - name: Keep the probe's release assets
+        if: env.PUBLISH != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-probe
+          path: assets
+          retention-days: 7

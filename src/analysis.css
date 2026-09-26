@@ -1,0 +1,241 @@
+.analysis-panel {
+  margin: 10px 0 36px;
+  background: linear-gradient(125deg, #1c1b2a, #161a24);
+  border: 1px solid #3b334a;
+  border-radius: 13px;
+  padding: 28px;
+}
+.analysis-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 23px;
+}
+.analysis-symbol {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #a78bfa13;
+  border-radius: 11px;
+  color: #bea4ef;
+}
+.analysis-heading h2 {
+  font-size: 19px;
+  letter-spacing: -0.6px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.analysis-heading .eyebrow {
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: #b39dcf;
+}
+.analysis-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 10px;
+  color: #b4a5cc;
+  border: 1px solid #453b55;
+  padding: 6px 9px;
+  border-radius: 5px;
+}
+.analysis-status.working {
+  color: #d0bcf7;
+}
+.analysis-suggestion {
+  background: #11151e80;
+  padding: 17px 18px;
+  border: 1px solid #343344;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 19px;
+}
+.analysis-suggestion > span {
+  width: 100%;
+  font-size: 10px;
+}
+.analysis-suggestion h3 {
+  font-size: 18px;
+  letter-spacing: -0.5px;
+  font-weight: 550;
+  flex: 1;
+}
+.analysis-suggestion .text-button {
+  color: #c2a8ef;
+  font-size: 11px;
+}
+.analysis-description > p,
+.analysis-explanation {
+  font-size: 13px;
+  line-height: 1.9;
+  color: #c4c8d5;
+  max-width: 890px;
+}
+.analysis-description .text-button {
+  font-size: 10px;
+  margin-top: 5px;
+}
+.analysis-tags {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 19px;
+}
+.analysis-tags > .text-button {
+  font-size: 10px;
+  margin-left: 6px;
+}
+.analysis-moments {
+  margin-top: 24px;
+  border-top: 1px solid #ffffff0b;
+  padding-top: 20px;
+}
+.analysis-moments > h3 {
+  font-size: 13px;
+  font-weight: 550;
+  margin-bottom: 12px;
+}
+.moment {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 13px 12px;
+  border-radius: 8px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+}
+.moment:hover {
+  background: #a78bfa08;
+  border-color: #a78bfa24;
+}
+.moment-time {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #bfa5ef;
+  padding: 4px 7px;
+  background: #a78bfa0e;
+  border-radius: 5px;
+}
+.moment strong {
+  font-size: 12px;
+  font-weight: 550;
+  display: block;
+}
+.moment small {
+  display: block;
+  font-size: 11px;
+  color: #9ca5b8;
+  line-height: 1.6;
+  margin-top: 5px;
+}
+.analysis-footnote {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #9693a9;
+  margin-top: 22px;
+}
+.analysis-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid #ffffff0b;
+  padding-top: 18px;
+  margin-top: 19px;
+  flex-wrap: wrap;
+}
+.analysis-actions > span {
+  font-size: 10px;
+  color: #a59aae;
+}
+.analysis-actions .button {
+  font-size: 11px;
+  min-height: 36px;
+}
+.upload-mode {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  color: #bac1d0;
+  margin-bottom: 18px;
+}
+.upload-mode input {
+  width: 16px;
+  height: 16px;
+  accent-color: #a78bfa;
+}
+.analysis-panel .text-button:disabled {
+  opacity: 0.5;
+}
+@media (max-width: 600px) {
+  .analysis-panel {
+    padding: 19px 16px;
+  }
+  .analysis-heading {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .analysis-heading h2 {
+    font-size: 16px;
+    line-height: 1.4;
+  }
+  .analysis-symbol {
+    width: 34px;
+    height: 34px;
+  }
+  .analysis-status {
+    font-size: 9px;
+    margin-left: 44px;
+  }
+  .analysis-suggestion {
+    padding: 15px 13px;
+    gap: 10px;
+  }
+  .analysis-suggestion h3 {
+    font-size: 16px;
+    flex-basis: 100%;
+  }
+  .analysis-description > p,
+  .analysis-explanation {
+    font-size: 12px;
+  }
+  .analysis-tags {
+    gap: 6px;
+  }
+  .analysis-tags > .text-button {
+    font-size: 9px;
+    margin-left: 0;
+  }
+  .moment {
+    gap: 10px;
+    padding: 11px 0;
+  }
+  .moment-time {
+    font-size: 10px;
+  }
+  .moment strong {
+    font-size: 11px;
+  }
+  .moment small {
+    font-size: 10px;
+  }
+  .analysis-footnote {
+    font-size: 9px;
+  }
+  .analysis-actions {
+    gap: 12px;
+  }
+}
