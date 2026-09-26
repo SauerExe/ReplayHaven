@@ -44,7 +44,7 @@ Prettier and ESLint are configured; `npm run format` and `npm run lint` are the 
 
 ## Releases
 
-Maintainers release by tagging: `git tag v1.2.0 && git push origin v1.2.0`. The release workflow builds the installer, pushes the server image to GHCR and publishes the GitHub release. Update `CHANGELOG.md` in the same commit as the version bump in `package.json`.
+Maintainers release by tagging: `git tag v1.0.1 && git push origin v1.0.1`. The release workflow builds the installer, pushes the server image to GHCR and publishes the GitHub release. Update `CHANGELOG.md` in the same commit as the version bump in `package.json`.
 
 ## License of contributions
 

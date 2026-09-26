@@ -6,285 +6,64 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-### Changed
+## [1.0.0] - 2026-09-26
 
-- ReplayHaven is now licensed under the PolyForm Noncommercial License 1.0.0 instead of MIT:
-  free for personal, hobby and other non-commercial use, including changes and sharing, but not
-  for selling it or commercial use. Releases up to and including 1.2.2 remain available under the
-  MIT License.
+The first public release.
 
-## [1.2.2] - 2026-09-26
+### Windows client
 
-### Added
+- Watches your recording folder (NVIDIA App or any other recorder), waits until a clip is fully
+  written, analyses it locally and uploads the original with its title, description, tags and
+  time marks. Retries after connection loss and never uploads a recording twice, even after
+  the server address changes.
+- Local AI with Ollama and Qwen3.5 9B: frames from the end of the clip or spread over the whole
+  clip, on-screen messages read verbatim and turned into kills, deaths, round and match results
+  by fixed rules. Titles are checked against these events, name the count and the map ("Triple
+  Kill auf Mirage") and get one correction round before a plain event title is used.
+- Game extras: Fortnite match replays for exact kills, knocks, weapon and distance; Rainbow Six
+  map and round results and Valorant kills and headshots from text recognition (PaddleOCR
+  PP-OCRv5 on the CPU); R6 match replays kept with the clips; voice chat transcribed with
+  Parakeet so fun clips get a title about the topic.
+- Your in-game names per game, so the kill feed can be read from your side.
+- Overview with the clip in work, the queue with an estimated finish and the recently archived
+  clips; a setup assistant for server, folder, local AI, names and extras; settings in sections.
+- Pause while gaming: analysis and uploads wait while a game fills the screen and resume a
+  minute later. New clips are noticed during the game and processed afterwards.
+- Tray menu, taskbar progress, notifications (never during a game), start with Windows and
+  resume on start. English and German interface.
 
-- "Connect phone" confirms the sign-in: as soon as the phone has used the QR code, the dialog
-  shows "Connected" with the device name, and the device appears in the list. The server keeps
-  the outcome of each code for a few minutes (`GET /api/auth/qr/:id`, only for the account that
-  created it); a code still works exactly once.
+### Server
 
-## [1.2.1] - 2026-09-26
+- Docker image for linux/amd64 and linux/arm64 with Compose file and `setup-server.sh`.
+- Keeps originals, metadata in SQLite, thumbnails and deduplication by content.
+- Smooth playback over the internet: clips above 12 Mbit/s, 60 fps or 1920 px get an H.264 web
+  version (at most 60 fps, about 8 Mbit/s); the original stays available for download.
+- Accounts like in Immich: an admin account created with the setup key, sign-in on every device
+  for 30 days, a QR code that signs in a phone without a password and confirms when it worked.
+- Recording PCs pair with a six-digit code that you approve in the browser.
+- Single sign-on with OpenID Connect (Authelia, Authentik, Keycloak, Pocket ID …), admin and
+  user roles, user management.
+- Runs behind a reverse proxy from anywhere (`REPLAYHAVEN_PUBLIC_ORIGIN`,
+  `REPLAYHAVEN_TRUST_PROXY`); a guide for Coolify, Traefik and Authelia in docs/SERVER.md.
+- Game info from Steam, and optionally IGDB for games Steam does not list.
 
-### Changed
+### Web library
 
-- The sign-in screens are split in two: ReplayHaven on the left (headline, what it does, three
-  features and a sample clip), the form on the right. On narrow screens the left side becomes a
-  compact header.
+- Streaming-style home page with the newest clip, rows for continue watching, new clips,
+  favourites and your games; clip details with the AI time marks; a player with highlight
+  markers, keyboard controls and a buffer bar.
+- Library with game shelf, search, filters, sorting, bulk actions, collections and automatic
+  collections (Aces, Clutches, Multi-kills, Headshots, Trickshots, Funny moments, Won matches,
+  Boss fights).
+- One settings area for account, devices, appearance, playback, server, recording PCs, users,
+  game info and storage, plus a setup guide with copyable commands.
+- Split sign-in screen with single sign-on, QR hint and language switch.
+- English and German interface; installable on a phone's home screen.
 
-## [1.2.0] - 2026-09-25
+### License
 
-### Changed
+- PolyForm Noncommercial 1.0.0: free for personal and other non-commercial use, not for sale
+  or commercial use.
 
-- One settings area for everything that is configured (docs/SETTINGS-DESIGN.md): a grouped
-  navigation (You: Account, Devices, Appearance, Playback; Archive: Server, Recording PCs,
-  Users, Game info, Storage) and one section per page, built from the same groups, rows,
-  switches, badges and list rows. `/devices` and `/users` now lead to Settings → Recording PCs
-  and Users. Users are added in a dialog, destructive actions confirm, and the Server section
-  shows status, version, activity and the smooth-playback progress. The setup guide follows
-  the same system.
-- Sign-in screens in the style of the Stripe sign-in: brand above a single card, inline errors
-  that mark the field, single sign-on above an "or" divider, a QR hint on phones and a language
-  switch.
-- The Windows client's settings are split into sections (Connection, Recordings, Player names,
-  Local AI, Recognition, Behavior, Language); switches save at once, text fields get Save and
-  Cancel. The setup assistant now points to Settings → Recording PCs for approving a PC.
-- `setup-server.sh` speaks English and ends with the account setup instead of the old access
-  key hint.
-- README, setup guide and screenshots show the English interface, the new client overview and
-  the settings area.
-
-### Fixed
-
-- Changing the server address (for example from the LAN address to a domain) made the client
-  analyse and upload every recording again, because its done list is kept per folder and
-  address. Before analysing, the client now asks the server whether it already holds a
-  recording with the same content (`GET /api/clips/lookup/:sha256`) and just ticks it off;
-  clips removed from the library stay removed. Finished analyses are kept, so a recording that
-  really is new to a server is not analysed twice.
-- Signing in at a LAN address such as `http://192.168.1.10:8787` failed with "This origin is
-  not allowed" unless that address was listed in `REPLAYHAVEN_PUBLIC_ORIGIN`. Requests from the
-  page the server itself delivered are now accepted at any address; other sites are still
-  rejected, with a message that names the variable to change.
-- When the client opens before the archive server or Ollama is up (typically right after
-  Windows starts), the automatic start now retries every 30 seconds instead of giving up. A
-  pause by hand stops the retries. The message names the unreachable server instead of
-  "fetch failed".
-
-## [1.1.0] - 2026-09-25
-
-### Added
-
-- Accounts like in Immich: the first visit creates an account (the access key from the server
-  setup is needed once, so nobody else can claim an exposed server). Every device then signs
-  in with name and password and stays signed in for 30 days, renewed on use.
-- "Connect phone" under Devices shows a QR code that signs in one more device without a
-  password; it is valid for five minutes and works once.
-- Pairing for recording PCs: the client only needs the server address, shows a six-digit
-  code, and the owner approves the matching request under Devices. The PC receives its own
-  access, stored encrypted with the Windows account. All browsers and PCs are listed under
-  Devices and can be removed one by one. The access key keeps working for older clients.
-- A redesigned Windows client: a status overview with the clip in work (preview image, steps,
-  progress, elapsed time), the queue with states and an estimated finish, and the recently
-  archived clips with their AI titles. A seven-step setup wizard guides through server,
-  recording folder, local AI, player names and recognition options. Progress shows in the
-  taskbar, the tray menu pauses or resumes, and a notification announces each archived clip
-  (never during a game). The client can resume on start and start with Windows.
-- While you play, the client keeps noticing new clips (every 30 seconds instead of every 3, so
-  disk and network stay free), marks them "After gaming" and checks meanwhile that the
-  NVIDIA App has finished writing them. One minute after the game they are processed without
-  any further wait.
-- Single sign-on with OpenID Connect (Authelia, Authentik, Keycloak, Pocket ID …) with PKCE,
-  configured by `REPLAYHAVEN_OIDC_*`. Members of `REPLAYHAVEN_OIDC_ADMIN_GROUP` become admins,
-  new users can be created on first sign-in, accounts can link or unlink single sign-on, and
-  password sign-in can be turned off.
-- Roles: admins manage the archive, users and devices; users watch. A Users page creates,
-  promotes, disables and removes accounts and resets passwords; the last admin can never be
-  removed or demoted. Controls a user may not use are hidden.
-- Running from anywhere behind a reverse proxy: several allowed origins in
-  `REPLAYHAVEN_PUBLIC_ORIGIN`, `REPLAYHAVEN_TRUST_PROXY`, and a guide for Coolify/Traefik and
-  Authelia in docs/SERVER.md.
-- Smooth playback over the internet: clips above 12 Mbit/s, 60 fps or 1920 px wide get a web
-  version (H.264, at most 60 fps, about 8 Mbit/s, fast start), created in the background for
-  existing clips, newest first. A 120 fps clip at 50 Mbit/s plays at 60 fps and about 6.5 Mbit/s.
-  The original stays available for download. `REPLAYHAVEN_PLAYBACK=original` keeps the old
-  behaviour.
-- The players show how much of the video is already loaded and a loading indicator when
-  playback stalls.
-- English and German interface in the web app and the Windows client, English by default,
-  switchable under Settings.
-- App icons for browsers and phones, and a web app manifest, so the archive can be added to a
-  phone's home screen.
-
-### Changed
-
-- The home page features the most recently recorded playable clip, also before its analysis
-  is finished; the "Recently recorded" row sorts by recording time.
-- The repository is in English: code comments, tests, messages and documentation. AI titles
-  and tags stay German for now. docs/KI-ERKENNUNG.md, MESSPLAN.md and TON-KONZEPT.md are now
-  AI-RECOGNITION.md, MEASUREMENT-PLAN.md and AUDIO-CONCEPT.md.
-
-## [1.0.0] - 2026-09-25
-
-### Added
-
-- Web library with search, filters, collections, favourites and a keyboard-friendly player.
-- Archive server: uploads, SQLite metadata, thumbnails, H.264 playback copies, content
-  deduplication, shared access key.
-- Windows client: watches a recording folder, analyses new clips locally with Ollama and
-  Qwen3-VL, uploads originals plus AI results, retries after connection loss.
-- Docker image (linux/amd64, linux/arm64), Compose setup and `setup-server.sh`.
-- GitHub Actions for CI and releases (installer, GHCR image, release assets).
-- Optional Fortnite replay events: with "Include Fortnite replays" the client reads the
-  match replays in `%LOCALAPPDATA%\FortniteGame\Saved\Demos` and takes your kills, knocks,
-  elimination and victory from them, with weapon class and distance, instead of reading them
-  from on-screen messages. Clips from a match still in progress wait until it ends (at most
-  45 minutes). `npm run fortnite` shows what the replays contribute to your clips without AI.
-- Audio tracks: probing lists every audio track, the microphone track of NVIDIA recordings
-  with "Microphone as a separate track" is found by title, level and order, and a track can be
-  extracted as 16 kHz mono WAV. `npm run audio` shows the tracks and writes them out to listen.
-- `npm run laughs`: a measurement tool that finds laughs and shouts in the microphone track with
-  YAMNet on the CPU (downloaded on first use, pinned by SHA-256) and lists them per clip with
-  time and strength, plus per-window scores for calibrating the threshold. The analysis does
-  not use it yet.
-- New web UI in streaming style (`src/streaming`). The home page shows a hero with the newest
-  analysed clip, rows for continue watching, new, favourites and your top games, game and
-  collection tiles, a clip detail dialog with the AI time stamps and a full-screen player with
-  highlight markers and keyboard controls. Details and player follow the address (`?clip=`,
-  `?play=`), so the back button closes them. `npm run dev` also shows it with sample data at
-  `/streaming-preview.html`; the production build does not include the preview.
-- Library and collections in the same style. The library opens with a shelf of your games
-  with the same covers, names and counts as "Your games"; picking a game shows its genre,
-  release date and description from Steam, with a link to its store page. Search also finds
-  the Steam name and genre. Search, filters, sorting, selection with favourite, add to
-  collection and delete stay as before, and every clip has a menu for rename, tags, share,
-  download, delete and the full clip page. Collections show their games and total length and
-  play their clips in order.
-- Automatic collections built from clip tags: Aces, Clutches, Multi-kills, Headshots,
-  Trickshots, Funny moments, Won matches and Boss fights. They use the tags the Windows client
-  sets (Ace, Clutch, Multikill, Headshot, and "Sieg" for a victory) plus your own tags in
-  common spellings; Trickshots also take No-Scopes from titles and jump marks. A collection
-  appears once two clips match, on the collections page and as a row on the home page, keeps
-  itself up to date and can be saved as a regular collection. Nothing is detected beyond the
-  tags: funny moments and boss fights only fill up when you (or Gemini) tag clips that way.
-- `npm run r6-replays`: a measurement tool for Rainbow Six match replays. It builds the
-  maintained r6-dissect fork from a pinned commit on first use (needs Go and Git), lists per
-  match and round the map, side, outcome and your kills with the round clock, series, ace and
-  clutch, and assigns clips to rounds by time. With `--clock` it reads the round clock at the top
-  of each assigned clip and converts your kills and death to clip seconds; `--csv` writes them
-  with an empty column for the second you see in the video. The JSON output holds no player
-  names or IDs. The analysis does not use it yet.
-- Optional Rainbow Six text recognition: "R6: map and round outcome via text recognition" reads
-  two frames per second with PaddleOCR PP-OCRv4 on ONNX Runtime (CPU, in parallel to the GPU
-  model) and takes the map name and round results from it. Titles may name the recognised map
-  and no other. Kills are deliberately not read. The Windows client grows by about 45 MB.
-  `npm run r6` shows map and round results per clip without AI. The recognition runs in a
-  worker thread and keeps its models across restarts, so the client window stays responsive.
-  With the option on, starting the client first loads it once and names a missing Microsoft
-  Visual C++ runtime instead of leaving every clip without a map.
-- Valorant kills, headshots and deaths from the kill feed: the text recognition reads only the
-  top-right corner twice a second and matches your in-game names; your name on the left is a
-  kill, on the right your death. These replace kills and deaths the model guessed from the
-  screen (it took the previous round's combat report for a death). Needs your Valorant names,
-  including older ones.
-- "Whole clip · one frame every 3 seconds" in the client: frames spread evenly over the whole
-  clip instead of two thirds from the end, so kill-feed lines, which stay about five seconds,
-  are all seen. Short clips still get at least 24 frames.
-- "Keep R6 replays with clips" in the client, on by default: after an R6 clip is uploaded,
-  the match it was saved in is copied from the game's MatchReplay folder (the game keeps only
-  about 30 matches, 30 MB each), so exact kills and rounds can be read from it later. The newest
-  match started before the clip wins; rounds written later are added once the game is closed.
-- Clips the NVIDIA App files under "Desktop" or "Base Profile" get the game that was in the
-  foreground in the two minutes before saving: known games by their NVIDIA folder name, others
-  by window title.
-- "Pause while gaming" in the client, on by default: while a game fills the screen
-  (fullscreen or borderless window), analysis and uploads wait, and resume one minute after the
-  game left the foreground. Browsers, video players and maximised windows do not count.
-- "Transcribe voice chat (fun clips)" in the client: Parakeet TDT 0.6B v3 via sherpa-onnx
-  transcribes the microphone track (or the mixed track) on the CPU in a separate process, a few
-  seconds per clip; the models (about 670 MB) are downloaded once on first use and checked by
-  SHA-256. The transcript goes to the summary, so clips without game events can be titled after
-  a joke, a question or a mishap in the chat. A short text-only question first asks the model
-  what the talk is about, and the title rule then names that topic; single words and quoted
-  sentences do not count as a topic. Titles about the chat itself ("Verwirrung im Voice-Chat",
-  confusion in voice chat) are rejected, and the fallback title keeps the topic of the later
-  proposal.
-
-### Changed
-
-- New app icon for the Windows client, also embedded in the program file, shortcuts and
-  installer (they showed the Electron icon before).
-- Game info from Steam is refreshed on its own: after uploads, game detection and renamed games,
-  once at start and every hour for due entries, and on demand under Settings → Game info,
-  which also shows how many games are matched. Covers fall back to Steam's header image.
-- Optional second source for game info: with `REPLAYHAVEN_IGDB_CLIENT_ID` and
-  `REPLAYHAVEN_IGDB_CLIENT_SECRET` the server asks IGDB (Twitch) for games Steam does not list,
-  such as Valorant, Fortnite and Minecraft, preferring the main game over ports and editions.
-- A setup guide in the web UI walks through server, access key and Windows client with
-  copyable commands; settings, devices and collections pages share one heading and layout.
-- The player's volume opens as a vertical slider on hover, like on streaming services; a click
-  on the speaker mutes.
-- Default model is Qwen3.5 9B instead of Qwen3-VL 8B. On twelve hand-checked clips it named the
-  proven event in 6 of 6 titles instead of 5 of 6, at the same speed (docs/AI-RECOGNITION.md).
-- Text recognition reads with the PP-OCRv5 latin model (downloaded and checked by SHA-256 when
-  the client is built): 62 instead of 53 of 75 kill-feed names read exactly, at the same speed.
-- Kills spread over a clip count as one multi-kill with their number ("Vierfach-Kill",
-  quadruple kill), and it may lead the title even when the kills happen before the final
-  seconds.
-- Time marks for kills and deaths start one second before the last frame without the message
-  instead of on the message, which appears after the kill; several kills keep a mark each.
-- Game shelf in the library pages with arrows like the rows on the home page.
-- The README shows the product with screenshots of the web library, the AI summary and the
-  Windows client, an architecture graphic for light and dark mode and a flow diagram.
-  `npm run readme:images` regenerates all images from the real interface with demo data. The
-  product brief moved from `agent.md` to `docs/DESIGN.md`, and new installs start with the
-  neutral display name "Player".
-- Clip tags are derived from on-screen messages the model reads (eliminations, deaths, round
-  and match results, NVIDIA highlight names) instead of being picked by the model. Titles are
-  checked against these events; a contradicting or copied title gets one correction round and
-  otherwise a plain event title.
-- A new analysis of an already archived clip replaces the previous analysis and its tags;
-  titles and tags you set yourself are kept.
-- The Windows client keeps a list of your in-game names instead of a single one. Each name can
-  be tied to a game, suggested from the game folders of your recordings; the analysis tells the
-  model only the names for the clip's game. A name from earlier versions applies to every game.
-
-### Fixed
-
-- R6 text recognition with the PP-OCRv5 reader: it reads banners without spaces
-  ("NIGHTHAVENLABS", "WONROUND2"), so neither maps nor round results were found. Map names are
-  now compared without spaces and with one misread letter allowed for long names, banners are
-  split back into words, and a round banner read in pieces ("YOURTEAA" | "WONROUND2") still
-  counts. Only capitalised lines count as a map, so the room "Tower" on Skyscraper is not one.
-  In 12 R6 clips: 8 maps and 6 round results instead of 5 maps (one wrong) and none.
-- Clips up to 30 seconds, usually trimmed by hand, count as one moment, so an early kill names
-  the title. A title about the own death must say whose elimination it was ("Ausgeschaltet von
-  …", eliminated by …), and fallback titles put the map after the first event.
-- Clips in the old NVIDIA folder "R6siege" are recognised as Rainbow Six, so text
-  recognition and your R6 names apply to them.
-- Titles: with a recognised map and an event, the map is required ("… auf Oregon", on Oregon);
-  a multikill says how many kills were headshots ("Doppel-Kill per Kopfschuss", double kill by
-  headshot), plural "Kopfschüsse" (headshots) counts as a kill, and a title claiming more
-  headshots than proven is rejected.
-- Steam game info for Rainbow Six Siege: Steam answers the old app id under its new one.
-- Closing a dialog opened from a clip menu in the library, collections or clip detail returns
-  focus to the menu button.
-- R6 kill pop-ups read as "+100 | Kill" count as kills, and one pop-up on two frames in a row
-  counts once unless the alive count changed. Titles naming more kills than counted, an "Ace"
-  (in R6 an operator), or a place the text recognition never read are corrected.
-- Sample collections and the "Sample cards" label disappear once a server is connected.
-- The library search field showed two focus rings.
-- Recordings with a separate microphone track play with your voice in the library: the
-  playback copy mixes all audio tracks (the video is copied, not re-encoded), since browsers
-  only play the first track. Extra tracks are folded to the centre, as a mono microphone often
-  sits on one channel of a stereo track. Server-side analysis with audio hears the mix as well.
-
-- Analyses no longer fail when the model numbers frames across batches or returns one frame
-  too few; unreadable batches are retried once and partially recovered.
-- Time marks outside the clip no longer discard the whole analysis.
-- "Apply game & tags" no longer replaces the folder game name with the model's guess.
-
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.2...HEAD
-[1.2.2]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.1...v1.2.2
-[1.2.1]: https://github.com/SauerExe/ReplayHaven/compare/v1.2.0...v1.2.1
-[1.2.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...v1.2.0
-[1.1.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...v1.1.0
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/SauerExe/ReplayHaven/releases/tag/v1.0.0

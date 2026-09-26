@@ -334,7 +334,7 @@ async function mockServer(context, video) {
       return route.fulfill({
         json: {
           connected: true,
-          version: '1.2.0',
+          version: '1.0.0',
           authRequired: true,
           playback: { mode: 'auto', pending: 0, done: clips.length },
           provider: 'none',
