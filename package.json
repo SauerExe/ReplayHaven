@@ -47,7 +47,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
-    "@fastify/multipart": "^10.1.1",
+    "@fastify/multipart": "^10.1.2",
     "@fastify/static": "^10.1.4",
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "@google/genai": "^2.24.0",
