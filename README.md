@@ -333,6 +333,8 @@ Bug reports, ideas and pull requests are welcome, see [CONTRIBUTING.md](CONTRIBU
 
 ## License
 
+ReplayHaven is source-available, not open source in the OSI sense: the code is public, but commercial use needs permission.
+
 [PolyForm Noncommercial 1.0.0](LICENSE): free for personal use, hobby projects, research, schools, charities and other non-commercial purposes, including changing and sharing it on the same terms. Selling ReplayHaven, offering it as a paid service or using it for commercial purposes is not allowed without permission; ask via [GitHub](https://github.com/SauerExe/ReplayHaven/issues) if you need that.
 
 The demo artwork and trailers belong to their publishers, and the Windows installer bundles GPL-licensed FFmpeg builds; details in [THIRD-PARTY.md](THIRD-PARTY.md).
