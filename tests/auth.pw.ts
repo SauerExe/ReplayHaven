@@ -179,3 +179,17 @@ test('the QR dialog confirms when the phone has signed in', async ({ page }) => 
   await expect(dialog).toContainText('Safari on iPhone/iPad is now signed in to your account.');
   await expect(dialog.getByAltText('QR code to sign in another device')).toHaveCount(0);
 });
+
+for (const width of [1280, 1440, 1600, 1920])
+  test(`the sign-in pitch keeps a readable column at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await mockAuth(page, {});
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible();
+    const pitch = await page.locator('.auth-pitch').boundingBox();
+    expect(pitch!.width).toBeGreaterThanOrEqual(340);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(
+      900,
+    );
+  });

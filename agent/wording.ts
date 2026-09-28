@@ -151,7 +151,7 @@ function exactClaims(text: string, events: GameEvent[], killed: boolean) {
 }
 
 /** Common phrases with "auf" that do not refer to a map ("Kopfschuss auf Distanz"). */
-const COMMON_AFTER_AUF =
+export const COMMON_AFTER_AUF =
   /^(?:Distanz|Entfernung|Abstand|Anhieb|Augenhöhe|Sicht|Zeit|Kurs|Ansage|Kommando|Befehl|Risiko|Ansatz|Knopfdruck|Zuruf|Deckung|Führung|Position|Stellung|Lauer|Sicherheit|Eis|Feuer|Wasser|Lava|Kopf|Kette|Ketten)$/i;
 
 /** What is known about the location: the recognised map and all maps of the game. */

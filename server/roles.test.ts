@@ -340,6 +340,24 @@ it('stays open without setup only for requests addressed to this machine', async
   expect((await clips('127.0.0.1:5173')).statusCode).toBe(200);
   // A dev proxy on the LAN forwards from 127.0.0.1 but keeps the Host the browser used.
   expect((await clips('192.168.1.20:5173')).statusCode).toBe(401);
+  // A reverse proxy on the same machine connects from loopback but forwards someone else.
+  expect(
+    (
+      await app.inject({
+        url: '/api/clips',
+        headers: { host: 'localhost:8787', 'x-forwarded-for': '203.0.113.9' },
+      })
+    ).statusCode,
+  ).toBe(401);
+  expect(
+    (
+      await app.inject({
+        url: '/api/clips',
+        headers: { host: 'localhost' },
+        remoteAddress: '192.168.1.5',
+      })
+    ).statusCode,
+  ).toBe(401);
   // A broken address is a client error, never a server error.
   expect(
     (await app.inject({ url: '/%E0%A4%A', headers: { host: 'localhost' } })).statusCode,

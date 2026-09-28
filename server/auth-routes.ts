@@ -125,7 +125,13 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
   const openLocal = (req?: FastifyRequest) =>
     !config.token &&
     !accounts.hasUsers() &&
-    (!req || /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(req.headers.host ?? ''));
+    (!req ||
+      (/^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(req.headers.host ?? '') &&
+        // A reverse proxy on the same machine also connects from loopback; its forwarding
+        // headers show that the request came from elsewhere.
+        !req.headers['x-forwarded-for'] &&
+        !req.headers.forwarded &&
+        /^(?:127\.|::1$|::ffff:127\.)/.test(req.socket.remoteAddress ?? '')));
 
   /** A session only counts while its account exists and is enabled. */
   function fromSession(session: Session): Identity | undefined {
@@ -163,7 +169,8 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
    */
   function guard(req: FastifyRequest, reply: FastifyReply) {
     req.identity = identify(req, reply);
-    const path = req.url.split('?')[0];
+    // The matched route, not the raw URL: the router decodes percent-escapes before matching.
+    const path = req.routeOptions.url ?? req.url.split('?')[0];
     if (OPEN.has(path)) return false;
     if (openLocal(req)) return false;
     if (!req.identity) {
