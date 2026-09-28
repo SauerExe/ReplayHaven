@@ -37,7 +37,11 @@ ReplayHaven is a personal archive for your home network. This is what protects i
     the server's host before it uses a link that Windows hands over, because any web page can
     open such a link.
 - Every browser session and PC can be revoked under **Settings → Devices** and **Settings →
-  Recording PCs**. Paired PCs cannot manage accounts or devices.
+  Recording PCs**. Paired PCs cannot manage accounts or devices. A paired PC stays paired when
+  the password changes; if a password may have leaked, also check **Recording PCs** for PCs you
+  do not know.
+- The server logs failed sign-ins with address and name (never the password), for tools such as
+  fail2ban or CrowdSec; `REPLAYHAVEN_LOG_LEVEL` sets how much it logs.
 - The access key only sets the server up: once the first account exists, it is no longer
   accepted anywhere, and the key login of old versions is gone. A setup link in an old log is
   therefore harmless after setup.

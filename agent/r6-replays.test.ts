@@ -7,6 +7,7 @@ import {
   dissectFile,
   execute,
   keepMatchForClip,
+  pruneArchive,
   matchFolders,
   matchStarted,
   newerSeason,
@@ -393,5 +394,28 @@ it('keeps the match a clip was saved in and adds rounds written later', async ()
     expect(await keepMatchForClip(saved, [join(root, 'missing')], archive)).toBeUndefined();
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('keeps only the newest archived matches and never the one just saved', async () => {
+  const fs = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join, resolve, sep } = await import('node:path');
+  const archive = await fs.mkdtemp(join(tmpdir(), 'replayhaven-prune-'));
+  try {
+    const name = (day: number) => `Match-2026-09-${String(day).padStart(2, '0')}_20-00-00`;
+    for (let day = 1; day <= 6; day++) await fs.mkdir(join(archive, name(day)));
+    await fs.mkdir(join(archive, 'not-a-match'));
+    // The oldest match is the one just saved (a late clip): it stays even beyond the limit.
+    await pruneArchive(archive, 3, name(1));
+    expect((await fs.readdir(archive)).sort()).toEqual(
+      [name(1), name(5), name(6), 'not-a-match'].sort(),
+    );
+  } finally {
+    if (
+      resolve(archive).startsWith(resolve(tmpdir()) + sep) &&
+      archive.includes('replayhaven-prune-')
+    )
+      await fs.rm(archive, { recursive: true, force: true });
   }
 });

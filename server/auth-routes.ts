@@ -273,6 +273,7 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     const account = await accounts.verify(body.name, body.password);
     if (!account) {
       throttle.fail(req.ip);
+      req.log.warn({ ip: req.ip, name: body.name }, 'Sign-in failed');
       return reply.code(401).send({ error: 'Name or password is wrong.' });
     }
     if (account.disabled) return reply.code(403).send({ error: 'This account is disabled.' });

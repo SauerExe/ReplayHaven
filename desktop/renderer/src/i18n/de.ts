@@ -148,7 +148,7 @@ export const de: Partial<Record<MessageKey, Message>> = {
   'field.epic': 'Epic-Konto-ID',
   'opt.keepR6': 'R6-Replays zu Clips aufbewahren',
   'opt.keepR6Note':
-    'Sichert das Match zu jedem R6-Clip, etwa 30 MB, für spätere genaue Auswertung.',
+    'Sichert das Match zu jedem R6-Clip, etwa 30 MB, für spätere genaue Auswertung. Behält die neuesten 60 Matches (etwa 1,8 GB).',
   'card.behavior': 'Verhalten',
   'field.language': 'Sprache',
   'opt.pauseGaming': 'Beim Spielen pausieren',

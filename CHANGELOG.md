@@ -6,6 +6,37 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-09-28
+
+### Added
+
+- `admin.mjs purge-removed` deletes clips removed from the library for good and reports the space
+  it frees; without `--yes` it only reports.
+- The server logs server errors with their cause (FFmpeg's own message included) and failed
+  sign-ins with address and name, for tools such as fail2ban; `REPLAYHAVEN_LOG_LEVEL` sets the
+  level. Requests themselves are not logged.
+- docs/SERVER.md: changes of your own go into `compose.override.yaml`, with examples, a backup
+  before updates and how to restore one; banner, language and log settings have their own table.
+
+### Changed
+
+- The installer no longer replaces a `compose.yaml` you edited: it stops, leaves the new one as
+  `compose.yaml.new` and asks to move your changes into `compose.override.yaml`.
+- The client waits longer after every failed upload (1, 2, 4 … up to 30 minutes) and hashes a
+  recording only once per version of the file.
+- The R6 match archive keeps the newest 60 matches (about 1.8 GB).
+- At most four password hashes run at once, so a burst of sign-ins cannot tie up the server.
+- Removed three unused old pages of the web library.
+
+### Fixed
+
+- A clip whose video reached the server but whose AI result did not is completed on the next
+  attempt: the client hands over the cached result instead of skipping it.
+- Sentences of the AI description that claim a kill, death or win no event backs up are dropped,
+  as the title check already did.
+- Two unusable AI summaries no longer fail the analysis; the clip gets a title and description
+  from the proven events.
+
 ## [1.1.3] - 2026-09-28
 
 ### Added
@@ -219,7 +250,8 @@ The first public release.
 - PolyForm Noncommercial 1.0.0: free for personal and other non-commercial use, not for sale
   or commercial use.
 
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.3...HEAD
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.4...HEAD
+[1.1.4]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...v1.1.1

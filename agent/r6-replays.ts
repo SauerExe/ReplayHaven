@@ -518,6 +518,25 @@ export function matchStarted(name: string) {
   return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() : undefined;
 }
 
+/**
+ * Matches the archive keeps, about 30 MB each: the newest 60 (roughly 1.8 GB). Nothing reads them
+ * yet (see the top of this file), so they must not fill the disk while they wait.
+ */
+export const KEPT_MATCHES = 60;
+
+/** Deletes the oldest archived matches beyond `keep`, never `current`. Names sort by start time. */
+export async function pruneArchive(archive: string, keep = KEPT_MATCHES, current?: string) {
+  const matches = (await readdir(archive, { withFileTypes: true }).catch(() => []))
+    .filter((e) => e.isDirectory() && matchStarted(e.name) !== undefined)
+    .map((e) => e.name)
+    .sort();
+  // The current match counts towards the limit but is never the one deleted.
+  const others = matches.filter((name) => name !== current);
+  const room = keep - (current && matches.includes(current) ? 1 : 0);
+  for (const name of others.slice(0, Math.max(0, others.length - room)))
+    await rm(join(archive, name), { recursive: true, force: true });
+}
+
 /** How long after the last round a clip can still be saved (end screen). */
 const AFTER_MATCH_MS = 10 * 60000;
 
@@ -561,5 +580,6 @@ export async function keepMatchForClip(
     // A round that was still being written last time is replaced.
     if (!to || to.size !== from.size) await cp(round, copy, { force: true });
   }
+  await pruneArchive(archive, KEPT_MATCHES, best.match.name);
   return { target, running: now - best.last < 5 * 60000 };
 }

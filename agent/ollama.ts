@@ -33,7 +33,14 @@ import type { TextLookup, TextTrace } from './r6';
 import { conversational, speechFacts, splitTranscript, usableTopic } from './speech';
 import type { Laugh, SpeechTrace, Transcript } from './speech';
 import { DeferredError } from './watcher';
-import { cleanText, fallbackTitle, tidyHighlights, titleProblems, uncertaintyFor } from './wording';
+import {
+  cleanText,
+  factualText,
+  fallbackTitle,
+  tidyHighlights,
+  titleProblems,
+  uncertaintyFor,
+} from './wording';
 import { namesFor } from './players';
 import { applyTranslation, translationJsonSchema, translationPrompt } from './translate';
 import type { TitleLanguage } from './translate';
@@ -514,16 +521,28 @@ export class LocalAnalyzer {
           images: [focusImage],
         },
       ];
-      let { raw, summary } = await this.summarize(messages, duration);
+      // Two unusable summaries no longer cost the whole analysis: the proven events still give a
+      // title and a description (fallbackTitle, phrase), only the model's own wording is missing.
+      let raw = '';
+      let summary: SummaryResult;
+      let summarized = true;
+      try {
+        ({ raw, summary } = await this.summarize(messages, duration));
+      } catch (error) {
+        if (!isParseError(error)) throw error;
+        summarized = false;
+        summary = { title: '', description: '', uncertainty: '', highlights: [] };
+      }
       const titles = trace.titles;
-      titles.push({
-        title: summary.title,
-        problems: titleProblems(summary.title, events, heads, place),
-      });
+      if (summarized)
+        titles.push({
+          title: summary.title,
+          problems: titleProblems(summary.title, events, heads, place),
+        });
       // A title that claims something unproven or copies a HUD readout gets a follow-up
       // question listing the concrete problems; if the second version fails too, a fallback
       // title built from the proven events is used.
-      if (titles[0].problems.length) {
+      if (summarized && titles[0].problems.length) {
         this.options.onProgress?.('Revising the title …');
         try {
           const retry = await this.summarize(
@@ -613,7 +632,7 @@ export class LocalAnalyzer {
     const { events, heads, seen, duration, playing } = context;
     // If the recording software's overlay is itself the content, it may be described.
     const description =
-      cleanText(summary.description, { keepOverlay: !playing }) ||
+      factualText(cleanText(summary.description, { keepOverlay: !playing }), events) ||
       (heads.length ? `${heads.map(phrase).join('. ')}.` : context.focusObservation) ||
       'Keine Beschreibung möglich.';
     return analysisSchema.parse({

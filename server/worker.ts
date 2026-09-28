@@ -6,6 +6,14 @@ import type { VaultDatabase } from './database';
 import type { MediaProcessor } from './media';
 import type { AnalysisProvider } from './providers';
 import { videoSource } from './playback';
+/** Background failures go to the server log with their cause; users see the short message. */
+function logFailure(what: string, error: unknown) {
+  const detail = (error as { detail?: string } | undefined)?.detail;
+  console.error(
+    `${what}: ${error instanceof Error ? error.message : String(error)}${detail ? `\n${detail}` : ''}`,
+  );
+}
+
 export class AnalysisWorker {
   private running: Promise<void> | null = null;
   private stopped = false;
@@ -89,7 +97,8 @@ export class AnalysisWorker {
           )
             await rm(latest.playbackFile, { force: true }).catch(() => {});
           this.onPrepared?.();
-        } catch {
+        } catch (error) {
+          logFailure(`Clip ${clip.id}: preparing the video failed`, error);
           this.db.patch(clip.id, {
             status: 'error',
             analysis: {
@@ -143,7 +152,8 @@ export class AnalysisWorker {
           },
         });
         this.onGame?.(latest.gameName || result.game);
-      } catch {
+      } catch (error) {
+        logFailure(`Clip ${clip.id}: server analysis failed`, error);
         if (!this.db.get(clip.id)?.deleted)
           this.db.patch(clip.id, {
             analysis: {
