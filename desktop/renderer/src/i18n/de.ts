@@ -331,6 +331,8 @@ export const de: Partial<Record<MessageKey, Message>> = {
   'err.server.invalid': 'Gib eine gültige Serveradresse ein.',
   'err.server.credentials': 'Verwende eine Serveradresse ohne eingebettete Zugangsdaten.',
   'err.server.http': 'Der Server antwortet mit HTTP {status}.',
+  'err.server.notReplayHaven':
+    'Diese Adresse antwortet, aber nicht als ReplayHaven – vermutlich steht eine Anmeldeseite (z. B. Authelia) davor. Nimm die Adresse des Servers im Heimnetz, z. B. http://192.168.1.10:8787.',
   'err.config.epic':
     'Eine Epic-Konto-ID hat 32 Zeichen aus 0–9 und a–f. Du findest sie auf epicgames.com in deinen Kontoeinstellungen.',
   'err.save.working': 'Pausiere den Client und warte, bis der aktuelle Schritt abgeschlossen ist.',

@@ -362,13 +362,26 @@ async function loadConfig() {
 let pairingAbort: AbortController | undefined;
 /** Refused while the client works: pairing changes the server and key it works with. */
 const pairBusy = () => new CodedError('pair.busy', 'Pause the client before pairing it again.');
+/**
+ * A page that answers without being ReplayHaven, typically the sign-in page of a proxy such as
+ * Authelia in front of the public address: it says 200 but never lets the client through.
+ */
+const notReplayHaven = () =>
+  new CodedError(
+    'server.notReplayHaven',
+    'This address answers, but not as ReplayHaven: probably a sign-in page (such as Authelia) in front of it. Use the server address in your home network, e.g. http://192.168.1.10:8787.',
+  );
+const answersJson = (response: Response) =>
+  (response.headers.get('content-type') ?? '').includes('application/json');
 /** An error answer of the server: its own message if it sent one, otherwise the status code. */
 const serverRefused = (response: Response, message?: string) =>
   message
     ? new Error(message)
-    : new CodedError('server.http', `The server responds with HTTP ${response.status}.`, {
-        status: response.status,
-      });
+    : response.ok || !answersJson(response)
+      ? notReplayHaven()
+      : new CodedError('server.http', `The server responds with HTTP ${response.status}.`, {
+          status: response.status,
+        });
 async function startPairing(address: string) {
   // A copied pairing link pasted as the address pairs right away.
   if (address.startsWith(`${PAIRING_SCHEME}:`)) return pairByLink(address);
@@ -1155,6 +1168,8 @@ else {
             'No response. Check address and port and whether the server is running.',
           );
         }
+        // ReplayHaven always answers /api/status with JSON, a proxy's sign-in page does not.
+        if (!answersJson(response)) throw notReplayHaven();
         if (response.status === 401 || response.status === 403)
           throw new CodedError('test.rejected', 'The server responds but rejects the access key.');
         if (!response.ok)

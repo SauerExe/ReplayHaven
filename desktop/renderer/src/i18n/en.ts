@@ -332,6 +332,8 @@ export const en = {
   'err.server.invalid': 'Enter a valid server address.',
   'err.server.credentials': 'Use a server address without embedded credentials.',
   'err.server.http': 'The server responds with HTTP {status}.',
+  'err.server.notReplayHaven':
+    'This address answers, but not as ReplayHaven: probably a sign-in page (such as Authelia) in front of it. Use the server address in your home network, e.g. http://192.168.1.10:8787.',
   'err.config.epic':
     'An Epic account ID has 32 characters from 0–9 and a–f. You can find it on epicgames.com in your account settings.',
   'err.save.working': 'Pause the client and wait until the current step has finished.',
