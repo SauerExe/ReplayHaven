@@ -211,6 +211,13 @@ export const app = {
   'app.layout.searchSubmit': 'Search',
   'app.layout.storageWarning':
     'Your browser cannot save changes permanently right now. Check the available browser storage.',
+  'app.support.label': 'Support ReplayHaven',
+  'app.support.title': 'Enjoying ReplayHaven?',
+  'app.support.text':
+    'It is free for personal use and built in my spare time. A small tip helps keep it going.',
+  'app.support.tip': 'Tip via PayPal',
+  'app.support.donated': 'I already donated',
+  'app.support.later': 'Later',
   'app.layout.tagline': 'Your moments. Your archive.',
   'app.layout.sampleCards': 'Sample cards',
   'app.layout.clipsInVault.one': '{count} clip in your vault',

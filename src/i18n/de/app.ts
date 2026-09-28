@@ -216,6 +216,13 @@ export const app: Translation<typeof source> = {
   'app.layout.searchSubmit': 'Suchen',
   'app.layout.storageWarning':
     'Dein Browser kann Änderungen gerade nicht dauerhaft speichern. Prüfe den verfügbaren Browserspeicher.',
+  'app.support.label': 'ReplayHaven unterstützen',
+  'app.support.title': 'Gefällt dir ReplayHaven?',
+  'app.support.text':
+    'Es ist für private Nutzung kostenlos und entsteht in meiner Freizeit. Ein kleines Trinkgeld hilft, dass es weitergeht.',
+  'app.support.tip': 'Per PayPal unterstützen',
+  'app.support.donated': 'Hab schon gespendet',
+  'app.support.later': 'Später',
   'app.layout.tagline': 'Deine Momente. Dein Archiv.',
   'app.layout.sampleCards': 'Beispiel-Cards',
   'app.layout.clipsInVault.one': '{count} Clip in deinem Vault',

@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-09-28
+
+### Added
+
+- A small banner in the web library asks for a tip via PayPal, at most every four days per
+  browser and only after the first four days. "Later" or following the link hides it for four
+  days, "I already donated" hides it for good; nothing about it reaches the server.
+
 ## [1.1.1] - 2026-09-28
 
 ### Security
@@ -157,7 +165,8 @@ The first public release.
 - PolyForm Noncommercial 1.0.0: free for personal and other non-commercial use, not for sale
   or commercial use.
 
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/SauerExe/ReplayHaven/releases/tag/v1.0.0
