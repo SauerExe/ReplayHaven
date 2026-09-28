@@ -41,14 +41,13 @@ export const pages: Translation<typeof source> = {
   'pages.setup.server.recommended': 'Empfohlen',
   'pages.setup.server.source': 'Aus dem Quellcode',
   'pages.setup.server.dockerInstruction':
-    'Öffne ein Terminal auf deinem Server und lade die Konfiguration herunter.',
+    'Öffne ein Terminal auf deinem Server (mit Docker) und starte den Installer.',
   'pages.setup.server.sourceInstruction':
     'Öffne ein Terminal auf deinem Server. Das Setup-Skript führt dich durch die Einrichtung.',
   'pages.setup.server.prepare': 'Server vorbereiten',
-  'pages.setup.server.startCommand': 'Server starten',
-  'pages.setup.server.configTitle': 'Deine Verbindung konfigurieren',
+  'pages.setup.server.configTitle': 'Den Einrichtungslink öffnen',
   'pages.setup.server.configText':
-    'Trage in der geöffneten {env} einen eigenen {token} und deine Browseradresse als {origin} ein, inklusive Protokoll und Port. Einen Schlüssel erzeugst du in einem zweiten Terminal mit {openssl}. Speichere anschließend die Datei.',
+    'Der Installer prüft Docker, schreibt {env} mit einem neuen {token} und deiner Netzwerkadresse als {origin}, startet den Server und gibt einen Einrichtungslink aus. Öffne ihn und lege dein Konto an, ohne den Schlüssel abzutippen. Erneut ausgeführt, aktualisiert er den Server.',
   'pages.setup.server.keyTitle': 'Den Zugangsschlüssel aufbewahren',
   'pages.setup.server.keyText':
     'Das Skript fragt deine Serveradresse ab, erzeugt deinen Zugangsschlüssel und startet den Server. Den Schlüssel brauchst du genau einmal: beim Anlegen deines Kontos. Der erste Build benötigt Internet und einige Minuten.',
@@ -68,7 +67,7 @@ export const pages: Translation<typeof source> = {
   'pages.setup.client.installText': 'Führe den Windows-Installer aus und öffne ReplayHaven Client.',
   'pages.setup.client.pairTitle': 'Mit deinem Server koppeln',
   'pages.setup.client.pairText':
-    'Trag im Client die Serveradresse ein. Er zeigt einen Code; derselbe erscheint unter Einstellungen → Aufnahme-PCs, und du klickst auf Freigeben.',
+    'Am einfachsten: Öffne diese Seite auf deinem Gaming-PC, geh zu Einstellungen → Aufnahme-PCs und klicke „Diesen PC verbinden“. Oder gib im Client die Serveradresse ein; er zeigt einen Code, den du unter Einstellungen → Aufnahme-PCs freigibst.',
   'pages.setup.client.folderTitle': 'Deinen Aufnahmeordner auswählen',
   'pages.setup.client.folderText':
     'Wähle den Ordner, in dem deine Aufnahme-App Clips speichert. Unterordner werden ebenfalls berücksichtigt.',

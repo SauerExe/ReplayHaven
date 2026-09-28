@@ -5,7 +5,7 @@ import type { Clip } from '../domain/models';
 import { useVault } from '../data/store';
 import { useCanEdit } from './AuthGate';
 import { time } from '../data/repository';
-import { t } from '../i18n';
+import { t, tagLabel } from '../i18n';
 export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: number) => void }) {
   const { server, analyzeClip, patchClip, toast, refreshServer } = useVault();
   const [busy, setBusy] = useState(false);
@@ -123,7 +123,7 @@ export function AnalysisPanel({ clip, onSeek }: { clip: Clip; onSeek: (seconds: 
             {result.game && <span className="tag">{result.game}</span>}
             {result.tags.map((tag) => (
               <span className="tag" key={tag}>
-                {tag}
+                {tagLabel(tag)}
               </span>
             ))}
             {editable && (

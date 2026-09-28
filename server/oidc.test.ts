@@ -114,21 +114,33 @@ it('makes later identities users unless they are in the admin group', async () =
 
 it('refuses unknown identities without auto-create but lets them claim a prepared account', async () => {
   const { app } = await start({ autoCreate: false }, false);
-  // The server has an account already (created with the access key).
+  // The server has an account already, created with the access key before any other existed.
   await app.inject({
     method: 'POST',
     url: '/api/users',
     headers: { authorization: `Bearer ${TEST_KEY}` },
-    payload: { name: 'owner', role: 'admin', password: 'owner-password' },
+    payload: { name: 'owner', role: 'admin' },
   });
   const stranger = await signIn(app, { sub: 'uid-9', preferred_username: 'stranger' });
   expect(stranger.session).toBe('');
   expect(loginError(stranger.callback)).toMatch(/Ask an admin/);
-  // An admin prepares an account without a password; the matching sign-in claims it.
+  // From now on the key opens nothing; the owner signs in through the provider and, as an admin,
+  // prepares an account without a password, which the matching sign-in claims.
+  expect(
+    (
+      await app.inject({
+        method: 'POST',
+        url: '/api/users',
+        headers: { authorization: `Bearer ${TEST_KEY}` },
+        payload: { name: 'stranger' },
+      })
+    ).statusCode,
+  ).toBe(401);
+  const owner = await signIn(app, { sub: 'uid-owner', preferred_username: 'owner' });
   await app.inject({
     method: 'POST',
     url: '/api/users',
-    headers: { authorization: `Bearer ${TEST_KEY}` },
+    headers: { cookie: owner.session },
     payload: { name: 'stranger' },
   });
   const claimed = await signIn(app, { sub: 'uid-9', preferred_username: 'stranger' });

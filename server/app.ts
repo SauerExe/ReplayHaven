@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import cookie from '@fastify/cookie';
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createWriteStream, readFileSync } from 'node:fs';
 import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
@@ -43,12 +43,6 @@ function zodMessage(error: unknown) {
   const field = issue.path.join('.');
   return field ? `Invalid ${field}: ${issue.message}` : issue.message;
 }
-function tokenEqual(a: string, b: string) {
-  return timingSafeEqual(
-    createHash('sha256').update(a).digest(),
-    createHash('sha256').update(b).digest(),
-  );
-}
 export async function buildServer(
   config: ServerConfig,
   overrides: { provider?: AnalysisProvider; media?: MediaProcessor } = {},
@@ -73,6 +67,7 @@ export async function buildServer(
     coverDir,
     config.gameMetadata,
     config.igdb ? new Igdb(config.igdb) : undefined,
+    config.contentLanguage,
   );
   const worker = new AnalysisWorker(
     db,
@@ -144,20 +139,6 @@ export async function buildServer(
                 ? error.message
                 : 'The request could not be processed. Check the server and the file.',
     });
-  });
-  app.post('/api/session', async (req, reply) => {
-    const { token } = z.object({ token: z.string().max(1000) }).parse(req.body);
-    if (config.token && !tokenEqual(token, config.token))
-      return reply.code(401).send({ error: 'The access key is wrong.' });
-    reply.setCookie('vault_session', 'vault', {
-      signed: true,
-      httpOnly: true,
-      sameSite: 'strict',
-      secure: config.publicOrigin.startsWith('https:'),
-      path: '/api',
-      maxAge: 7 * 86400,
-    });
-    return { connected: true };
   });
   const releaseDir = resolve(config.releaseDir || 'release');
   const downloadPath = join(releaseDir, 'ReplayHaven-Client-Setup.exe');

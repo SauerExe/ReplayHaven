@@ -1,6 +1,6 @@
 import { useId, useMemo } from 'react';
 import { Film, Heart, Info, Play, Sparkles, Upload } from 'lucide-react';
-import { t } from '../i18n';
+import { t, tagLabel } from '../i18n';
 import { confidenceLabel, formatDuration, formatWhen, isNew, titleSize } from './format';
 import type { Navigate } from './links';
 import type { StreamClip, StreamLibrary, StreamStatus } from './model';
@@ -184,7 +184,7 @@ function Hero({
         {clip.tags.length > 0 && (
           <ul className="stream-hero-tags" aria-label={t('stream.tags')}>
             {clip.tags.slice(0, 4).map((tag) => (
-              <li key={tag}>{tag}</li>
+              <li key={tag}>{tagLabel(tag)}</li>
             ))}
           </ul>
         )}

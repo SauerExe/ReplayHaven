@@ -6,6 +6,59 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- English titles: titles, descriptions and time marks can be written in English or German
+  (client: **Settings → Local AI → Title language**, following the window language on first
+  setup; server: `REPLAYHAVEN_CONTENT_LANGUAGE`, default `en`, which also sets the language of
+  Steam game descriptions). The analysis still runs and is checked in German; the finished
+  result is translated, and a translation that loses the kill count or a time mark falls back to
+  the checked German text.
+- The web library shows the analysis tags ("Rundensieg", "Tod" …) in English when the interface
+  is English; stored tags, filters and automatic collections are unchanged.
+- Pairing by link: **Settings → Recording PCs → Connect this PC** opens the client through a
+  `replayhaven://` link with a one-time ticket (10 minutes, stored only as a hash). The admin's
+  click is the approval, so no address or code has to be typed. The link can also be pasted into
+  the client's address field.
+- The client's setup assistant finds ReplayHaven servers in the home network (port 8787).
+- One-click local AI: the client downloads the official Ollama 0.34.3 installer, checks its size
+  and SHA-256, installs it for the Windows user without admin rights and then downloads the
+  model.
+- Model choice in the client: Qwen3.5 9B (default) or 4B for graphics cards with 6 to 8 GB.
+- One-line server installer (`install.sh` in every release, piped from
+  `releases/latest/download/install.sh` into `bash`): checks Docker, downloads `compose.yaml` and
+  `env.example` from the release and verifies them against `SHA256SUMS.txt`, writes `.env` with a
+  new access key and the confirmed LAN address, starts the server and prints a setup link.
+  Running it again updates and keeps `.env`.
+- Setup link for the first account (`http://host:8787/#setup-key=…`): the sign-in page fills in
+  the access key from the URL fragment, which is never sent to the server, and removes it from
+  the address bar. While no account exists, the server also prints the link to its log.
+
+### Security
+
+- The access key only sets the server up: once the first account exists it is no longer accepted
+  as a bearer token, and the key login of old versions (`/api/session`) is removed. Scripts pair
+  like a PC: `npm run agent -- --pair`.
+- Failed sign-ins are throttled per client address instead of for the whole server, so nobody can
+  lock out everyone else.
+- Pairing requests are limited to three open ones per address (twenty in total).
+- The client asks before it uses a `replayhaven://` pairing link and shows the server it would
+  upload to.
+- The client refuses Ollama 0.34.4, which ignores the response schema, and offers to install the
+  pinned 0.34.3.
+- GitHub Actions are pinned to commit SHAs.
+
+### Changed
+
+- The client window is written in TypeScript: 24 typed modules in `desktop/renderer/src`,
+  bundled with esbuild, instead of one plain-JavaScript file.
+- `setup-server.sh` is meant for source checkouts and shares its steps with `install.sh`; the
+  installer replaces it as a release asset.
+- Release builds attest the Windows installer's provenance with GitHub artifact attestations;
+  `gh attestation verify` checks it until the installer is code-signed.
+- The README calls ReplayHaven source-available instead of open source, matching its
+  PolyForm Noncommercial license.
+
 ## [1.0.0] - 2026-09-26
 
 The first public release.

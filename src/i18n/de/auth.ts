@@ -25,6 +25,8 @@ export const auth: Translation<typeof source> = {
   'auth.field.key': 'Zugangsschlüssel der Einrichtung',
   'auth.field.keyHint':
     'Steht in deiner {file} als {name}. Er verhindert, dass jemand anderes das erste Konto anlegt.',
+  'auth.field.keyFromLink': 'Zugangsschlüssel aus dem Einrichtungslink übernommen.',
+  'auth.field.keyShow': 'Ändern',
   'auth.missing.name': 'Gib deinen Namen ein.',
   'auth.missing.password': 'Gib dein Passwort ein.',
   'auth.missing.key': 'Gib den Zugangsschlüssel aus der Server-Einrichtung ein.',

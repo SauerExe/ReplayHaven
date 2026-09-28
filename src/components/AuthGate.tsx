@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ApiError, api } from '../data/api';
 import { LANGUAGES, setLanguage, t, tx, useLanguage } from '../i18n';
+import { takeSetupKey } from './setup-link';
 
 /** What the server says about this browser's sign-in (server/auth-routes.ts). */
 export interface AuthState {
@@ -102,6 +103,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     remembered() ? undefined : null,
   );
   const [loginError, setLoginError] = useState(takeLoginError);
+  // Read before anything else renders, so the key leaves the address bar right away.
+  const [linkKey] = useState(takeSetupKey);
   const refresh = useCallback(async () => {
     const state = await loadState();
     remember(!!state);
@@ -130,6 +133,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         passwordLogin={auth.passwordLogin !== false}
         oidcName={auth.oidc?.enabled ? auth.oidc.name : ''}
         initialError={loginError}
+        linkKey={linkKey}
         onDone={refresh}
       />
     );
@@ -321,6 +325,7 @@ function AuthScreen({
   passwordLogin,
   oidcName,
   initialError,
+  linkKey,
   onDone,
 }: {
   setup: boolean;
@@ -328,6 +333,8 @@ function AuthScreen({
   passwordLogin: boolean;
   oidcName: string;
   initialError: string;
+  /** Access key from the setup link (`#setup-key=…`), empty without one. */
+  linkKey: string;
   onDone: () => Promise<void>;
 }) {
   useLanguage();
@@ -344,7 +351,8 @@ function AuthScreen({
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [repeat, setRepeat] = useState('');
-  const [key, setKey] = useState('');
+  const [key, setKey] = useState(linkKey);
+  const [keyFromLink, setKeyFromLink] = useState(!!linkKey);
   const [error, setError] = useState(initialError);
   const [invalid, setInvalid] = useState<FieldName | null>(null);
   const [busy, setBusy] = useState(false);
@@ -353,6 +361,8 @@ function AuthScreen({
   function fail(message: string, field: FieldName | null) {
     setError(message);
     setInvalid(field);
+    // A wrong key from the link: show the field so it can be corrected.
+    if (field === 'key') setKeyFromLink(false);
     if (field) requestAnimationFrame(() => document.getElementById(ids[field])?.focus());
   }
   /** The first problem the server would refuse anyway, checked here with a clearer message. */
@@ -492,7 +502,16 @@ function AuthScreen({
               maxLength={200}
             />
           )}
-          {setup && needsKey && (
+          {setup && needsKey && keyFromLink && (
+            <p className="auth-key-link">
+              <KeyRound size={16} aria-hidden="true" />
+              <span>{t('auth.field.keyFromLink')}</span>
+              <button type="button" className="auth-link" onClick={() => setKeyFromLink(false)}>
+                {t('auth.field.keyShow')}
+              </button>
+            </p>
+          )}
+          {setup && needsKey && !keyFromLink && (
             <Field
               {...field('key')}
               label={t('auth.field.key')}

@@ -146,7 +146,7 @@ it('lets plain users watch but keeps every change to the archive and server for 
     ).statusCode,
   ).toBe(200);
 
-  // Admins, the access key and the legacy key cookie may change things.
+  // Admins may change things.
   expect(
     (
       await app.inject({
@@ -157,6 +157,7 @@ it('lets plain users watch but keeps every change to the archive and server for 
       })
     ).statusCode,
   ).toBe(200);
+  // Once an account exists, the access key is no longer a way in: it only sets up the server.
   expect(
     (
       await app.inject({
@@ -166,21 +167,8 @@ it('lets plain users watch but keeps every change to the archive and server for 
         payload: { autoAnalyze: false, autoTitle: true, includeAudio: false },
       })
     ).statusCode,
-  ).toBe(200);
-  const legacy = await app.inject({
-    method: 'POST',
-    url: '/api/session',
-    payload: { token: TEST_KEY },
-  });
-  expect(
-    (
-      await app.inject({
-        method: 'DELETE',
-        url: `/api/clips/${clip.id}`,
-        headers: { cookie: cookieOf(legacy, 'vault_session') },
-      })
-    ).statusCode,
-  ).toBe(200);
+  ).toBe(401);
+  expect((await app.inject({ url: '/api/clips', headers: key })).statusCode).toBe(401);
   await app.close();
 });
 
@@ -264,10 +252,10 @@ it('manages users and never loses the last admin', async () => {
     (await app.inject({ method: 'DELETE', url: `/api/users/${ownerId}`, headers: admin }))
       .statusCode,
   ).toBe(409);
-  // Not even with the access key, which has no account of its own.
+  // The access key no longer opens anything once accounts exist.
   expect(
     (await app.inject({ method: 'DELETE', url: `/api/users/${ownerId}`, headers: key })).statusCode,
-  ).toBe(409);
+  ).toBe(401);
 
   // Disabling signs a user out and blocks new sign-ins until enabled again.
   const bob = await createUser('bob');

@@ -51,6 +51,8 @@ export interface ServerConfig {
    * original file whenever a browser can.
    */
   playback?: 'web' | 'original';
+  /** Language of content the server writes or fetches: AI titles and Steam game descriptions. */
+  contentLanguage?: 'en' | 'de';
 }
 
 const flag = (value: string | undefined, fallback: boolean) =>
@@ -126,6 +128,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const playback = (env.REPLAYHAVEN_PLAYBACK || 'web').trim().toLowerCase();
   if (!['web', 'original'].includes(playback))
     throw new Error('REPLAYHAVEN_PLAYBACK must be web or original.');
+  const contentLanguage = (env.REPLAYHAVEN_CONTENT_LANGUAGE || 'en').trim().toLowerCase();
+  if (!['en', 'de'].includes(contentLanguage))
+    throw new Error('REPLAYHAVEN_CONTENT_LANGUAGE must be en or de.');
 
   return {
     host,
@@ -160,6 +165,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     // Password sign-in can only be switched off when another way in exists.
     passwordLogin: oidc ? flag(env.REPLAYHAVEN_PASSWORD_LOGIN, true) : true,
     playback: playback as 'web' | 'original',
+    contentLanguage: contentLanguage as 'en' | 'de',
   };
 }
 export function aiConfigured(config: ServerConfig) {

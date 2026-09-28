@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useActions } from '../components/Actions';
 import { useIsAdmin } from '../components/AuthGate';
-import { t } from '../i18n';
+import { t, tagLabel } from '../i18n';
 import { useVault } from '../data/store';
 import { ClipMenu } from './ClipMenu';
 import { ClipLayers, useClipLayers, useMinuteClock, useStreamLibrary } from './connected';
@@ -371,7 +371,7 @@ export default function StreamingLibraryPage() {
             onChange={(value) => set('tag', value)}
             options={[
               ['', t('library.filters.tag.all')],
-              ...tags.map((tag): [string, string] => [tag, tag]),
+              ...tags.map((tag): [string, string] => [tag, tagLabel(tag)]),
             ]}
           />
           <FilterSelect

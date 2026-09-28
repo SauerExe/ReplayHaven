@@ -1,5 +1,16 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, Download, Monitor, RefreshCw, Unplug, X } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  Copy,
+  Download,
+  Link2,
+  Monitor,
+  RefreshCw,
+  Unplug,
+  X,
+} from 'lucide-react';
 import { api } from '../../data/api';
 import { useVault } from '../../data/store';
 import {
@@ -16,6 +27,7 @@ import {
 } from '../../components/settings';
 import type { ServerInfo } from '../../domain/models';
 import { t, tp } from '../../i18n';
+import { pairingLink } from './pairing-link';
 import { failure, useSessions, when, type DeviceSession, type PairingRequests } from './shared';
 
 type RecordingPc = ServerInfo['devices'][number];
@@ -49,6 +61,19 @@ export function PcsSection({ pairing }: { pairing: PairingRequests }) {
   const sessionFor = (name: string) => clientSessions.find((s) => s.label === name);
   const silent = clientSessions.filter((s) => !server.devices.some((pc) => pc.name === s.label));
   const download = server.connected && server.clientDownloadAvailable;
+  const [link, setLink] = useState('');
+
+  async function connectThisPc() {
+    try {
+      const { ticket } = await api<{ ticket: string }>('/pair/ticket', { method: 'POST' });
+      const next = pairingLink(window.location.origin, ticket);
+      setLink(next);
+      // Opens the client if it is installed; otherwise nothing happens and the hint below helps.
+      window.location.href = next;
+    } catch (error) {
+      toast(failure(error));
+    }
+  }
 
   async function decide(id: string, approve: boolean) {
     try {
@@ -124,6 +149,39 @@ export function PcsSection({ pairing }: { pairing: PairingRequests }) {
               }
             />
           ))}
+        </SettingsGroup>
+      )}
+
+      {accounts && (
+        <SettingsGroup
+          title={t('settings.pcs.link.title')}
+          description={t('settings.pcs.link.text')}
+          footer={link ? t('settings.pcs.link.fallback') : undefined}
+        >
+          <SettingsRow
+            label={t('settings.pcs.link.name')}
+            description={link ? t('settings.pcs.link.opened') : t('settings.pcs.link.hint')}
+          >
+            {link && (
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() =>
+                  void navigator.clipboard
+                    .writeText(link)
+                    .then(() => toast(t('settings.pcs.link.copied')))
+                    .catch(() => toast(link))
+                }
+              >
+                <Copy size={15} aria-hidden="true" />
+                {t('settings.pcs.link.copy')}
+              </button>
+            )}
+            <button type="button" className="button primary" onClick={() => void connectThisPc()}>
+              <Link2 size={15} aria-hidden="true" />
+              {t('settings.pcs.link.connect')}
+            </button>
+          </SettingsRow>
         </SettingsGroup>
       )}
 

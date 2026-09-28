@@ -6,17 +6,13 @@ Your gaming PC does the AI analysis. Your server stores videos and results and s
 
 Requirement: a Linux machine, NAS or mini PC with [Docker Engine and the Compose plugin](https://docs.docker.com/engine/install/).
 
-**Option A – prebuilt image (recommended):**
+**Option A – installer (recommended):**
 
 ```bash
-mkdir -p replayhaven && cd replayhaven
-curl -fsSLO https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/compose.yaml
-curl -fsSL  https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/.env.example -o .env
-nano .env        # set REPLAYHAVEN_ACCESS_TOKEN and REPLAYHAVEN_PUBLIC_ORIGIN
-docker compose up -d
+curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash
 ```
 
-Generate the access key with `openssl rand -hex 24`. As the server address, enter exactly what you will later open in the browser, for example `http://192.168.1.20:8787`.
+The installer checks Docker, downloads `compose.yaml` and `env.example` of the latest release and verifies their checksums, writes `.env` with a new access key and asks for the server address (it suggests your network address, for example `http://192.168.1.20:8787`; enter exactly what you will open in the browser). Then it starts the server and prints a **setup link**. Running it again updates the server and keeps `.env`. The manual way without the script is described in [SERVER.md](SERVER.md).
 
 **Option B – from source:**
 
@@ -28,16 +24,16 @@ bash setup-server.sh
 
 The script asks for the server address, generates the access key, builds the image and starts the server. The first build needs internet access and takes a few minutes.
 
-Then open the server address in the browser and **create your account**: name, password and, once, the access key from setup. It prevents someone else from creating the first account if the server is already reachable from the internet. The Windows download is then available under **Settings → Recording PCs**.
+Then open the setup link (or the server address) in the browser and **create your account**: name, password and, once, the access key from setup; the setup link fills it in for you. It prevents someone else from creating the first account if the server is already reachable from the internet. The Windows download is then available under **Settings → Recording PCs**.
 
 **Other devices** such as a phone or laptop simply open the server address and sign in with name and password. A QR code is faster: on a signed-in device go to **Settings → Devices → Connect phone**, then scan with the phone camera. The code is valid for five minutes and signs in exactly one device. Sign-ins last 30 days and are extended with every use; under **Settings → Devices** you can see all of them and remove each one individually.
 
 ## 2. Set up the Windows client
 
 1. Install `ReplayHaven-Client-Setup.exe` and open ReplayHaven Client. You do not need to install Node.js, Python or FFmpeg separately. On the first start a setup assistant guides you through the next steps; you can run it again later under Settings.
-2. **Server:** enter the server address, for example `replay.your-domain.com` or `192.168.1.20:8787`, and click **Connect**. The client shows a six-digit code. In the web interface, the same code appears under **Settings → Recording PCs** with your PC's name; click **Approve** there. The PC gets its own access, which the client stores encrypted with your Windows account and which you can revoke at any time under **Settings → Recording PCs**. Older servers without accounts are connected via **Use access key instead**.
+2. **Server:** the quickest way is a link. On the gaming PC, open the web interface, go to **Settings → Recording PCs** and click **Connect this PC**: Windows opens the client, which connects on its own. The link works once and for ten minutes; on another computer, copy it and paste it into the client's address field. Without the link, the assistant lists ReplayHaven servers it finds in your home network (port 8787); click one, or enter the address, for example `replay.your-domain.com` or `192.168.1.20:8787`, and click **Connect**. The client then shows a six-digit code. In the web interface, the same code appears under **Settings → Recording PCs** with your PC's name; click **Approve** there. The PC gets its own access, which the client stores encrypted with your Windows account and which you can revoke at any time under **Settings → Recording PCs**. Older servers without accounts are connected via **Use access key instead**.
 3. **Recordings:** choose the folder the NVIDIA App (or another recorder) saves clips to. Subfolders are included.
-4. **Local AI:** **Install Ollama** opens the official download. Install and start Ollama, then click **Check connection**. **Download model** downloads Qwen3.5 9B once, about 6.6 GB. This only happens when you click.
+4. **Local AI:** choose the model size: Qwen3.5 9B (about 6.6 GB, for about 10 GB of VRAM, recommended) or 4B (about 3.4 GB, for 6 to 8 GB, not measured as thoroughly). **Install Ollama** downloads the official Ollama 0.34.3 installer (about 1.6 GB), checks its SHA-256 checksum, installs it for your Windows account without admin rights and then downloads the model. If Ollama is already installed, **Download model** is enough. Nothing is downloaded before you click.
 5. **Player names** and **extras** such as replays, text recognition and voice chat (see below).
 6. **All set:** the client starts working and switches to the overview, which shows the clip in work, the queue and the recently archived clips.
 
@@ -111,22 +107,23 @@ With "Match Replay" (game settings), Rainbow Six writes every round as a file bu
 
 ## Troubleshooting
 
-| Problem                                    | Next step                                                                                                                            |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Server not reachable                       | Check the address in the browser; on the server, run `docker compose ps` and `docker compose logs --tail=80`.                        |
-| "This origin is not allowed"               | `REPLAYHAVEN_PUBLIC_ORIGIN` in `.env` must match the browser address exactly. Then run `docker compose up -d`.                       |
-| Wrong key                                  | Enter the key again. It is in `.env` on the server.                                                                                  |
-| Ollama not reachable                       | Start Ollama on Windows, then **Check connection**.                                                                                  |
-| Model missing                              | Choose **Download model** and wait.                                                                                                  |
-| GPU memory low / game stutters             | Pause the client and resume after gaming. Start with 24 frames. During analysis, `ollama ps` shows GPU usage.                        |
-| File stays pending                         | Wait until the recording has been fully written. Supported: MP4, M4V, MOV, WebM, MKV; at most 2 GB, 30 minutes and 8K per recording. |
-| Fortnite clip stays pending                | It is waiting for its match to end. It continues after the match or after 45 minutes at the latest.                                  |
-| Start reports "Visual C++ Redistributable" | R6 text recognition needs it. Install the current x64 version from Microsoft and start again, or turn off the R6 option.             |
-| No AI title                                | Check whether client analysis was active. Files already archived are not re-analysed automatically when you turn it on later.        |
-| No Windows download under Recording PCs    | The image has no download address. Set `REPLAYHAVEN_CLIENT_DOWNLOAD_URL` in `.env` or put the installer in `release/`.               |
+| Problem                                    | Next step                                                                                                                              |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Server not reachable                       | Check the address in the browser; on the server, run `docker compose ps` and `docker compose logs --tail=80`.                          |
+| "This origin is not allowed"               | `REPLAYHAVEN_PUBLIC_ORIGIN` in `.env` must match the browser address exactly. Then run `docker compose up -d`.                         |
+| Wrong key                                  | Enter the key again. It is in `.env` on the server.                                                                                    |
+| Ollama not reachable                       | Start Ollama on Windows, then **Check connection**.                                                                                    |
+| Pairing link does nothing                  | Install and open the client once, then click **Connect this PC** again. Or copy the link and paste it into the client's address field. |
+| Model missing                              | Choose **Download model** and wait.                                                                                                    |
+| GPU memory low / game stutters             | Pause the client and resume after gaming. Start with 24 frames. During analysis, `ollama ps` shows GPU usage.                          |
+| File stays pending                         | Wait until the recording has been fully written. Supported: MP4, M4V, MOV, WebM, MKV; at most 2 GB, 30 minutes and 8K per recording.   |
+| Fortnite clip stays pending                | It is waiting for its match to end. It continues after the match or after 45 minutes at the latest.                                    |
+| Start reports "Visual C++ Redistributable" | R6 text recognition needs it. Install the current x64 version from Microsoft and start again, or turn off the R6 option.               |
+| No AI title                                | Check whether client analysis was active. Files already archived are not re-analysed automatically when you turn it on later.          |
+| No Windows download under Recording PCs    | The image has no download address. Set `REPLAYHAVEN_CLIENT_DOWNLOAD_URL` in `.env` or put the installer in `release/`.                 |
 
 ## Limits
 
-Model quality, speed and graphics memory requirements depend on your hardware. Qwen3.5 9B runs smoothly on graphics cards with about 10 GB of VRAM or more; without a suitable GPU, Ollama computes on the CPU and takes considerably longer. After setup, check with a real clip: start the server → connect the client → save a new recording → watch GPU usage → check the result in the archive → download the original.
+Model quality, speed and graphics memory requirements depend on your hardware. Qwen3.5 9B runs smoothly on graphics cards with about 10 GB of VRAM or more, 4B on 6 to 8 GB; without a suitable GPU, Ollama computes on the CPU and takes considerably longer. After setup, check with a real clip: start the server → connect the client → save a new recording → watch GPU usage → check the result in the archive → download the original.
 
 Further reading: [Running the server](SERVER.md), [Development](../README.md), [Qwen3.5 on Ollama](https://ollama.com/library/qwen3.5:9b), [Ollama GPU support](https://docs.ollama.com/gpu).

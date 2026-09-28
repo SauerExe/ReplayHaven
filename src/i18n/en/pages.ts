@@ -39,14 +39,13 @@ export const pages = {
   'pages.setup.server.recommended': 'Recommended',
   'pages.setup.server.source': 'From source',
   'pages.setup.server.dockerInstruction':
-    'Open a terminal on your server and download the configuration.',
+    'Open a terminal on your server (Docker installed) and run the installer.',
   'pages.setup.server.sourceInstruction':
     'Open a terminal on your server. The setup script walks you through the rest.',
   'pages.setup.server.prepare': 'Prepare the server',
-  'pages.setup.server.startCommand': 'Start the server',
-  'pages.setup.server.configTitle': 'Configure your connection',
+  'pages.setup.server.configTitle': 'Open the setup link',
   'pages.setup.server.configText':
-    'In the opened {env}, enter your own {token} and your browser address as {origin}, including protocol and port. Create a key in a second terminal with {openssl}. Then save the file.',
+    'The installer checks Docker, writes {env} with a fresh {token} and your network address as {origin}, starts the server and prints a setup link. Open it to create your account without typing the key. Running it again updates the server.',
   'pages.setup.server.keyTitle': 'Keep your access key',
   'pages.setup.server.keyText':
     'The script asks for your server address, creates your access key and starts the server. You need the key exactly once: when you create your account. The first build needs internet and a few minutes.',
@@ -66,7 +65,7 @@ export const pages = {
   'pages.setup.client.installText': 'Run the Windows installer and open ReplayHaven Client.',
   'pages.setup.client.pairTitle': 'Pair it with your server',
   'pages.setup.client.pairText':
-    'Enter the server address in the client. It shows a code; the same code appears under Settings → Recording PCs, and you click Approve.',
+    'Easiest: open this page on your gaming PC, go to Settings → Recording PCs and click “Connect this PC”. Or enter the server address in the client; it shows a code that you approve under Settings → Recording PCs.',
   'pages.setup.client.folderTitle': 'Choose your recording folder',
   'pages.setup.client.folderText':
     'Pick the folder where your recording app saves clips. Subfolders are included too.',

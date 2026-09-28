@@ -364,6 +364,28 @@
   font-size: 13px;
   line-height: 19px;
 }
+/* The access key came with the setup link: a confirmation instead of the key field. */
+.auth-key-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgb(167 139 250 / 9%);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 19px;
+}
+.auth-key-link svg {
+  flex: none;
+  color: var(--accent);
+}
+.auth-key-link .auth-link {
+  margin-left: auto;
+  font-size: 13px;
+}
 
 .auth-alert {
   display: flex;

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gameKey, lookupGame } from './metadata';
-import type { Igdb } from './metadata';
+import type { ContentLanguage, Igdb } from './metadata';
 import type { VaultDatabase, StoredGame } from './database';
 import type { GameMetadataStatus } from '../src/domain/models';
 
@@ -34,6 +34,8 @@ export class GameLibrary {
     private readonly enabled: boolean,
     /** Second source for games without a Steam entry; absent until IGDB is set up. */
     private readonly igdb?: Igdb,
+    /** Language of the game descriptions (REPLAYHAVEN_CONTENT_LANGUAGE). */
+    private readonly language: ContentLanguage = 'de',
   ) {}
 
   list(): StoredGame[] {
@@ -108,7 +110,7 @@ export class GameLibrary {
     };
     try {
       const signal = AbortSignal.any([this.abort.signal, AbortSignal.timeout(30000)]);
-      const info = await lookupGame(label, signal, this.igdb);
+      const info = await lookupGame(label, signal, this.igdb, this.language);
       if (info) {
         const cover = await this.cache(key, [info.coverUrl, info.fallbackCoverUrl].filter(Boolean));
         entry.info = {

@@ -218,6 +218,19 @@ export const settings = {
   'settings.pcs.removeText':
     'The PC can no longer upload. Its clips stay in the archive. Pair it again to reconnect.',
   'settings.pcs.removed': '“{name}” can no longer upload.',
+  'settings.pcs.link.title': 'Connect this PC',
+  'settings.pcs.link.text':
+    'Signed in here on your gaming PC? One click opens the ReplayHaven client and connects it, without an address or code.',
+  'settings.pcs.link.name': 'Connect with one click',
+  'settings.pcs.link.hint':
+    'Install the Windows client first. The link works once and for 10 minutes.',
+  'settings.pcs.link.opened':
+    'Windows should now open the client. Nothing happened? Install the client and click again.',
+  'settings.pcs.link.connect': 'Connect this PC',
+  'settings.pcs.link.copy': 'Copy link',
+  'settings.pcs.link.copied': 'Link copied. Paste it into the client as the server address.',
+  'settings.pcs.link.fallback':
+    'On another computer, copy the link and paste it into the client’s server address field.',
   'settings.pcs.client.title': 'Windows client',
   'settings.pcs.client.text':
     'Watches your recording folder, analyzes clips with local AI and uploads them here.',

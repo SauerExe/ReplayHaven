@@ -100,24 +100,6 @@ describe('archive and client-analysis pipeline', () => {
         })
       ).statusCode,
     ).toBe(403);
-    expect(
-      (await vault.app.inject({ method: 'POST', url: '/api/session', payload: { token: 'wrong' } }))
-        .statusCode,
-    ).toBe(401);
-    const login = await vault.app.inject({
-      method: 'POST',
-      url: '/api/session',
-      payload: { token },
-    });
-    expect(login.statusCode).toBe(200);
-    expect(
-      (
-        await vault.app.inject({
-          url: '/api/status',
-          headers: { cookie: login.cookies.map((c) => `${c.name}=${c.value}`).join('; ') },
-        })
-      ).statusCode,
-    ).toBe(200);
   });
   it('streams a real MP4, extracts a thumbnail, and serves byte ranges', async () => {
     const uploaded = await upload({ 'x-client-analysis': '1' });

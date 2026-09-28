@@ -24,6 +24,8 @@ export const auth = {
   'auth.field.key': 'Setup access key',
   'auth.field.keyHint':
     'It is in your {file} as {name}. It prevents anyone else from creating the first account.',
+  'auth.field.keyFromLink': 'Access key filled in from the setup link.',
+  'auth.field.keyShow': 'Change',
   'auth.missing.name': 'Enter your name.',
   'auth.missing.password': 'Enter your password.',
   'auth.missing.key': 'Enter the access key from the server setup.',
