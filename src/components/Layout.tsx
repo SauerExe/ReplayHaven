@@ -23,6 +23,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { useActions } from './Actions';
+import { SupportBanner } from './SupportBanner';
 import { useVault } from '../data/store';
 import { useIsAdmin } from './AuthGate';
 import { useDevicesHref, useServerHref } from './settings/sections';
@@ -241,6 +242,7 @@ export function Layout() {
         </div>
         <small>{tp('app.layout.clipsInVault', state.clips.length)}</small>
       </footer>
+      <SupportBanner />
       <nav className="mobile-nav" aria-label={t('app.layout.mobileNav')}>
         {nav.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.to === '/'}>

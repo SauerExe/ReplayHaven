@@ -3371,3 +3371,69 @@ html[data-reduced='true'] *::after {
   transition: none !important;
   scroll-behavior: auto !important;
 }
+
+/* Support banner (components/SupportBanner.tsx): bottom right, above the mobile navigation. */
+.support-banner {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px 14px;
+  align-items: start;
+  width: min(460px, calc(100vw - 32px));
+  padding: 16px 16px 16px 18px;
+  background: #1c202bf5;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 50px #0009;
+  backdrop-filter: blur(12px);
+  animation: support-in 0.3s ease-out;
+}
+.support-banner p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.support-banner strong {
+  color: var(--text);
+}
+.support-heart {
+  margin-top: 2px;
+  color: var(--accent);
+}
+.support-actions {
+  grid-column: 2 / 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.support-close {
+  grid-column: 3;
+  grid-row: 1;
+  width: 30px;
+  height: 30px;
+  margin: -6px -6px 0 0;
+  color: var(--muted);
+}
+@keyframes support-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .support-banner {
+    animation: none;
+  }
+}
+@media (max-width: 600px) {
+  .support-banner {
+    right: 16px;
+    left: 16px;
+    width: auto;
+    bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+}
