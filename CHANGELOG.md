@@ -30,6 +30,8 @@ All notable changes to this project are documented here. The format follows
   `env.example` from the release and verifies them against `SHA256SUMS.txt`, writes `.env` with a
   new access key and the confirmed LAN address, starts the server and prints a setup link.
   Running it again updates and keeps `.env`.
+- Deployment templates: `portainer-template.json` (Portainer app template) and
+  `docker-compose.coolify.yml` (Coolify generates domain and access key).
 - Setup link for the first account (`http://host:8787/#setup-key=…`): the sign-in page fills in
   the access key from the URL fragment, which is never sent to the server, and removes it from
   the address bar. While no account exists, the server also prints the link to its log.

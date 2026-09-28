@@ -1,0 +1,35 @@
+# documentation: https://github.com/SauerExe/ReplayHaven/blob/main/docs/SERVER.md
+# slogan: Self-hosted game clip archive; a local AI on your gaming PC names every clip.
+# category: media
+# tags: gaming,clips,video,archive,ai,ollama,self-hosted
+# logo: svgs/replayhaven.svg
+# port: 8787
+#
+# ReplayHaven for Coolify. In Coolify: New resource → Public/Private Repository → this repository,
+# build pack "Docker Compose", compose file docker-compose.coolify.yml. Coolify generates the
+# domain (SERVICE_URL_*) and the access key (SERVICE_PASSWORD_*), routes HTTPS to port 8787 and
+# keeps the archive volume. The access key is shown under Environment Variables; the server log
+# also prints a setup link for the first account. Large uploads need a longer Traefik timeout, see
+# docs/SERVER.md, "Deploy behind Coolify/Traefik".
+services:
+  replayhaven:
+    image: ghcr.io/sauerexe/replayhaven:latest
+    restart: unless-stopped
+    environment:
+      - SERVICE_URL_REPLAYHAVEN_8787
+      - REPLAYHAVEN_ACCESS_TOKEN=${SERVICE_PASSWORD_64_ACCESSTOKEN}
+      - REPLAYHAVEN_PUBLIC_ORIGIN=${SERVICE_URL_REPLAYHAVEN}
+      # Traefik is the only way in; the container port is not published.
+      - REPLAYHAVEN_TRUST_PROXY=true
+      - REPLAYHAVEN_PLAYBACK=${REPLAYHAVEN_PLAYBACK:-web}
+      - REPLAYHAVEN_CONTENT_LANGUAGE=${REPLAYHAVEN_CONTENT_LANGUAGE:-en}
+      - REPLAYHAVEN_OIDC_ISSUER=${REPLAYHAVEN_OIDC_ISSUER:-}
+      - REPLAYHAVEN_OIDC_CLIENT_ID=${REPLAYHAVEN_OIDC_CLIENT_ID:-}
+      - REPLAYHAVEN_OIDC_CLIENT_SECRET=${REPLAYHAVEN_OIDC_CLIENT_SECRET:-}
+      - REPLAYHAVEN_OIDC_NAME=${REPLAYHAVEN_OIDC_NAME:-}
+      - REPLAYHAVEN_OIDC_ADMIN_GROUP=${REPLAYHAVEN_OIDC_ADMIN_GROUP:-}
+    volumes:
+      # Originals, thumbnails, playback copies and the SQLite database.
+      - archive:/app/vault-data
+volumes:
+  archive:

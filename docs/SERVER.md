@@ -74,9 +74,19 @@ The first account on a server is always an admin. Accounts created before roles 
 
 A paired recording PC keeps its rights to upload, report its heartbeat and deliver client analysis results; it belongs to the admin who approved it and stops working when that account is disabled or deleted. The access key (`REPLAYHAVEN_ACCESS_TOKEN` as bearer token) acts as admin only while no account exists, that is, to set the server up. Forbidden requests are answered with `403` and an English error message.
 
+## Portainer
+
+`portainer-template.json` in this repository is a Portainer app template (a Compose stack from `compose.yaml`):
+
+1. In Portainer open **Settings → App Templates** and enter `https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/portainer-template.json` as the URL.
+2. Under **App Templates**, pick ReplayHaven, enter the access key (`openssl rand -hex 24`) and the address you open in the browser, and deploy.
+3. The container log shows the setup link for the first account.
+
 ## Deploy behind Coolify/Traefik
 
-ReplayHaven runs well as a Docker Compose resource in [Coolify](https://coolify.io), with Coolify's Traefik terminating HTTPS:
+**Quickest way:** in Coolify create a resource from this repository with the build pack **Docker Compose** and the compose file `docker-compose.coolify.yml`. Coolify generates the domain and the access key (shown under **Environment Variables**), routes HTTPS to port 8787 and keeps the archive volume; the server log prints the setup link. Step 4 below (upload timeout) still applies. This file has not been verified on every Coolify version; if it does not deploy, use the manual way.
+
+**By hand:** ReplayHaven runs well as a Docker Compose resource in [Coolify](https://coolify.io), with Coolify's Traefik terminating HTTPS:
 
 1. Create a new resource from this repository (or paste `compose.yaml`) and remove the `ports:` section, so the plain-HTTP port is not published; Traefik reaches the container over the Docker network.
 2. Give the `replayhaven` service the domain `https://clips.example.com:8787`. The `:8787` only tells Coolify which container port to route to; people still open `https://clips.example.com`.
