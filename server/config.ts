@@ -51,6 +51,8 @@ export interface ServerConfig {
    * original file whenever a browser can.
    */
   playback?: 'web' | 'original';
+  /** Log level (REPLAYHAVEN_LOG_LEVEL, default info); without it (tests) nothing is logged. */
+  logLevel?: 'error' | 'warn' | 'info' | 'debug' | 'silent';
   /** Whether admins see the request to tip the developer in the web library (default on). */
   supportBanner?: boolean;
   /** Language of content the server writes or fetches: AI titles and Steam game descriptions. */
@@ -131,6 +133,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const playback = (env.REPLAYHAVEN_PLAYBACK || 'web').trim().toLowerCase();
   if (!['web', 'original'].includes(playback))
     throw new Error('REPLAYHAVEN_PLAYBACK must be web or original.');
+  const logLevel = (env.REPLAYHAVEN_LOG_LEVEL || 'info').trim().toLowerCase();
+  if (!['error', 'warn', 'info', 'debug', 'silent'].includes(logLevel))
+    throw new Error('REPLAYHAVEN_LOG_LEVEL must be error, warn, info, debug or silent.');
   const contentLanguage = (env.REPLAYHAVEN_CONTENT_LANGUAGE || 'en').trim().toLowerCase();
   if (!['en', 'de'].includes(contentLanguage))
     throw new Error('REPLAYHAVEN_CONTENT_LANGUAGE must be en or de.');
@@ -170,6 +175,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     playback: playback as 'web' | 'original',
     contentLanguage: contentLanguage as 'en' | 'de',
     supportBanner: flag(env.REPLAYHAVEN_SUPPORT_BANNER, true),
+    logLevel: logLevel as ServerConfig['logLevel'],
   };
 }
 export function aiConfigured(config: ServerConfig) {

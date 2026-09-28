@@ -146,7 +146,8 @@ export const en = {
     'Exact kills, weapon and distance from the replays. Clips wait until the match ends.',
   'field.epic': 'Epic account ID',
   'opt.keepR6': 'Keep R6 replays with clips',
-  'opt.keepR6Note': 'Saves the match for every R6 clip, about 30 MB, for exact analysis later.',
+  'opt.keepR6Note':
+    'Saves the match for every R6 clip, about 30 MB, for exact analysis later. Keeps the newest 60 matches (about 1.8 GB).',
   'card.behavior': 'Behavior',
   'field.language': 'Language',
   'opt.pauseGaming': 'Pause while gaming',

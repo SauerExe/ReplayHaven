@@ -27,10 +27,20 @@ export function runFile(
       (error, stdout, stderr) => {
         if (error)
           reject(
-            new Error(
-              error.killed
-                ? 'Media processing exceeded its time limit.'
-                : 'The video file could not be processed. Check the format and the FFmpeg installation.',
+            Object.assign(
+              new Error(
+                error.killed
+                  ? 'Media processing exceeded its time limit.'
+                  : 'The video file could not be processed. Check the format and the FFmpeg installation.',
+              ),
+              // The last lines FFmpeg printed: the actual reason, for the server log.
+              {
+                detail: String(stderr ?? '')
+                  .trim()
+                  .split('\n')
+                  .slice(-8)
+                  .join('\n'),
+              },
             ),
           );
         else resolve(output === 'stderr' ? stderr : stdout);

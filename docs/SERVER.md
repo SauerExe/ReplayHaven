@@ -48,6 +48,10 @@ bash setup-server.sh
 docker exec -it replayhaven node server-bundle/admin.mjs users
 docker exec -it replayhaven node server-bundle/admin.mjs reset-password <name>
 
+# Removed clips keep their files until you purge them (first without --yes to see the size)
+docker exec -it replayhaven node server-bundle/admin.mjs purge-removed
+docker exec -it replayhaven node server-bundle/admin.mjs purge-removed --yes
+
 # Status and logs
 docker compose ps
 docker compose logs --tail=100 -f
@@ -90,7 +94,7 @@ In Portainer open **Stacks → Add stack → Repository**, enter `https://github
 
 **By hand:** ReplayHaven runs well as a Docker Compose resource in [Coolify](https://coolify.io), with Coolify's Traefik terminating HTTPS:
 
-1. Create a new resource from this repository (or paste `compose.yaml`) and remove the `ports:` section, so the plain-HTTP port is not published; Traefik reaches the container over the Docker network.
+1. Create a new resource from this repository (or paste `compose.yaml`) and remove the `ports:` section (outside Coolify: `ports: !reset []` in `compose.override.yaml`), so the plain-HTTP port is not published; Traefik reaches the container over the Docker network.
 2. Give the `replayhaven` service the domain `https://clips.example.com:8787`. The `:8787` only tells Coolify which container port to route to; people still open `https://clips.example.com`.
 3. Set the environment variables in Coolify:
 
@@ -211,9 +215,27 @@ docker run --rm -v replayhaven_archive:/data -v "$PWD":/backup alpine tar -czf /
 docker compose start
 ```
 
-Keep `.env` somewhere safe as well. `docker compose down` keeps the volume; `down -v` deletes it and is not a normal update step. Library entries you remove keep their originals, and uploading the same content again restores the entry.
+Keep `.env` somewhere safe as well. `docker compose down` keeps the volume; `down -v` deletes it and is not a normal update step. Library entries you remove keep their originals, and uploading the same content again restores the entry; `admin.mjs purge-removed` deletes them for good (see above).
 
-If you prefer the data in a folder instead of a named volume, replace the line `- archive:/app/vault-data` in `compose.yaml` with `- ./data:/app/vault-data` and give the folder UID 1000 (`chown -R 1000:1000 data`).
+**Before an update**, take a backup as above: updates only move the database forward, so going back to an older release needs the backup from before. **To restore**, stop the server, unpack the archive into the empty volume and start again:
+
+```bash
+docker compose stop
+docker run --rm -v replayhaven_archive:/data -v "$PWD":/backup alpine sh -c 'rm -rf /data/* && tar -xzf /backup/replayhaven-backup.tar.gz -C /data'
+docker compose start
+```
+
+**Changes of your own go into `compose.override.yaml`**, next to `compose.yaml`; Docker Compose merges it automatically, and the installer replaces `compose.yaml` with every update (it refuses to when `compose.yaml` itself was edited). For example, to keep the data in a folder instead of the named volume, or to publish the port only on this machine:
+
+```yaml
+# compose.override.yaml
+services:
+  replayhaven:
+    volumes:
+      - ./data:/app/vault-data # give the folder UID 1000: chown -R 1000:1000 data
+    ports: !override
+      - '127.0.0.1:8787:8787'
+```
 
 ## Windows client download
 
@@ -253,18 +275,26 @@ REPLAYHAVEN_DATA_DIR=/var/lib/replayhaven node server-bundle/index.mjs
 
 Set FFmpeg and FFprobe with `REPLAYHAVEN_FFMPEG` and `REPLAYHAVEN_FFPROBE`; without them the server uses the npm packages `ffmpeg-static` and `@ffprobe-installer/ffprobe`.
 
+## Other settings
+
+These apply whether or not you use server-side AI. Add them to `.env` and recreate the container (`docker compose up -d`):
+
+| Variable                       | Meaning                                                                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `REPLAYHAVEN_CONTENT_LANGUAGE` | `en` (default) or `de`: language of Steam game descriptions and of titles the server-side AI writes                           |
+| `REPLAYHAVEN_SUPPORT_BANNER`   | `true` (default) or `false`: whether admins see the tip request in the web library, at most every four days                   |
+| `REPLAYHAVEN_LOG_LEVEL`        | `error`, `warn`, `info` (default: server errors and failed sign-ins), `debug` or `silent`; requests themselves are not logged |
+
 ## Optional server AI
 
 **Not needed** when you use the Windows client. These interfaces are prepared but have not been tested against a real provider. Add to `.env`:
 
-| Variable                       | Meaning                                                                                            |
-| ------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `REPLAYHAVEN_AI_PROVIDER`      | `none` (default), `local` or `gemini`                                                              |
-| `REPLAYHAVEN_AI_MODEL`         | Exact model identifier                                                                             |
-| `REPLAYHAVEN_LOCAL_AI_URL`     | Reachable vision chat completions API, e.g. `http://modelhost:8000/v1`                             |
-| `REPLAYHAVEN_LOCAL_AI_KEY`     | Optional API key                                                                                   |
-| `GEMINI_API_KEY`               | Key for Gemini analysis, used only when explicitly enabled                                         |
-| `REPLAYHAVEN_SUPPORT_BANNER`   | `true` (default) or `false`: whether admins see the tip request in the web library every four days |
-| `REPLAYHAVEN_CONTENT_LANGUAGE` | `en` (default) or `de`: language of titles the server AI writes and of Steam game descriptions     |
+| Variable                   | Meaning                                                                |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `REPLAYHAVEN_AI_PROVIDER`  | `none` (default), `local` or `gemini`                                  |
+| `REPLAYHAVEN_AI_MODEL`     | Exact model identifier                                                 |
+| `REPLAYHAVEN_LOCAL_AI_URL` | Reachable vision chat completions API, e.g. `http://modelhost:8000/v1` |
+| `REPLAYHAVEN_LOCAL_AI_KEY` | Optional API key                                                       |
+| `GEMINI_API_KEY`           | Key for Gemini analysis, used only when explicitly enabled             |
 
 `local` sends sample frames to a model server you run yourself. `gemini` uploads a downscaled copy of the video to Google and may incur costs. Audio is off at first. Server analysis can then be controlled in the web UI. Uploads that announce a client result keep using the client path.

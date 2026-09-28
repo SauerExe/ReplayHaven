@@ -91,7 +91,21 @@ const token = () => randomBytes(32).toString('base64url');
 /** scrypt cost as OWASP recommends (N = 2^17, r = 8, p = 1); older hashes used 2^14. */
 export const SCRYPT_COST = 2 ** 17;
 const LEGACY_COST = 2 ** 14;
-function scrypt(password: string, salt: string, cost = SCRYPT_COST) {
+/** At most this many password hashes at once (128 MiB each); others wait their turn. */
+const MAX_HASHING = 4;
+let hashing = 0;
+const waitingForHash: (() => void)[] = [];
+async function scrypt(password: string, salt: string, cost = SCRYPT_COST) {
+  while (hashing >= MAX_HASHING) await new Promise<void>((go) => waitingForHash.push(go));
+  hashing++;
+  try {
+    return await hashOnce(password, salt, cost);
+  } finally {
+    hashing--;
+    waitingForHash.shift()?.();
+  }
+}
+function hashOnce(password: string, salt: string, cost: number) {
   return new Promise<Buffer>((done, fail) =>
     scryptCallback(
       password,
