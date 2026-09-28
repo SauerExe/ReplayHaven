@@ -12,7 +12,7 @@ npm run media:refresh   # optional: demo artwork from Steam, not committed
 npm run dev:all
 ```
 
-Node.js 24 or newer is required (`.nvmrc`). The web UI runs on http://localhost:5173 with demo data; the server runs on 127.0.0.1:8787 without an access key.
+Node.js 22.13 or newer is required; `.nvmrc`, CI and the Docker image use 24. The web UI runs on http://localhost:5173 with demo data; the server runs on 127.0.0.1:8787 without an access key.
 
 For the Windows client run `npm run client:dev` on Windows. Ollama and the model are optional; the client works as a plain upload agent when analysis is switched off.
 
@@ -41,6 +41,10 @@ CI runs the same checks plus a container smoke test and an unpacked client build
 ## Style
 
 Prettier and ESLint are configured; `npm run format` and `npm run lint` are the source of truth. Small, focused pull requests with a clear description and test notes are easiest to review.
+
+## Branches
+
+Open pull requests against `develop`, the default branch. `main` holds what was released: `develop` is merged into it by pull request, and releases are tagged there. Both branches are protected: changes arrive only through pull requests whose CI passed, and neither can be force-pushed or deleted.
 
 ## Releases
 

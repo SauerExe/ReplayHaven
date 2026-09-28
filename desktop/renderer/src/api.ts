@@ -98,6 +98,8 @@ export interface Status {
   active: Activity | null;
   recent: ArchivedClip[];
   pairing: Pairing | null;
+  /** A newer release the server runs (desktop/update.ts); empty otherwise. */
+  update: string;
 }
 export interface FolderInfo {
   clips: number;
@@ -133,6 +135,7 @@ interface Actions {
   'open-devices': [undefined, unknown];
   /** ReplayHaven servers in the home network (desktop/discovery.ts). */
   discover: [undefined, string[]];
+  'download-update': [undefined, unknown];
 }
 export type Action = keyof Actions;
 type Input<A extends Action> = Actions[A][0] extends undefined ? [] : [Actions[A][0]];

@@ -39,6 +39,8 @@ function modeText(m: Mode) {
 }
 
 export function renderOverview(s: Status) {
+  $('update-notice').hidden = !s.update;
+  $('update-text').textContent = s.update ? t('update.text', { version: s.update }) : '';
   const m = mode(s);
   const text = modeText(m);
   const pill = $('pill');
@@ -223,3 +225,6 @@ $('primary-action').onclick = () =>
 $('now-reveal').onclick = () => run(() => call('reveal', state.status!.active?.path));
 $('archive').onclick = () => run(() => call('archive'));
 $('recent-all').onclick = () => run(() => call('archive'));
+
+// The installer for the server's newer release (desktop/update.ts).
+$('update-download').onclick = () => run(() => call('download-update'));

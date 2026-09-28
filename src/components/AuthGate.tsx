@@ -207,25 +207,43 @@ function AuthLayout({
             ))}
           </ul>
         </div>
-        <div className="auth-sample" aria-hidden="true">
-          <div className="auth-sample-thumb">
-            <span className="auth-sample-play">
-              <Play size={16} fill="currentColor" />
-            </span>
-            <span className="auth-sample-time">0:54</span>
+        {/* What the library makes of a recording: decorative, the text says it too. */}
+        <div className="auth-showcase" aria-hidden="true">
+          <div className="auth-sample auth-sample-back">
+            <div className="auth-sample-thumb auth-sample-thumb-alt" />
           </div>
-          <div className="auth-sample-body">
-            <span className="auth-sample-game">Counter-Strike 2</span>
-            <span className="auth-sample-title">Ace auf Inferno</span>
-            <span className="auth-sample-tags">
-              <span>
+          <div className="auth-sample">
+            <div className="auth-sample-thumb">
+              <span className="auth-sample-badge">
                 <Sparkles size={12} /> {t('auth.aside.sampleTag')}
               </span>
-              <span>Ace</span>
-              <span>Headshot</span>
-            </span>
+              <span className="auth-sample-play">
+                <Play size={18} fill="currentColor" />
+              </span>
+              <span className="auth-sample-time">0:54</span>
+            </div>
+            <div className="auth-sample-body">
+              <span className="auth-sample-game">Counter-Strike 2</span>
+              <span className="auth-sample-title">{t('auth.aside.sampleTitle')}</span>
+              <span className="auth-sample-timeline">
+                <span className="auth-sample-progress" />
+                {[22, 41, 58, 71, 86].map((at, i) => (
+                  <span
+                    key={at}
+                    className={`auth-sample-mark${i === 4 ? ' ace' : ''}`}
+                    style={{ left: `${at}%` }}
+                  />
+                ))}
+              </span>
+              <span className="auth-sample-tags">
+                <span>Ace</span>
+                <span>Headshot</span>
+                <span>Inferno</span>
+              </span>
+            </div>
           </div>
         </div>
+        <p className="auth-trust">{t('auth.aside.trust')}</p>
       </aside>
       <div className="auth-shell">
         <div className="auth-brand auth-brand-mobile">

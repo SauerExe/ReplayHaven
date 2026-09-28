@@ -152,6 +152,9 @@ it('refuses unknown identities without auto-create but lets them claim a prepare
     headers: { cookie: owner.session },
     payload: { name: 'stranger' },
   });
+  // A display name or e-mail the user can set freely does not claim it, only the login name.
+  const impostor = await signIn(app, { sub: 'uid-8', name: 'stranger', email: 'stranger@x.org' });
+  expect(impostor.session).toBe('');
   const claimed = await signIn(app, { sub: 'uid-9', preferred_username: 'stranger' });
   expect(claimed.callback.headers.location).toBe('/');
   expect(

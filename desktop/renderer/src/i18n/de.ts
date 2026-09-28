@@ -82,6 +82,8 @@ export const de: Partial<Record<MessageKey, Message>> = {
   'progress.ollamaStart': 'Ollama wird gestartet …',
   'progress.ollamaInstall': 'Ollama wird installiert …',
   'progress.ollamaDownload': 'Ollama wird geladen: {percent} %',
+  'update.text': 'Version {version} ist auf deinem Server verfügbar.',
+  'update.download': 'Update laden',
   'queue.title': 'Warteschlange',
   'queue.empty': 'Alles erledigt. Neue Clips landen automatisch hier.',
   'queue.eta': ' · in etwa {time}',

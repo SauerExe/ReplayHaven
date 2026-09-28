@@ -46,12 +46,15 @@ export const auth = {
   'auth.aside.lead':
     'Your PC watches the recording folder, names each clip with local AI and hands the original to your own server.',
   'auth.aside.ai.title': 'Named on your PC',
-  'auth.aside.ai.text': 'Kills, map and moment, read by a local model. Nothing leaves your home.',
+  'auth.aside.ai.text':
+    'Kills, map and moment, read by a model on your gaming PC. No frame goes to a cloud service.',
   'auth.aside.server.title': 'Originals on your server',
   'auth.aside.server.text': 'Full quality, with a smooth version for streaming on the go.',
   'auth.aside.devices.title': 'On every device',
   'auth.aside.devices.text': 'Browser, phone or TV. Sign in once, stay signed in for 30 days.',
   'auth.aside.sampleTag': 'AI title',
+  'auth.aside.trust': 'Self-hosted · Source-available · Your clips stay on your hardware',
+  'auth.aside.sampleTitle': 'Ace on Inferno',
   'auth.connect.codeFailed': 'The code could not be redeemed.',
   'auth.connect.signingIn': 'Signing in this device …',
   'auth.connect.failedTitle': 'This code didn’t work',

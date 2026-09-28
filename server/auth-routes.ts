@@ -243,7 +243,12 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       throttle.fail(req.ip);
       return reply.code(401).send({ error: 'The access key from the server setup is wrong.' });
     }
-    const account = await accounts.createUser(body.name, body.password, 'admin');
+    let account;
+    try {
+      account = await accounts.createUser(body.name, body.password, 'admin', true);
+    } catch (error) {
+      return accountFailure(reply, error);
+    }
     startSession(req, reply, account.id);
     return { user: publicUser(account) };
   });
@@ -424,10 +429,10 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       if (!account) {
         // An admin may prepare an account without password under the same name; it is claimed
         // by the first OIDC sign-in with exactly that name, as long as nothing else is linked.
-        const prepared = accounts.byName(profile.username);
+        const prepared = profile.loginName ? accounts.byName(profile.loginName) : undefined;
         if (
           prepared &&
-          prepared.name === profile.username &&
+          prepared.name === profile.loginName &&
           !prepared.hash &&
           accounts.identities(prepared.id).length === 0
         )
@@ -444,6 +449,7 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
             accounts.freeName(profile.username),
             null,
             !accounts.hasUsers() || inAdminGroup ? 'admin' : 'user',
+            !accounts.hasUsers(),
           );
         else
           return failed(

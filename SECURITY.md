@@ -16,12 +16,16 @@ ReplayHaven is a personal archive for your home network. This is what protects i
   never send to the server; treat the log like `.env`. With single sign-on (OIDC), a server without
   accounts only lets members of `REPLAYHAVEN_OIDC_ADMIN_GROUP` in as the first admin; everyone
   else gets the setup link first, so open registration at the provider cannot claim the server.
+- Single sign-on creates accounts for unknown identities only with
+  `REPLAYHAVEN_OIDC_AUTO_CREATE=true`, and an account an admin prepared is only claimed by the
+  exact `preferred_username`, never by a display name or e-mail.
 - There are two roles: users can watch the archive; every change to the archive, accounts,
   recording PCs and server settings is for admins.
 - Each browser signs in with name and password, single sign-on or a one-time QR code valid for
   five minutes, and gets its own HttpOnly, SameSite=Strict session cookie (30 days, renewed on
-  use). Passwords are stored as scrypt hashes; session, device, QR and pairing tokens only as
-  SHA-256 hashes. After 20 failed sign-ins within 15 minutes from one address, sign-in pauses for
+  use). Passwords are stored as scrypt hashes (N = 2^17; older hashes are upgraded at the next
+  sign-in); session, device, QR and pairing tokens only as SHA-256 hashes. A paired PC's token is
+  created when the PC picks it up, so it is never stored in plain text. After 20 failed sign-ins within 15 minutes from one address, sign-in pauses for
   that address only, so nobody can lock out everyone else. Behind a reverse proxy this needs
   `REPLAYHAVEN_TRUST_PROXY`, otherwise all requests share the proxy's address.
 - Recording PCs pair in one of two ways, and each gets its own bearer token, stored encrypted

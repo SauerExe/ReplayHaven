@@ -209,6 +209,7 @@ export async function buildServer(
     clientDownloadAvailable: (await localInstaller()) || !!config.clientDownloadUrl,
     gameMetadata: games.status(),
     playback: playback.status(),
+    supportBanner: config.supportBanner !== false,
   }));
   app.get('/api/downloads/windows', async (_req, reply) => {
     if (await localInstaller()) {

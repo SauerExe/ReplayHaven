@@ -20,8 +20,21 @@ env:
   PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
+  # Releases come from main: develop is merged into main by pull request, then tagged there.
+  guard:
+    name: Tag is on main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check that the tagged commit is on main
+        if: env.PUBLISH == 'true'
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
   client:
     name: Windows installer
+    needs: guard
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,6 +64,7 @@ jobs:
 
   image:
     name: Server image
+    needs: guard
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -70,8 +84,10 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
             type=raw,value=latest
       - name: Build and push
+        id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -84,6 +100,18 @@ jobs:
             REPLAYHAVEN_CLIENT_DOWNLOAD_URL=https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ReplayHaven-Client-Setup.exe
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # Like the installer: proves the image was built by this workflow from the tag. Check it with
+      # gh attestation verify oci://ghcr.io/<owner>/replayhaven:<version> --repo <owner>/<repo>
+      - name: Image name in lower case
+        if: env.PUBLISH == 'true'
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: Attest image provenance
+        if: env.PUBLISH == 'true'
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
   release:
     name: GitHub release

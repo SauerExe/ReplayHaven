@@ -20,6 +20,7 @@ const actions = new Set([
   'pair-cancel',
   'open-devices',
   'discover',
+  'download-update',
 ]);
 contextBridge.exposeInMainWorld('vault', {
   call: (action: string, value?: unknown) => {

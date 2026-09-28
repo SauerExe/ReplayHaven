@@ -38,6 +38,7 @@ import { keepMatchForClip } from '../agent/r6-replays';
 import { installOllama, OLLAMA_SETUP } from './ollama-setup';
 import { linkIn, PAIRING_SCHEME, parsePairingLink } from './pairing-link';
 import { discoverServers } from './discovery';
+import { isNewer } from './update';
 import {
   configSchema,
   DEFAULT_CONFIG,
@@ -85,6 +86,8 @@ let status = {
   active: null as Activity | null,
   recent: [] as ArchivedClip[],
   pairing: null as Pairing | null,
+  /** A newer release the server runs, for the update notice (desktop/update.ts); empty otherwise. */
+  update: '',
 };
 /** State of a pairing: the PC waits until someone approves it in the web interface. */
 type Pairing = {
@@ -512,6 +515,21 @@ async function keepR6Match(savedAt: number) {
   }
 }
 let lastScan = 0;
+let lastUpdateCheck = 0;
+/** Looks at the server's release every few hours; a newer one is offered in the window. */
+async function checkServerVersion(known?: { version?: string }) {
+  lastUpdateCheck = Date.now();
+  const info =
+    known ??
+    ((await fetch(`${config.server}/api/status`, {
+      headers: config.token ? { Authorization: `Bearer ${config.token}` } : {},
+      signal: AbortSignal.timeout(10000),
+    })
+      .then((r) => (r.ok ? r.json() : {}))
+      .catch(() => ({}))) as { version?: string });
+  const update = isNewer(info.version, app.getVersion()) ? (info.version ?? '') : '';
+  if (update !== status.update) emit({ update });
+}
 async function tick() {
   if (!waiting() && runningMatches.size && Date.now() - lastMatchSync > 60_000) {
     lastMatchSync = Date.now();
@@ -526,6 +544,7 @@ async function tick() {
   try {
     await agent.scan();
     await agent.heartbeat();
+    if (Date.now() - lastUpdateCheck > 6 * 3600_000) await checkServerVersion();
     emit();
   } catch (error) {
     emit({
@@ -586,6 +605,7 @@ async function launch() {
         ? 'The server rejected this PC. Pair it again under Settings.'
         : `The archive server answered with HTTP ${response.status}.`,
     );
+  await checkServerVersion((await response.json().catch(() => ({}))) as { version?: string });
   if (config.analyze) {
     const ai = await checkOllama(OLLAMA_URL, config.model);
     if (!ai.supported)
@@ -1041,6 +1061,10 @@ else {
         emit({ pairing: null });
       });
       // Opens the devices page of the server where the approval is waiting.
+      // The installer comes from the server, which serves it or points to the matching release.
+      handle('vault:download-update', () =>
+        shell.openExternal(`${validateServer(config.server)}/api/downloads/windows`),
+      );
       handle('vault:open-devices', () => {
         const server = status.pairing?.server ?? config.server;
         return shell.openExternal(`${validateServer(server)}/settings/pcs`);

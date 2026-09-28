@@ -14,6 +14,7 @@
 *.woff binary
 *.woff2 binary
 
-# Keep generated and vendored files out of diffs and language statistics.
-package-lock.json linguist-generated=true -diff
+# Keep generated and vendored files out of language statistics; lockfile changes stay visible
+# in diffs, because dependency updates should be reviewable.
+package-lock.json linguist-generated=true
 public/media/** linguist-vendored=true
