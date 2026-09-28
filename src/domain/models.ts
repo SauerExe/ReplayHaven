@@ -31,6 +31,8 @@ export interface Clip {
   gameName?: string;
   description?: string;
   deviceName?: string;
+  /** Account whose paired PC uploaded the clip; missing for older clips and browser uploads. */
+  uploadedBy?: { id: string; name: string };
   analysis?: ClipAnalysis;
 }
 export interface AnalysisResult {

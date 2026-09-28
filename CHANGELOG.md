@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The web library can filter clips by who recorded them ("Recorded by"), and the clip details
+  name the person. Clips uploaded from a paired PC belong to that PC's account;
+  `admin.mjs assign-uploader <name> --yes` assigns older clips to one account.
 - The installer backs up the database inside the volume before every update (newest three kept)
   and updates in place when run inside an existing install directory.
 - The server records a schema version and refuses to start on a database written by a newer

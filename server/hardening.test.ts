@@ -221,6 +221,40 @@ it(
   },
 );
 
+it(
+  'names the uploading account, and lets its PCs deliver for clips assigned by the admin command',
+  { timeout: 30_000 },
+  async () => {
+    const { app, db, admin, pairPc, upload } = await withAdmin();
+    const pc = await pairPc('PC-1');
+    const id = (await upload({ ...pc, 'x-client-analysis': '1' })).json().clip.id as string;
+    const owner = new Accounts(db.db).byName('owner')!;
+    const listed = (await app.inject({ url: '/api/clips', headers: admin })).json();
+    expect(listed[0].uploadedBy).toEqual({ id: owner.id, name: 'owner' });
+    expect(listed[0]).not.toHaveProperty('uploader');
+    expect((await app.inject({ url: `/api/clips/${id}`, headers: admin })).json()).toMatchObject({
+      uploadedBy: { id: owner.id, name: 'owner' },
+    });
+    const deliver = () =>
+      app.inject({
+        method: 'POST',
+        url: `/api/clips/${id}/client-analysis`,
+        headers: pc,
+        payload: { result, duration: 2, model: 'test-only' },
+      });
+    // As set by `admin.mjs assign-uploader owner`: no PC session behind it.
+    db.patch(id, { uploader: { session: '', user: owner.id } });
+    expect((await deliver()).statusCode).toBe(200);
+    // An account that no longer exists is not shown, and its clips stay closed to other accounts.
+    db.patch(id, { uploader: { session: '', user: randomUUID() } });
+    expect((await app.inject({ url: '/api/clips', headers: admin })).json()[0]).not.toHaveProperty(
+      'uploadedBy',
+    );
+    expect((await deliver()).statusCode).toBe(403);
+    await app.close();
+  },
+);
+
 it('answers an upload racing a copy of itself as a duplicate', { timeout: 30_000 }, async () => {
   const { app, db, config, admin, upload } = await withAdmin();
   const first = await upload(admin);

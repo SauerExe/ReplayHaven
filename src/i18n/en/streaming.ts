@@ -79,6 +79,7 @@ export const streaming = {
   'stream.detail.download': 'Download original',
   'stream.detail.addTag': 'Add tag',
   'stream.detail.game': 'Game',
+  'stream.detail.uploadedBy': 'Recorded by',
   'stream.detail.recording': 'Recorded on',
   'stream.detail.analysis': 'Analysis',
   'stream.detail.running': 'Running now',

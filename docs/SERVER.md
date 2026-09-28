@@ -53,6 +53,11 @@ docker exec -it replayhaven node server-bundle/admin.mjs reset-password <name>
 docker exec -it replayhaven node server-bundle/admin.mjs purge-removed
 docker exec -it replayhaven node server-bundle/admin.mjs purge-removed --yes
 
+# Clips from before 1.1.5 and browser uploads have no uploader for the "Recorded by" filter;
+# give all of them to one account (first without --yes to see how many)
+docker exec -it replayhaven node server-bundle/admin.mjs assign-uploader <name>
+docker exec -it replayhaven node server-bundle/admin.mjs assign-uploader <name> --yes
+
 # Status and logs
 docker compose ps
 docker compose logs --tail=100 -f

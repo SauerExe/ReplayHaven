@@ -11,11 +11,16 @@ export interface LibraryFilters {
   tag: string;
   period: string;
   status: string;
+  /** Account ID of the uploader, or UNKNOWN_UPLOADER for clips without one. */
+  uploader: string;
   sort: string;
 }
 
+/** Filter value for clips that name no uploader (older clips, browser uploads). */
+export const UNKNOWN_UPLOADER = 'unknown';
+
 /** What "Reset" clears; sorting is not part of it. */
-export const FILTER_PARAMS = ['q', 'game', 'favorite', 'tag', 'period', 'status'] as const;
+export const FILTER_PARAMS = ['q', 'game', 'favorite', 'tag', 'period', 'status', 'by'] as const;
 
 export function readFilters(params: URLSearchParams): LibraryFilters {
   return {
@@ -25,6 +30,7 @@ export function readFilters(params: URLSearchParams): LibraryFilters {
     tag: params.get('tag') || '',
     period: params.get('period') || '',
     status: params.get('status') || '',
+    uploader: params.get('by') || '',
     sort: params.get('sort') || '',
   };
 }
@@ -47,7 +53,10 @@ export function filterLibrary(
   const direct = query
     ? new Set(filterClips(raw, { query: filters.query }).map((clip) => clip.id))
     : null;
-  return filterClips(raw, { ...filters, query: '' })
+  const byUploader = filters.uploader
+    ? raw.filter((clip) => (clip.uploadedBy?.id ?? UNKNOWN_UPLOADER) === filters.uploader)
+    : raw;
+  return filterClips(byUploader, { ...filters, query: '' })
     .map((clip) => byId.get(clip.id))
     .filter((clip): clip is StreamClip => !!clip)
     .filter(
@@ -63,6 +72,28 @@ export function filterLibrary(
 /** Tags for the filter; it compares against the clip's tags, not the AI's suggestions. */
 export function tagOptions(raw: Clip[]): string[] {
   return [...new Set(raw.flatMap((clip) => clip.tags))].sort(compareText);
+}
+
+export interface UploaderOptions {
+  /** Everyone who uploaded clips, by name. */
+  people: { id: string; name: string }[];
+  /** Some clips name no uploader, so "Unknown" is offered as well. */
+  unknown: boolean;
+}
+
+/**
+ * People for the "Recorded by" filter, or null when it would not narrow anything down: all clips
+ * come from one person, or none names an uploader.
+ */
+export function uploaderOptions(raw: Clip[]): UploaderOptions | null {
+  const names = new Map<string, string>();
+  for (const clip of raw) if (clip.uploadedBy) names.set(clip.uploadedBy.id, clip.uploadedBy.name);
+  const unknown = raw.some((clip) => !clip.uploadedBy);
+  if (names.size < 2 && !(names.size === 1 && unknown)) return null;
+  const people = [...names]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => compareText(a.name, b.name));
+  return { people, unknown };
 }
 
 function totalDuration(clips: StreamClip[]) {

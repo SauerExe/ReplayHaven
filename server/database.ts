@@ -159,7 +159,14 @@ export class VaultDatabase {
     this.db.close();
   }
 }
-export function publicClip(clip: StoredClip): Clip {
+/**
+ * A clip as the web interface sees it. `names` resolves account IDs; the uploader appears by
+ * name while its account exists, the PC session never leaves the server.
+ */
+export function publicClip(
+  clip: StoredClip,
+  names: (userId: string) => string | undefined = () => undefined,
+): Clip {
   const {
     hash: _hash,
     originalFile: _originalFile,
@@ -179,5 +186,7 @@ export function publicClip(clip: StoredClip): Clip {
   void _profile;
   void _failed;
   void _uploader;
-  return publicData;
+  const user = clip.uploader?.user;
+  const name = user ? names(user) : undefined;
+  return user && name ? { ...publicData, uploadedBy: { id: user, name } } : publicData;
 }
