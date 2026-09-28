@@ -132,7 +132,7 @@ The installer creates `./replayhaven` with `compose.yaml` and a `.env` from the 
 
 Open the setup link to create your admin account. It carries the access key from `.env` in the part after `#`, which the browser never sends to the server; the page removes it from the address bar right away. The key is needed once, so nobody else can claim a server that is already reachable. Lost the link? `docker compose logs replayhaven` shows it until the first account exists, or open the server address and enter `REPLAYHAVEN_ACCESS_TOKEN` from `.env`. Other devices then sign in with name and password, or scan the QR code under **Settings → Devices → Connect phone**.
 
-Using Portainer or Coolify? Add [`portainer-template.json`](portainer-template.json) as an app template in Portainer, or deploy [`docker-compose.coolify.yml`](docker-compose.coolify.yml) in Coolify, which generates the domain and the access key; both are described in [docs/SERVER.md](docs/SERVER.md#portainer).
+Using Portainer or Coolify? Add the repository as a stack in Portainer, or deploy [`docker-compose.coolify.yml`](docker-compose.coolify.yml) in Coolify, which generates the domain and the access key; both are described in [docs/SERVER.md](docs/SERVER.md#portainer).
 
 <details>
 <summary><b>By hand, or from a source checkout</b></summary>

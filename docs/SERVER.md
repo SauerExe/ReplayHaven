@@ -76,11 +76,9 @@ A paired recording PC keeps its rights to upload, report its heartbeat and deliv
 
 ## Portainer
 
-`portainer-template.json` in this repository is a Portainer app template (a Compose stack from `compose.yaml`):
+In Portainer open **Stacks → Add stack → Repository**, enter `https://github.com/SauerExe/ReplayHaven` with the compose path `compose.yaml`, and add the environment variables `REPLAYHAVEN_ACCESS_TOKEN` (`openssl rand -hex 24`) and `REPLAYHAVEN_PUBLIC_ORIGIN` (the address you open in the browser, for example `http://192.168.1.20:8787`). After the first start, the container log shows the setup link for the first account.
 
-1. In Portainer open **Settings → App Templates** and enter `https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/portainer-template.json` as the URL.
-2. Under **App Templates**, pick ReplayHaven, enter the access key (`openssl rand -hex 24`) and the address you open in the browser, and deploy.
-3. The container log shows the setup link for the first account.
+`portainer-template.json` describes the same stack as an app template for template collections such as [Lissy93/portainer-templates](https://github.com/Lissy93/portainer-templates).
 
 ## Deploy behind Coolify/Traefik
 
