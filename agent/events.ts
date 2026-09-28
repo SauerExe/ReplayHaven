@@ -4,7 +4,7 @@ import type { FrameObservation } from '../server/schema';
 /**
  * Events that can be read reliably from on-screen messages. The model reads these messages
  * reliably but interprets them unreliably: it mistook "ELIMINIERT: X" for the player's own death
- * and took "Teameliminierung" for a loss of its own (.docs/05-experimente.md, E14 and E17).
+ * and took "Teameliminierung" for a loss of its own (experiments E14 and E17).
  * So fixed code interprets here what the model has read.
  */
 export type EventKind =

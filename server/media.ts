@@ -9,7 +9,7 @@ const moduleRequire = createRequire(typeof __filename === 'string' ? __filename 
 export const TAIL_SECONDS = 30;
 /** Maximum number of evenly spread frames: a 3 s spacing covers 4 minutes. */
 export const MAX_EVEN_FRAMES = 80;
-/** Width of analysis frames. 640 and 1280 cost the same context tokens (.docs/06-recherche.md). */
+/** Width of analysis frames. 640 and 1280 cost the same context tokens in Qwen-VL. */
 const FRAME_WIDTH = 1280;
 export function runFile(
   executable: string,
@@ -678,7 +678,7 @@ export class MediaProcessor {
         // The fps filter rounds to the nearest output frame and delivers, per interval, the frame
         // from its middle. The label used to be the start of the interval — events, timestamps and
         // the focus frame were half a step too early, 5.6 s at the start of a clip
-        // (.docs/05-experimente.md, E18, side finding).
+        // (experiment E18, side finding).
         seconds: Math.min(duration, start + (i + 0.5) * interval),
         base64: (await readFile(join(folder, name))).toString('base64'),
       })),
@@ -686,7 +686,7 @@ export class MediaProcessor {
   }
   /**
    * A single full-resolution frame as evidence for the summary. The analysis frames
-   * use FRAME_WIDTH; here the readability of killfeed and messages counts (.docs/06-recherche.md:
+   * use FRAME_WIDTH; here the readability of killfeed and messages counts (in Qwen-VL,
    * 1280 px cost the same tokens as 640, 1920 px almost twice as many — hence only one frame).
    */
   async frameAt(original: string, directory: string, seconds: number) {

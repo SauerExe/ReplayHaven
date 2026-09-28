@@ -40,7 +40,7 @@ import type { TitleLanguage } from './translate';
 import type { PlayerName } from './players';
 
 // On 2026-09-24 Qwen3.5 9B read more on-screen messages than Qwen3-VL 8B
-// (.docs/messungen, sample pruefung-2).
+// (test sample of the same day).
 export const DEFAULT_MODEL = 'qwen3.5:9b';
 /**
  * Models the client offers. The 4B variant fits cards with 6 to 8 GB VRAM; it has not been measured
@@ -75,7 +75,7 @@ export function validateLocalOllama(url: string) {
     throw new Error('The local AI must run on this PC (localhost).');
   return url.replace(/\/$/, '');
 }
-/** What the pipeline saw and decided, for measurement runs (.docs/tools/stichprobe.mts). */
+/** What the pipeline saw and decided, for measurement runs. */
 export interface AnalysisTrace {
   frames: (FrameObservation & { seconds: number })[];
   events: GameEvent[];
@@ -143,7 +143,7 @@ type Message = { role: 'user' | 'assistant'; content: string; images?: string[] 
 /**
  * Ranking of frame kinds. A result frame beats gameplay; loading screens never count.
  * Position in the final window matters first, though: otherwise a single misclassified frame
- * from the lead-in hijacks the focus (.docs/05-experimente.md, E12).
+ * from the lead-in hijacks the focus (experiment E12).
  */
 const KIND_PRIORITY: Record<FrameObservation['kind'], number> = {
   result: 5,
@@ -166,8 +166,7 @@ export class LocalAnalyzer {
   /**
    * One Ollama call with a freely chosen response schema. Returns the raw answer.
    * `messages` lets each frame be interleaved with its timestamp; Qwen3-VL is trained on this
-   * format, whereas a single message with four frames leaves the mapping to their order
-   * (.docs/08-weitere-hebel.md).
+   * format, whereas a single message with four frames leaves the mapping to their order.
    */
   private async ask(messages: Message[], schema: unknown, keepAlive: number): Promise<string> {
     if (this.options.isPaused() || this.options.signal?.aborted) throw new PausedError();
@@ -474,7 +473,7 @@ export class LocalAnalyzer {
         }));
       // The recording comes from the user's screen; that always holds and is stronger than
       // whether their name is readable anywhere. Without this attribution the AI describes
-      // UI elements instead of events (.docs/05-experimente.md, E12 and lever 5).
+      // UI elements instead of events (experiment E12).
       // Only the names for the clip's game; with exactly one name the sentence stays as before.
       const names = trace.playerNames;
       const identity = `Die Aufnahme stammt vom Bildschirm des Nutzers, du erzählst aus seiner Sicht in der Du-Form. Meldungen in seinem Blickfeld betreffen ihn selbst: "getötet von X" heißt, dass er von X ausgeschaltet wurde, nicht umgekehrt. ${

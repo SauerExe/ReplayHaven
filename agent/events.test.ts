@@ -19,7 +19,7 @@ import {
 } from './wording';
 import { CLIP_TAGS } from '../server/schema';
 
-// Messages as qwen3-vl read them in real clips from the collection (.docs/messungen).
+// Messages as qwen3-vl read them in real clips from the collection (the maintainer's test clips).
 it.each([
   ['ELIMINIERT: Gegner_Zwei', ['kill']],
   ['+1.800 EP ELIMINIERUNG x2 DOPPELT', ['kill', 'multikill']],

@@ -24,8 +24,13 @@ import { AnalysisWorker } from './worker';
 import { PlaybackBackfill } from './playback';
 import { analysisSchema, parseAnalysis, clipPatchSchema, settingsSchema } from './schema';
 
-/** The release this server runs, from package.json in the working directory (also in Docker). */
+/**
+ * The release this server runs: the version the image was built for (REPLAYHAVEN_VERSION, from the
+ * git tag), otherwise package.json in the working directory.
+ */
 const serverVersion = (() => {
+  const built = process.env.REPLAYHAVEN_VERSION?.replace(/^v/, '');
+  if (built && built !== 'dev') return built;
   try {
     const { version } = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as {
       version?: unknown;
@@ -180,7 +185,7 @@ export async function buildServer(
     // The file name comes from the stored entry, not from the request.
     return reply.sendFile(entry.info.cover, coverDir);
   });
-  app.get('/api/status', async () => ({
+  app.get('/api/status', async (req) => ({
     connected: true,
     version: serverVersion,
     provider: config.provider,
@@ -195,7 +200,8 @@ export async function buildServer(
           (c.status === 'processing' ||
             ['queued', 'preparing', 'analyzing'].includes(c.analysis?.status || '')),
       ).length,
-    devices: db.devices(),
+    // The folders on the gaming PCs are the admins' business.
+    devices: auth.admin(req) ? db.devices() : db.devices().map((d) => ({ ...d, folder: '' })),
     clientDownloadAvailable: (await localInstaller()) || !!config.clientDownloadUrl,
     gameMetadata: games.status(),
     playback: playback.status(),
@@ -269,6 +275,8 @@ export async function buildServer(
       const digest = hash.digest('hex');
       const duplicate = db.findHash(digest);
       if (duplicate) {
+        // Uploading a removed clip again on purpose brings it back; clients skip removed clips
+        // before uploading (lookup above), so they stay removed there.
         if (duplicate.deleted) db.patch(duplicate.id, { deleted: false });
         if (duplicate.gameName) games.schedule(duplicate.gameName);
         return reply.code(200).send({ clip: publicClip(db.get(duplicate.id)!), duplicate: true });
@@ -301,7 +309,8 @@ export async function buildServer(
             ? new Date(recorded).toISOString()
             : new Date().toISOString(),
         size,
-        resolution: 'Wird ermittelt',
+        // Set once the video has been probed; the interface shows nothing until then.
+        resolution: '',
         tags: [],
         favorite: false,
         status: 'processing',
@@ -455,7 +464,12 @@ export async function buildServer(
   app.setNotFoundHandler(async (req, reply) => {
     if (req.url.startsWith('/api/'))
       return reply.code(404).send({ error: 'API endpoint not found.' });
-    const path = decodeURIComponent(req.url.split('?')[0]);
+    let path: string;
+    try {
+      path = decodeURIComponent(req.url.split('?')[0]);
+    } catch {
+      return reply.code(404).send({ error: 'Not found.' });
+    }
     return reply.sendFile(path.includes('.') ? path.replace(/^\//, '') : 'index.html');
   });
   // Expired entries and failed lookups are retried even without new uploads.

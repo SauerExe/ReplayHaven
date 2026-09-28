@@ -125,7 +125,7 @@ it('never focuses a loading screen and names the player only when known', async 
       audio: [],
     });
     // First four frames are a loading screen, then gameplay, as in a real
-    // NVIDIA automatic clip (.docs/README.md, test material FN-15).
+    // NVIDIA automatic clip (test clip FN-15).
     vi.spyOn(media, 'frames').mockResolvedValue(
       Array.from({ length: 8 }, (_, i) => ({ seconds: i * 2, base64: `bild-${i}` })),
     );
@@ -359,7 +359,7 @@ it.each([
 
 it('retries a batch with the wrong number of frames and keeps what it can', async () => {
   // In the after run of 2026-09-23 this error arrived as a ZodError, which in zod 4 is not
-  // an instanceof Error, so the retry never kicked in (.docs/05-experimente.md, E17).
+  // an instanceof Error, so the retry never kicked in (experiment E17).
   const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
   try {
     const media = new MediaProcessor({});

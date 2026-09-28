@@ -1,5 +1,5 @@
 {
-  "_purpose": "PP-OCRv5 recognition model for Latin script (Apache-2.0, PaddleOCR, as ONNX from monkt/paddleocr-onnx), pinned to revision and checksum. Reads killfeed names much more accurately than PP-OCRv4 (.docs/tools/ocr-vergleich.mts, 2026-09-24: 62 instead of 53 of 75 victim names exact).",
+  "_purpose": "PP-OCRv5 recognition model for Latin script (Apache-2.0, PaddleOCR, as ONNX from monkt/paddleocr-onnx), pinned to revision and checksum. Reads killfeed names much more accurately than PP-OCRv4 (measured 2026-09-24 on 75 killfeed crops: 62 instead of 53 victim names exact).",
   "rec": {
     "url": "https://huggingface.co/monkt/paddleocr-onnx/resolve/7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65/languages/latin/rec.onnx",
     "file": "latin_PP-OCRv5_rec.onnx",

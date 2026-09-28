@@ -2,7 +2,9 @@
 
 **Goal.** Titles, tags and timestamps should be right in every game, not just in Fortnite and Rainbow Six. Today the AI reads on-screen messages from 24 or 48 frames and fixed code interprets them; results are only exact where a replay (Fortnite) or text recognition (R6) is added. This concept sorts out where proven events for the other games can come from, what measurably improves on the image and audio side, and in which order that pays off.
 
-It is based on research from 2026-09-24 (sources at the end). None of it has been measured; every stage therefore ends with a measurement step, as in `MEASUREMENT-PLAN.md`. Anything that only comes from second-hand sources is marked _unconfirmed_.
+It is based on research from 2026-09-24 (sources at the end). When it was written, none of it had been measured, so every stage ends with a measurement step, as in `MEASUREMENT-PLAN.md`; what has been measured since is recorded in the measurement sections further down. Anything that only comes from second-hand sources is marked _unconfirmed_.
+
+Experiment numbers in the code and here (E12, E17 …) refer to the maintainer's measurement notes. They are not published because the test clips and their ground truth contain real player names; the numbers that matter are quoted where they are used.
 
 ## What already exists
 
@@ -208,7 +210,7 @@ Twelve hand-checked clips (sample `pruefung-2`: Valorant, Fortnite, Rainbow Six,
 | Qwen3-VL 8B, PP-OCRv5 recognition, with transcript | 5/6                        | 0                         | 77 s             |
 | Qwen3.5 9B, PP-OCRv5 recognition, with transcript  | 6/6                        | 1 (map "Dantzig")         | 76 s             |
 
-Since then the title check catches the invented map (`agent/wording.ts`: "auf" followed by a proper noun must be the recognised map for R6). PP-OCRv5 for Latin script read 62 victim names exactly on 75 killfeed crops with known ground truth, PP-OCRv4 read 53, at the same computing time (`.docs/tools/ocr-vergleich.mts`). Twelve clips are thin for a decision; the measurement set from the order above is still needed.
+Since then the title check catches the invented map (`agent/wording.ts`: "auf" followed by a proper noun must be the recognised map for R6). PP-OCRv5 for Latin script read 62 victim names exactly on 75 killfeed crops with known ground truth, PP-OCRv4 read 53, at the same computing time. Twelve clips are thin for a decision; the measurement set from the order above is still needed.
 
 ## Voice chat in the title (2026-09-25)
 

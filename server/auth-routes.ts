@@ -119,7 +119,14 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     reply.setCookie(COOKIE, secret, cookieOptions);
   };
   /** Nobody has set up the server and it only listens locally: everything stays open. */
-  const openLocal = () => !config.token && !accounts.hasUsers();
+  /**
+   * Nobody has set up the server and it is only reachable on this machine. The Host header counts
+   * too: a dev proxy (vite --host) forwards LAN requests from 127.0.0.1, but keeps their Host.
+   */
+  const openLocal = (req?: FastifyRequest) =>
+    !config.token &&
+    !accounts.hasUsers() &&
+    (!req || /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(req.headers.host ?? ''));
 
   /** A session only counts while its account exists and is enabled. */
   function fromSession(session: Session): Identity | undefined {
@@ -159,7 +166,7 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     req.identity = identify(req, reply);
     const path = req.url.split('?')[0];
     if (OPEN.has(path)) return false;
-    if (openLocal()) return false;
+    if (openLocal(req)) return false;
     if (!req.identity) {
       void reply.code(401).send({ error: 'Please sign in.' });
       return true;
@@ -167,7 +174,9 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     if (SAFE_METHODS.has(req.method) || isAdmin(req.identity)) return false;
     const route = `${req.method} ${req.routeOptions.url ?? path}`;
     if (SELF_SERVICE.has(route)) return false;
-    if (req.identity.kind === 'client' && CLIENT_ROUTES.has(route)) return false;
+    // A paired PC acts for the admin who paired it; demoted, that account's PCs stop uploading.
+    if (req.identity.kind === 'client' && req.identity.role === 'admin' && CLIENT_ROUTES.has(route))
+      return false;
     void reply.code(403).send({ error: 'This action requires an admin account.' });
     return true;
   }
@@ -175,7 +184,7 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
   function owner(req: FastifyRequest, reply: FastifyReply) {
     const identity = req.identity;
     if (identity?.kind === 'browser' && identity.session) return identity.session.userId;
-    if (identity?.kind === 'key' || openLocal()) {
+    if (identity?.kind === 'key' || openLocal(req)) {
       // The access key manages the first admin account.
       const first = accounts.firstAdmin();
       if (first) return first.id;
@@ -185,7 +194,7 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
   }
   /** For routes that read admin data: true when the request has been answered with 403. */
   function adminOnly(req: FastifyRequest, reply: FastifyReply) {
-    if (isAdmin(req.identity) || openLocal()) return false;
+    if (isAdmin(req.identity) || openLocal(req)) return false;
     void reply.code(403).send({ error: 'This action requires an admin account.' });
     return true;
   }
@@ -199,14 +208,14 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
   app.get('/api/auth/state', async (req) => {
     const identity = req.identity;
     const user = identity?.session ? accounts.user(identity.session.userId) : undefined;
-    const loggedIn = !!identity || openLocal();
+    const loggedIn = !!identity || openLocal(req);
     return {
       accounts: true,
       setupRequired: !accounts.hasUsers(),
       setupNeedsKey: !!config.token,
       loggedIn,
       kind: identity?.kind ?? null,
-      role: loggedIn ? (isAdmin(identity) || openLocal() ? 'admin' : 'user') : null,
+      role: loggedIn ? (isAdmin(identity) || openLocal(req) ? 'admin' : 'user') : null,
       user: user
         ? {
             ...publicUser(user),
@@ -593,5 +602,7 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     return { denied: true };
   });
 
-  return { guard };
+  /** Whether a request may see admin details such as the folders of recording PCs. */
+  const admin = (req: FastifyRequest) => isAdmin(req.identity) || openLocal(req);
+  return { guard, admin };
 }

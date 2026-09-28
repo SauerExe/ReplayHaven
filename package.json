@@ -1,6 +1,6 @@
 {
   "name": "replayhaven",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Self-hosted game clip archive: Windows client with local AI analysis, Docker server with accounts and single sign-on, streaming-style web library.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "private": true,
@@ -17,7 +17,8 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite",
+    "dev:lan": "vite --host 0.0.0.0",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
