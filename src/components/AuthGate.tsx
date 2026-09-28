@@ -130,7 +130,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <AuthScreen
         setup={auth.setupRequired}
         needsKey={auth.setupNeedsKey}
-        passwordLogin={auth.passwordLogin !== false}
+        // The first account is always created with the setup form, even with single sign-on only.
+        passwordLogin={auth.passwordLogin !== false || auth.setupRequired}
         oidcName={auth.oidc?.enabled ? auth.oidc.name : ''}
         initialError={loginError}
         linkKey={linkKey}

@@ -54,7 +54,7 @@ const loginError = (response: { headers: Record<string, unknown> }) => {
   return new URL(location, 'https://x').searchParams.get('login_error');
 };
 
-it('creates the first account as admin on the first OIDC sign-in and signs in again later', async () => {
+it('makes only a member of the admin group the first admin and signs them in again later', async () => {
   const { app } = await start();
   const state = (await app.inject({ url: '/api/auth/state' })).json();
   expect(state).toMatchObject({
@@ -62,7 +62,16 @@ it('creates the first account as admin on the first OIDC sign-in and signs in ag
     passwordLogin: true,
     oidc: { enabled: true, name: 'Authelia' },
   });
-  const first = await signIn(app, { sub: 'uid-1', preferred_username: 'timo', groups: [] });
+  // With open registration at the provider, anyone could sign in first: outside the admin group
+  // that creates nothing, the setup link is the way.
+  const stranger = await signIn(app, { sub: 'uid-0', preferred_username: 'eve', groups: [] });
+  expect(stranger.session).toBe('');
+  expect(loginError(stranger.callback)).toMatch(/setup link/);
+  const first = await signIn(app, {
+    sub: 'uid-1',
+    preferred_username: 'timo',
+    groups: ['replayhaven-admins'],
+  });
   expect(first.callback.statusCode).toBe(302);
   expect(first.callback.headers.location).toBe('/');
   expect(first.session).toMatch(/^rh_session=/);
@@ -88,7 +97,7 @@ it('creates the first account as admin on the first OIDC sign-in and signs in ag
 
 it('makes later identities users unless they are in the admin group', async () => {
   const { app } = await start();
-  await signIn(app, { sub: 'uid-1', preferred_username: 'timo' });
+  await signIn(app, { sub: 'uid-1', preferred_username: 'timo', groups: ['replayhaven-admins'] });
   const friend = await signIn(app, { sub: 'uid-2', preferred_username: 'timo', groups: ['users'] });
   const friendState = (
     await app.inject({ url: '/api/auth/state', headers: { cookie: friend.session } })
@@ -262,4 +271,23 @@ it('reads OIDC, proxy and origin settings from the environment', () => {
     /CLIENT_ID/,
   );
   expect(loadConfig({ REPLAYHAVEN_TRUST_PROXY: '2' }).trustProxy).toBe(2);
+});
+
+it('creates the first admin with the setup key even when only single sign-on is allowed', async () => {
+  const { app } = await start({ adminGroup: '' }, false);
+  const setup = await app.inject({
+    method: 'POST',
+    url: '/api/auth/setup',
+    payload: { name: 'timo', password: 'geheimes-passwort', key: TEST_KEY },
+  });
+  expect(setup.statusCode).toBe(200);
+  expect(setup.json().user).toMatchObject({ name: 'timo', role: 'admin' });
+  // Afterwards password sign-in stays off; the admin links their single sign-on instead.
+  const login = await app.inject({
+    method: 'POST',
+    url: '/api/auth/login',
+    payload: { name: 'timo', password: 'geheimes-passwort' },
+  });
+  expect(login.statusCode).toBe(403);
+  await app.close();
 });

@@ -12,17 +12,20 @@ export function setupLink(origin: string, token: string) {
 
 /**
  * Log lines for a server without any account yet: where to create the first one. Nothing once an
- * account exists, and nothing when only single sign-on may create it.
+ * account exists. With single sign-on, members of the admin group may also sign in directly.
  */
 export function setupNotice(
   config: Pick<ServerConfig, 'publicOrigin' | 'token' | 'passwordLogin' | 'oidc'>,
   hasUsers: boolean,
 ) {
   if (hasUsers) return [];
-  if (config.oidc && config.passwordLogin === false)
-    return [`No account yet. Open ${config.publicOrigin} and sign in with ${config.oidc.name}.`];
   return [
     'No account yet. Create the admin account with this link (it contains the access key):',
     `  ${setupLink(config.publicOrigin, config.token)}`,
+    ...(config.oidc?.adminGroup
+      ? [
+          `Members of ${config.oidc.adminGroup} may instead sign in with ${config.oidc.name} directly.`,
+        ]
+      : []),
   ];
 }

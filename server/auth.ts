@@ -478,7 +478,9 @@ export class Accounts {
     this.db.prepare('DELETE FROM pair_tickets WHERE key=?').run(key);
     const { userId, expiresAt } = JSON.parse(row.data) as { userId: string; expiresAt: string };
     const account = this.user(userId);
-    if (Date.parse(expiresAt) <= now || !account || account.disabled) return undefined;
+    // Only an admin's ticket pairs a PC: one demoted in the meantime pairs nothing.
+    if (Date.parse(expiresAt) <= now || !account || account.disabled || account.role !== 'admin')
+      return undefined;
     return this.createSession(userId, 'client', name.slice(0, 100), now).secret;
   }
 

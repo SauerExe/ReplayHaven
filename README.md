@@ -260,7 +260,7 @@ It tries hard not to. With **Pause while gaming** (on by default), analysis and 
 <details>
 <summary><b>Which games work?</b></summary>
 
-All of them. Every clip gets a title and a description. Event tags such as kills or round wins need an on-screen message, so games without kill or round banners (co-op, survival, sandbox) get a title and description but no event tags. The voice chat transcript helps those clips get a title that fits.
+All of them. Every clip gets a title and a description. Event tags such as kills or round wins need an on-screen message, so games without kill or round banners (co-op, survival, sandbox) get a title and description but no event tags. The voice chat transcript helps those clips get a title that fits. Event messages are recognised in English and German game interfaces; with the game set to another language, clips still get a title and description, but no event tags. The phrases live in `agent/events.ts`, and more languages are welcome as contributions.
 
 </details>
 

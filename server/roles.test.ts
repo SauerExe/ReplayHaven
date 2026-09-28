@@ -256,6 +256,79 @@ it('stops the PCs of a demoted admin and hides PC folders from users', async () 
   await app.close();
 });
 
+it('keeps a device ID with the PC that reported it and pairs no PC for a demoted admin', async () => {
+  const { app, admin, createUser } = await withAdmin();
+  const pairPc = async (name: string, approver: Record<string, string>) => {
+    const { id, secret } = (
+      await app.inject({
+        method: 'POST',
+        url: '/api/pair/request',
+        payload: { deviceId: randomUUID(), name },
+      })
+    ).json();
+    await app.inject({ method: 'POST', url: `/api/pair/${id}/approve`, headers: approver });
+    const { token } = (
+      await app.inject({ method: 'POST', url: '/api/pair/status', payload: { id, secret } })
+    ).json();
+    return { authorization: `Bearer ${token}` };
+  };
+  const first = await pairPc('PC-1', admin);
+  const second = await pairPc('PC-2', admin);
+  const device = randomUUID();
+  const beat = (headers: Record<string, string>, name: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/devices/heartbeat',
+      headers,
+      payload: { id: device, name, folder: '', error: '', uploaded: 0 },
+    });
+  expect((await beat(first, 'PC-1')).statusCode).toBe(200);
+  expect((await beat(second, 'PC-2')).statusCode).toBe(409);
+  expect((await beat(first, 'PC-1')).statusCode).toBe(200);
+
+  // A ticket created by an admin who is demoted before it is redeemed pairs nothing.
+  const eve = await createUser('eve', 'admin');
+  const { ticket } = (
+    await app.inject({ method: 'POST', url: '/api/pair/ticket', headers: eve.headers })
+  ).json();
+  await app.inject({
+    method: 'PATCH',
+    url: `/api/users/${eve.id}`,
+    headers: admin,
+    payload: { role: 'user' },
+  });
+  expect(
+    (
+      await app.inject({
+        method: 'POST',
+        url: '/api/pair/redeem',
+        payload: { ticket, name: 'EVE-PC' },
+      })
+    ).statusCode,
+  ).toBe(410);
+  await app.close();
+});
+
+it('signs out other browsers on a password change and throttles wrong current passwords', async () => {
+  const { app, createUser, login } = await withAdmin();
+  const alice = await createUser('alice');
+  const other = { cookie: cookieOf(await login('alice', 'alice-password')) };
+  const change = (current: string, next: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/auth/password',
+      headers: alice.headers,
+      remoteAddress: '203.0.113.7',
+      payload: { current, next },
+    });
+  expect((await change('alice-password', 'alice-new-password')).statusCode).toBe(200);
+  expect((await app.inject({ url: '/api/clips', headers: alice.headers })).statusCode).toBe(200);
+  expect((await app.inject({ url: '/api/clips', headers: other })).statusCode).toBe(401);
+  for (let i = 0; i < 20; i++) await change('wrong-password', 'whatever-password');
+  expect((await change('alice-new-password', 'another-password')).statusCode).toBe(429);
+  await app.close();
+});
+
 it('stays open without setup only for requests addressed to this machine', async () => {
   const { app } = await startServer({ token: '' });
   const clips = (host: string) => app.inject({ url: '/api/clips', headers: { host } });

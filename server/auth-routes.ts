@@ -6,8 +6,8 @@ import type { ServerConfig } from './config';
 import { FLOW_MINUTES, FlowSealer, OidcClient, OidcError } from './oidc';
 
 /**
- * Who sent a request: a signed-in browser, a paired recording PC, or someone holding the access
- * key from the server setup (older clients, scripts). The access key acts as admin.
+ * Who sent a request: a signed-in browser, a paired recording PC, or, while the server has no
+ * account yet, someone holding the access key from the setup. The access key then acts as admin.
  */
 export interface Identity {
   kind: 'browser' | 'client' | 'key';
@@ -118,7 +118,6 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     );
     reply.setCookie(COOKIE, secret, cookieOptions);
   };
-  /** Nobody has set up the server and it only listens locally: everything stays open. */
   /**
    * Nobody has set up the server and it is only reachable on this machine. The Host header counts
    * too: a dev proxy (vite --host) forwards LAN requests from 127.0.0.1, but keeps their Host.
@@ -232,10 +231,8 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     const body = z
       .object({ name: nameSchema, password: passwordSchema, key: z.string().max(1000).default('') })
       .parse(req.body);
-    if (!passwordLogin)
-      return reply.code(403).send({
-        error: `Password sign-in is disabled. Sign in with ${config.oidc?.name} to create the first account.`,
-      });
+    // With password sign-in off, the setup link still creates the first admin, who then links
+    // their single sign-on under Settings → Account.
     if (accounts.hasUsers())
       return reply.code(409).send({ error: 'An account already exists. Sign in with it.' });
     if (throttle.blocked(req.ip))
@@ -286,12 +283,18 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       .parse(req.body);
     const account = accounts.user(userId);
     if (!account) return reply.code(404).send({ error: 'Account not found.' });
+    if (throttle.blocked(req.ip))
+      return reply.code(429).send({ error: 'Too many failed attempts. Wait a few minutes.' });
     // An account that only signed in through OIDC so far sets its first password without one.
     if (account.hash && !(await accounts.verify(account.name, body.current))) {
       throttle.fail(req.ip);
       return reply.code(401).send({ error: 'The current password is wrong.' });
     }
     await accounts.changePassword(userId, body.next);
+    // A new password signs out the account's other browsers, as when an admin resets it.
+    const current = req.identity?.session?.id;
+    for (const s of accounts.sessions(userId))
+      if (s.kind === 'browser' && s.id !== current) accounts.revoke(userId, s.id);
     return { changed: true };
   });
 
@@ -420,10 +423,22 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       let account = accounts.identityUser(profile.issuer, profile.sub);
       if (!account) {
         // An admin may prepare an account without password under the same name; it is claimed
-        // by the first OIDC sign-in with that name, as long as nothing else is linked to it.
+        // by the first OIDC sign-in with exactly that name, as long as nothing else is linked.
         const prepared = accounts.byName(profile.username);
-        if (prepared && !prepared.hash && accounts.identities(prepared.id).length === 0)
+        if (
+          prepared &&
+          prepared.name === profile.username &&
+          !prepared.hash &&
+          accounts.identities(prepared.id).length === 0
+        )
           account = prepared;
+        // On a server without accounts, only a member of the admin group becomes the first admin
+        // right away: with open registration at the provider, anyone could otherwise claim it.
+        else if (!accounts.hasUsers() && !inAdminGroup)
+          return failed(
+            reply,
+            'This server has no admin yet. Create the first account with the setup link from the server log, then link this sign-in under Settings → Account.',
+          );
         else if (config.oidc.autoCreate || !accounts.hasUsers())
           account = await accounts.createUser(
             accounts.freeName(profile.username),

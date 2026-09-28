@@ -98,10 +98,14 @@ random_key() {
 
 detect_ip() {
   local ip=""
-  ip="$(hostname -I 2>/dev/null | awk '{print $1}')" || true
-  if [[ -z "$ip" ]] && command -v ip >/dev/null 2>&1; then
+  # The address of the default route first: `hostname -I` may list a Docker or Tailscale
+  # address before the LAN one.
+  if command -v ip >/dev/null 2>&1; then
     ip="$(ip -4 route get 1.1.1.1 2>/dev/null |
       awk '{ for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit } }')" || true
+  fi
+  if [[ -z "$ip" ]]; then
+    ip="$(hostname -I 2>/dev/null | awk '{print $1}')" || true
   fi
   if [[ -z "$ip" && "$(uname -s)" == Darwin ]]; then
     ip="$(ipconfig getifaddr en0 2>/dev/null)" || true

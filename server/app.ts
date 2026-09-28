@@ -201,7 +201,11 @@ export async function buildServer(
             ['queued', 'preparing', 'analyzing'].includes(c.analysis?.status || '')),
       ).length,
     // The folders on the gaming PCs are the admins' business.
-    devices: auth.admin(req) ? db.devices() : db.devices().map((d) => ({ ...d, folder: '' })),
+    devices: db.devices().map((d) => {
+      const shown = { ...d, ...(auth.admin(req) ? {} : { folder: '' }) };
+      delete shown.owner;
+      return shown;
+    }),
     clientDownloadAvailable: (await localInstaller()) || !!config.clientDownloadUrl,
     gameMetadata: games.status(),
     playback: playback.status(),
@@ -446,7 +450,7 @@ export async function buildServer(
         );
       return reply.sendFile(path.split(/[\\/]/).pop()!, directory, { cacheControl: false });
     });
-  app.post('/api/devices/heartbeat', async (req) => {
+  app.post('/api/devices/heartbeat', async (req, reply) => {
     const device = z
       .object({
         id: z.string().uuid(),
@@ -458,7 +462,11 @@ export async function buildServer(
         paused: z.boolean().optional(),
       })
       .parse(req.body);
-    db.putDevice({ ...device, lastSeen: new Date().toISOString() });
+    const owner = req.identity?.kind === 'client' ? req.identity.session?.id : undefined;
+    const known = db.devices().find((d) => d.id === device.id);
+    if (known?.owner && known.owner !== owner)
+      return reply.code(409).send({ error: 'This device ID belongs to another PC.' });
+    db.putDevice({ ...device, lastSeen: new Date().toISOString(), ...(owner ? { owner } : {}) });
     return { received: true };
   });
   app.setNotFoundHandler(async (req, reply) => {

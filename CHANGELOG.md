@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-28
+
+### Security
+
+- Single sign-on: on a server without accounts only a member of `REPLAYHAVEN_OIDC_ADMIN_GROUP`
+  becomes the first admin; everyone else creates it with the setup link, which now also works
+  with password sign-in switched off. A prepared account is claimed only by exactly the same
+  provider user name.
+- Changing your password signs out your other browsers, and wrong current passwords count
+  towards the per-address throttle.
+- A pairing ticket of an admin who is demoted before it is redeemed pairs nothing.
+- A paired PC can no longer report under another PC's device ID.
+
+### Fixed
+
+- `.env.example`, docs/SERVER.md and docs/START.md no longer say the access key keeps working
+  after setup.
+- The install script suggests the address of the default route instead of whatever
+  `hostname -I` lists first (often Docker or Tailscale).
+- The Steam link check matches the host, and the client smoke test renders its picture with
+  scripts switched off instead of cutting them out.
+- The README says which game languages event recognition covers.
+
 ## [1.1.0] - 2026-09-28
 
 ### Added
@@ -134,6 +157,7 @@ The first public release.
 - PolyForm Noncommercial 1.0.0: free for personal and other non-commercial use, not for sale
   or commercial use.
 
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/SauerExe/ReplayHaven/releases/tag/v1.0.0

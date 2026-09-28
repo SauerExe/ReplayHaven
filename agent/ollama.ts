@@ -192,7 +192,7 @@ export class LocalAnalyzer {
         `Local AI responded with HTTP ${response.status}. Check that Ollama is running and the model is installed.`,
       );
     const body = (await response.json()) as { message?: { content?: string; thinking?: string } };
-    // Ollama 0.34 returns qwen3-vl's schema-bound answer in `thinking` and leaves `content`
+    // Ollama 0.34 returned the schema-bound answer of Qwen3-VL in `thinking` and left `content`
     // empty, even though `think: false` is set. Both fields count as the answer.
     return body.message?.content?.trim() || body.message?.thinking?.trim() || '';
   }

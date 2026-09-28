@@ -27,6 +27,8 @@ export interface AgentDevice {
   uploaded: number;
   analysisLocation?: string;
   paused?: boolean;
+  /** Session of the paired PC that reports under this ID; another PC may not take it over. */
+  owner?: string;
 }
 export interface StoredGame {
   key: string;

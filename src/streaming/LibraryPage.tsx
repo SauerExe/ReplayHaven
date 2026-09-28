@@ -37,6 +37,15 @@ import {
 import { Picture } from './Picture';
 import { gameTiles } from './rows';
 
+/** Whether a game's source link is its Steam store page (by host, not by a text match). */
+function isSteamStore(source: string | undefined) {
+  try {
+    return new URL(source ?? '').hostname === 'store.steampowered.com';
+  } catch {
+    return false;
+  }
+}
+
 function FilterSelect({
   label,
   value,
@@ -80,7 +89,7 @@ function GameSpotlight({
     countLabel(summary.count),
     formatTotal(summary.duration),
   ].filter(Boolean);
-  const steam = game.source?.includes('steampowered.com');
+  const steam = isSteamStore(game.source);
   return (
     <section className="stream-spotlight" aria-labelledby={titleId}>
       <span className="stream-spotlight-backdrop" aria-hidden="true">

@@ -2,7 +2,6 @@
 # slogan: Self-hosted game clip archive; a local AI on your gaming PC names every clip.
 # category: media
 # tags: gaming,clips,video,archive,ai,ollama,self-hosted
-# logo: svgs/replayhaven.svg
 # port: 8787
 #
 # ReplayHaven for Coolify. In Coolify: New resource → Public/Private Repository → this repository,
