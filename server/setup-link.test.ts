@@ -36,24 +36,27 @@ it('logs the setup link only while the server has no account', async () => {
   );
 });
 
-it('points single-sign-on-only servers to the provider instead of a key link', () => {
-  const lines = setupNotice(
-    {
-      publicOrigin: 'https://replay.example.org',
-      token: TEST_KEY,
-      passwordLogin: false,
-      oidc: {
-        issuer: 'https://auth.example.org',
-        clientId: 'replayhaven',
-        clientSecret: 'secret',
-        name: 'Authelia',
-        scopes: 'openid',
-        adminGroup: '',
-        autoCreate: true,
-      },
-    },
-    false,
+it('offers the setup link with single sign-on too, and names the admin group', () => {
+  const oidc = {
+    issuer: 'https://auth.example.org',
+    clientId: 'replayhaven',
+    clientSecret: 'secret',
+    name: 'Authelia',
+    scopes: 'openid',
+    adminGroup: '',
+    autoCreate: true,
+  };
+  const config = {
+    publicOrigin: 'https://replay.example.org',
+    token: TEST_KEY,
+    passwordLogin: false,
+  };
+  // Without an admin group, the first admin can only come from the setup link.
+  const plain = setupNotice({ ...config, oidc }, false).join('\n');
+  expect(plain).toContain(`#setup-key=${TEST_KEY}`);
+  expect(plain).not.toContain('Authelia');
+  const grouped = setupNotice({ ...config, oidc: { ...oidc, adminGroup: 'replay-admins' } }, false);
+  expect(grouped.join('\n')).toContain(
+    'Members of replay-admins may instead sign in with Authelia',
   );
-  expect(lines.join('\n')).toContain('sign in with Authelia');
-  expect(lines.join('\n')).not.toContain(TEST_KEY);
 });

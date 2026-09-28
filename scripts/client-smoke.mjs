@@ -49,15 +49,27 @@ try {
   const { chromium } = await import('@playwright/test');
   const browser = await chromium.launch({ headless: true });
   try {
+    // The rendered window as a static picture: scripts stay off instead of being cut out.
     const preview = await browser.newPage({
       viewport: { width: 1040, height: 850 },
       bypassCSP: true,
+      javaScriptEnabled: false,
     });
-    await preview.setContent(content.replace(/<script[\s\S]*?<\/script>/g, ''));
+    // addStyleTag needs scripts, so the stylesheet goes into the page before it loads.
     const { readFile } = await import('node:fs/promises');
-    await preview.addStyleTag({ content: await readFile('desktop/renderer/style.css', 'utf8') });
+    const css = await readFile('desktop/renderer/style.css', 'utf8');
+    await preview.setContent(
+      content.replace('</head>', () => `<style>${css}</style></head>`),
+      {
+        timeout: 30000,
+      },
+    );
     await mkdir('artifacts/visual', { recursive: true });
-    await preview.screenshot({ path: 'artifacts/visual/windows-client.png', fullPage: true });
+    await preview.screenshot({
+      path: 'artifacts/visual/windows-client.png',
+      fullPage: true,
+      animations: 'disabled',
+    });
   } finally {
     await browser.close();
   }

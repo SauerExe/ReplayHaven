@@ -13,9 +13,9 @@ ReplayHaven is a personal archive for your home network. This is what protects i
 - Access requires an account. Creating the first account with a password needs the access key
   (`REPLAYHAVEN_ACCESS_TOKEN`), so nobody else can claim a freshly exposed server. The setup link
   the installer and the server log print carries this key in the URL fragment, which browsers
-  never send to the server; treat the log like `.env`. With single sign-on (OIDC) configured,
-  the first identity that signs in through your provider becomes admin without the key, so
-  restrict who can sign in at the provider.
+  never send to the server; treat the log like `.env`. With single sign-on (OIDC), a server without
+  accounts only lets members of `REPLAYHAVEN_OIDC_ADMIN_GROUP` in as the first admin; everyone
+  else gets the setup link first, so open registration at the provider cannot claim the server.
 - There are two roles: users can watch the archive; every change to the archive, accounts,
   recording PCs and server settings is for admins.
 - Each browser signs in with name and password, single sign-on or a one-time QR code valid for

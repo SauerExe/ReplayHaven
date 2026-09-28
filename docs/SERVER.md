@@ -125,16 +125,16 @@ Recordings from the NVIDIA App are often H.264 at 1080p120 and around 50 Mbit/s,
 
 ReplayHaven supports single sign-on through any OpenID Connect provider (Authelia, Authentik, Keycloak, Pocket ID …) with the authorization code flow and PKCE. The login screen then shows **Sign in with &lt;name&gt;**.
 
-| Variable                         | Meaning                                                                                                                                                                                |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `REPLAYHAVEN_OIDC_ISSUER`        | Issuer URL exactly as in the provider's `/.well-known/openid-configuration`, e.g. `https://auth.example.com`                                                                           |
-| `REPLAYHAVEN_OIDC_CLIENT_ID`     | Client ID registered at the provider                                                                                                                                                   |
-| `REPLAYHAVEN_OIDC_CLIENT_SECRET` | Client secret in plain text (sent with `client_secret_basic`); leave empty for a public client                                                                                         |
-| `REPLAYHAVEN_OIDC_NAME`          | Button label, default `Single sign-on`                                                                                                                                                 |
-| `REPLAYHAVEN_OIDC_SCOPES`        | Default `openid profile email groups`                                                                                                                                                  |
-| `REPLAYHAVEN_OIDC_ADMIN_GROUP`   | Members of this group (claim `groups`) become admins when they sign in. Leaving the group does not demote anyone; change the role by hand                                              |
-| `REPLAYHAVEN_OIDC_AUTO_CREATE`   | Default `true`: the first sign-in of an unknown person creates an account with role `user` (`admin` when in the admin group or when the server has no account yet). `false`: see below |
-| `REPLAYHAVEN_PASSWORD_LOGIN`     | Default `true`. `false` hides and refuses name + password sign-in; only honoured while OIDC is configured                                                                              |
+| Variable                         | Meaning                                                                                                                                                                                                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `REPLAYHAVEN_OIDC_ISSUER`        | Issuer URL exactly as in the provider's `/.well-known/openid-configuration`, e.g. `https://auth.example.com`                                                                                                                                            |
+| `REPLAYHAVEN_OIDC_CLIENT_ID`     | Client ID registered at the provider                                                                                                                                                                                                                    |
+| `REPLAYHAVEN_OIDC_CLIENT_SECRET` | Client secret in plain text (sent with `client_secret_basic`); leave empty for a public client                                                                                                                                                          |
+| `REPLAYHAVEN_OIDC_NAME`          | Button label, default `Single sign-on`                                                                                                                                                                                                                  |
+| `REPLAYHAVEN_OIDC_SCOPES`        | Default `openid profile email groups`                                                                                                                                                                                                                   |
+| `REPLAYHAVEN_OIDC_ADMIN_GROUP`   | Members of this group (claim `groups`) become admins when they sign in. Leaving the group does not demote anyone; change the role by hand                                                                                                               |
+| `REPLAYHAVEN_OIDC_AUTO_CREATE`   | Default `true`: the first sign-in of an unknown person creates an account with role `user` (`admin` when in the admin group; on a server without accounts only admin-group members get in, everyone else uses the setup link first). `false`: see below |
+| `REPLAYHAVEN_PASSWORD_LOGIN`     | Default `true`. `false` hides and refuses name + password sign-in; only honoured while OIDC is configured                                                                                                                                               |
 
 The redirect URI is `<first REPLAYHAVEN_PUBLIC_ORIGIN>/api/auth/oidc/callback`, for example `https://clips.example.com/api/auth/oidc/callback`. State, nonce and PKCE verifier travel in a signed, HttpOnly cookie that is valid for 10 minutes. Identities are linked to accounts by issuer and subject (`sub`), so renaming someone at the provider does not create a new account. After a successful sign-in the normal session cookie is set; failures return to the login screen with a readable message.
 
@@ -182,9 +182,9 @@ Authelia returns groups and profile claims from the UserInfo endpoint; ReplayHav
 
 **Existing local account.** Sign in with your password, open **Settings → Account** and choose **Link**. After the round trip through the provider, your OIDC identity belongs to that account and you can sign in either way. **Unlink** is refused while the account has no password, so nobody locks themselves out.
 
-**Without auto-create** (`REPLAYHAVEN_OIDC_AUTO_CREATE=false`) only known identities get in. An admin prepares an account under **Users** with the person's provider user name and no password; their first OIDC sign-in with that `preferred_username` claims it. Only accounts without a password and without a linked identity can be claimed this way.
+**Without auto-create** (`REPLAYHAVEN_OIDC_AUTO_CREATE=false`) only known identities get in. An admin prepares an account under **Users** with the person's provider user name and no password; their first OIDC sign-in with exactly that `preferred_username` (same upper and lower case) claims it. Only accounts without a password and without a linked identity can be claimed this way.
 
-**Password sign-in off** (`REPLAYHAVEN_PASSWORD_LOGIN=false`): the login screen only shows the single sign-on button. On a fresh server the first OIDC sign-in creates the admin account. Paired PCs, QR logins and the access key keep working.
+**Password sign-in off** (`REPLAYHAVEN_PASSWORD_LOGIN=false`): the login screen only shows the single sign-on button. On a fresh server, create the first admin with the setup link from the server log (the setup form stays available until then) and link single sign-on under **Settings → Account**, or let a member of `REPLAYHAVEN_OIDC_ADMIN_GROUP` sign in directly. Paired PCs and QR logins keep working.
 
 ## Data and backup
 
