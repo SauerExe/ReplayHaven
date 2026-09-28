@@ -104,8 +104,13 @@ export function registerUploads(
   },
 ) {
   const { directory, chunkSize } = options;
-  const statePath = (id: string) => join(directory, `${id}.json`);
-  const partPath = (id: string) => join(directory, `${id}.part`);
+  /** Only ids of the server's own form ever become file names in `incoming/`. */
+  const fileFor = (id: string, extension: string) => {
+    if (!uploadId.test(id)) throw new Error('Invalid upload id.');
+    return join(directory, `${id}${extension}`);
+  };
+  const statePath = (id: string) => fileFor(id, '.json');
+  const partPath = (id: string) => fileFor(id, '.part');
   /** Uploads with a piece or the completion in progress, in this process. */
   const busy = new Set<string>();
   const load = async (id: string) => {
@@ -128,7 +133,7 @@ export function registerUploads(
     const names = await readdir(directory).catch(() => [] as string[]);
     const uploads: UploadState[] = [];
     for (const name of names)
-      if (name.endsWith('.json')) {
+      if (name.endsWith('.json') && uploadId.test(name.slice(0, -5))) {
         const upload = await load(name.slice(0, -5));
         if (upload) uploads.push(upload);
       }
@@ -158,7 +163,7 @@ export function registerUploads(
       }
       if (!name.endsWith('.json')) continue;
       const id = name.slice(0, -5);
-      if (busy.has(id)) continue;
+      if (!uploadId.test(id) || busy.has(id)) continue;
       const upload = await load(id);
       const updated = upload ? Date.parse(upload.updatedAt) : NaN;
       if (!(now - updated <= STALE_UPLOAD_MS)) await remove(id);
