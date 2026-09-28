@@ -1,0 +1,44 @@
+{
+  "version": "3",
+  "templates": [
+    {
+      "type": 3,
+      "title": "ReplayHaven",
+      "description": "Self-hosted game clip archive. A Windows client names every clip with a local AI; this server keeps the originals and streams them to your devices.",
+      "note": "Source-available (PolyForm Noncommercial): free for personal use. Create the access key with <code>openssl rand -hex 24</code>; after the first start, the container log shows a setup link for your account. The server needs no GPU; the AI runs on the gaming PC.",
+      "categories": ["Media", "Gaming", "Self-Hosted"],
+      "platform": "linux",
+      "logo": "https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/desktop/icon-source.png",
+      "repository": {
+        "url": "https://github.com/SauerExe/ReplayHaven",
+        "stackfile": "compose.yaml"
+      },
+      "env": [
+        {
+          "name": "REPLAYHAVEN_ACCESS_TOKEN",
+          "label": "Access key (at least 24 characters)",
+          "description": "Needed once to create the first account, e.g. from openssl rand -hex 24."
+        },
+        {
+          "name": "REPLAYHAVEN_PUBLIC_ORIGIN",
+          "label": "Server address as opened in the browser",
+          "default": "http://192.168.1.20:8787",
+          "description": "Protocol, host and port exactly as you open ReplayHaven."
+        },
+        {
+          "name": "REPLAYHAVEN_HOST_PORT",
+          "label": "Port on this host",
+          "default": "8787"
+        },
+        {
+          "name": "REPLAYHAVEN_CONTENT_LANGUAGE",
+          "label": "Language of game descriptions",
+          "select": [
+            { "text": "English", "value": "en", "default": true },
+            { "text": "Deutsch", "value": "de" }
+          ]
+        }
+      ]
+    }
+  ]
+}

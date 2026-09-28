@@ -12,7 +12,7 @@
   </head>
   <body>
     <!-- Overview and settings; the setup wizard sits on top while it is open.
-         Texts are English by default; app.js swaps them via the data-i18n* keys (i18n.js). -->
+         Texts are English by default; app.js (bundled from src/) swaps them via the data-i18n* keys. -->
     <div id="app" class="app">
       <header class="topbar">
         <div class="brand">
@@ -521,7 +521,7 @@
                 <div class="set-row model">
                   <div class="row-text">
                     <strong id="l-model" class="row-label" data-i18n="ai.model"
-                      >Qwen3.5 · 9B via Ollama</strong
+                      >Qwen3.5 via Ollama</strong
                     >
                     <span class="row-desc" data-i18n="ai.local"
                       >Runs on your graphics card, nothing leaves your PC.</span
@@ -563,15 +563,40 @@
                       aria-describedby="l-ollama"
                       data-i18n="btn.installOllama"
                     >
-                      Install Ollama ↗
+                      Install Ollama · 1.6 GB
                     </button>
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-model-size" class="row-label" data-i18n="field.model"
+                      >Model size</span
+                    >
+                    <span id="d-model-size" class="row-desc" data-i18n="row.modelText"
+                      >9B names clips more reliably; 4B needs less video memory.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <select
+                      id="model"
+                      aria-labelledby="l-model-size"
+                      aria-describedby="d-model-size"
+                      data-lock
+                    >
+                      <option value="qwen3.5:9b" data-i18n="model.9b">
+                        9B · about 6.6 GB (recommended)
+                      </option>
+                      <option value="qwen3.5:4b" data-i18n="model.4b">
+                        4B · about 3.4 GB, for 6–8 GB VRAM
+                      </option>
+                    </select>
                   </div>
                 </div>
                 <div class="set-row">
                   <div class="row-text">
                     <span id="l-download" class="row-label" data-i18n="row.download">Model</span>
                     <span id="download-text" class="row-desc" data-i18n="row.downloadText"
-                      >Qwen3.5 9B, about 6.6 GB, downloaded once.</span
+                      >The selected model, downloaded once.</span
                     >
                     <div id="model-progress" class="progress thin" hidden><span></span></div>
                   </div>
@@ -653,6 +678,27 @@
                       </option>
                       <option value="24" data-i18n="frames.24">24 frames · faster</option>
                       <option value="48" data-i18n="frames.48">48 frames</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="set-row">
+                  <div class="row-text">
+                    <span id="l-title-language" class="row-label" data-i18n="field.titleLanguage"
+                      >Title language</span
+                    >
+                    <span id="d-title-language" class="row-desc" data-i18n="row.titleLanguageText"
+                      >Language of the titles, descriptions and highlights the AI writes.</span
+                    >
+                  </div>
+                  <div class="row-control">
+                    <select
+                      id="title-language"
+                      aria-labelledby="l-title-language"
+                      aria-describedby="d-title-language"
+                      data-lock
+                    >
+                      <option value="en">English</option>
+                      <option value="de">Deutsch</option>
                     </select>
                   </div>
                 </div>
@@ -1021,7 +1067,6 @@
         </div>
       </div>
     </div>
-    <script src="i18n.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

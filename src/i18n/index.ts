@@ -15,3 +15,4 @@ export {
   type Params,
 } from './core';
 export { LanguageBoundary, tx, useLanguage } from './react';
+export { tagLabel } from './tags';

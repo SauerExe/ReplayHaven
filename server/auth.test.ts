@@ -94,11 +94,11 @@ it('creates the first account only with the setup key and then logs in with it',
     passwordLogin: true,
     oidc: null,
   });
-  // The access key from the setup keeps working, for older clients.
+  // The access key only sets the server up; with an account in place it opens nothing.
   expect(
     (await app.inject({ url: '/api/clips', headers: { authorization: `Bearer ${key}` } }))
       .statusCode,
-  ).toBe(200);
+  ).toBe(401);
   // Signing out ends exactly this session.
   await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { cookie } });
   expect((await app.inject({ url: '/api/clips', headers: { cookie } })).statusCode).toBe(401);
@@ -166,6 +166,87 @@ it('pairs a recording PC after approval, hands its access out once and lets it b
   ).toBe(200);
   expect((await app.inject({ url: '/api/status', headers: device })).statusCode).toBe(401);
   await app.close();
+});
+
+it('pairs a recording PC by link: only admins create tickets, each works once', async () => {
+  const app = await start();
+  const setup = await app.inject({
+    method: 'POST',
+    url: '/api/auth/setup',
+    payload: { name: 'timo', password: 'geheimes-passwort', key },
+  });
+  const cookie = cookieOf(setup);
+  expect((await app.inject({ method: 'POST', url: '/api/pair/ticket' })).statusCode).toBe(401);
+  const created = await app.inject({
+    method: 'POST',
+    url: '/api/pair/ticket',
+    headers: { cookie },
+  });
+  const { ticket } = created.json();
+  expect(ticket).toMatch(/^rht_/);
+  const redeem = (value: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/pair/redeem',
+      payload: { ticket: value, name: 'DESKTOP-LINK' },
+    });
+  expect((await redeem('rht_geraten')).statusCode).toBe(410);
+  const first = await redeem(ticket);
+  expect(first.statusCode).toBe(200);
+  const device = { authorization: `Bearer ${first.json().token}` };
+  expect((await app.inject({ url: '/api/status', headers: device })).statusCode).toBe(200);
+  // A ticket is used up by its first redemption.
+  expect((await redeem(ticket)).statusCode).toBe(410);
+  const sessions = (await app.inject({ url: '/api/auth/sessions', headers: { cookie } })).json();
+  expect(sessions.find((s: { kind: string }) => s.kind === 'client')).toMatchObject({
+    label: 'DESKTOP-LINK',
+  });
+  // A paired PC cannot create tickets for further PCs.
+  expect(
+    (await app.inject({ method: 'POST', url: '/api/pair/ticket', headers: device })).statusCode,
+  ).toBe(403);
+  await app.close();
+});
+
+it('throttles failed sign-ins per address, so one attacker cannot lock everyone out', async () => {
+  const app = await start();
+  await app.inject({
+    method: 'POST',
+    url: '/api/auth/setup',
+    payload: { name: 'timo', password: 'geheimes-passwort', key },
+  });
+  const login = (password: string, remoteAddress: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress,
+      payload: { name: 'timo', password },
+    });
+  for (let i = 0; i < 20; i++) await login('falsch', '203.0.113.9');
+  expect((await login('geheimes-passwort', '203.0.113.9')).statusCode).toBe(429);
+  expect((await login('geheimes-passwort', '192.168.1.20')).statusCode).toBe(200);
+  await app.close();
+});
+
+it('limits open pairing requests per address', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const { Accounts } = await import('./auth');
+  const accounts = new Accounts(new DatabaseSync(':memory:'));
+  for (let i = 0; i < 3; i++) accounts.requestPairing(`PC ${i}`, randomUUID(), 0, '203.0.113.9');
+  expect(() => accounts.requestPairing('PC 4', randomUUID(), 0, '203.0.113.9')).toThrow(/Too many/);
+  // Your own PC on another address still gets through.
+  expect(accounts.requestPairing('DESKTOP', randomUUID(), 0, '192.168.1.20').code).toMatch(
+    /^\d{6}$/,
+  );
+});
+
+it('lets a pairing ticket expire', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const { Accounts } = await import('./auth');
+  const accounts = new Accounts(new DatabaseSync(':memory:'));
+  const admin = await accounts.createUser('timo', 'geheimes-passwort');
+  const { ticket } = accounts.pairingTicket(admin.id, 0);
+  expect(accounts.redeemTicket(ticket, 'PC', 11 * 60000)).toBeUndefined();
 });
 
 it('denies a pairing request and signs in another device once per QR code', async () => {

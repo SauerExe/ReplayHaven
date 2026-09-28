@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import { bundleRenderer } from './renderer-bundle.mjs';
 const require = createRequire(import.meta.url);
 // Release builds pass REPLAYHAVEN_VERSION (from the git tag); local builds use package.json.
 const version = process.env.REPLAYHAVEN_VERSION || require('../package.json').version;
@@ -52,7 +53,15 @@ await build({
   external: ['electron'],
 });
 await rm('desktop-bundle/renderer', { recursive: true, force: true });
-await cp('desktop/renderer', 'desktop-bundle/renderer', { recursive: true });
+// HTML, styles and assets as they are; the TypeScript sources become the one app.js instead.
+const rendererSources = new Set(
+  ['src', 'tsconfig.json'].map((name) => join('desktop/renderer', name)),
+);
+await cp('desktop/renderer', 'desktop-bundle/renderer', {
+  recursive: true,
+  filter: (source) => !rendererSources.has(join(source)),
+});
+await bundleRenderer({ outfile: 'desktop-bundle/renderer/app.js' });
 // The same fonts as the web library, local to the window (CSP without external sources).
 await mkdir('desktop-bundle/renderer/fonts', { recursive: true });
 await copyFile(

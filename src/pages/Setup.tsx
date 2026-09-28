@@ -36,10 +36,9 @@ const steps: { id: (typeof guideSections)[number]; label: MessageKey }[] = [
 const sourceCommand = `git clone https://github.com/SauerExe/ReplayHaven.git
 cd ReplayHaven
 bash setup-server.sh`;
-const dockerCommand = `mkdir -p replayhaven && cd replayhaven
-curl -fsSLO https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/compose.yaml
-curl -fsSL https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/.env.example -o .env
-nano .env`;
+// install.sh from the latest release: checks Docker, writes .env and prints the setup link.
+const dockerCommand =
+  'curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash';
 
 /** A terminal command with a copy button; without clipboard access the text gets selected. */
 function Command({ label, children }: { label: string; children: string }) {
@@ -320,14 +319,8 @@ export default function Setup() {
                         env,
                         token: <code>REPLAYHAVEN_ACCESS_TOKEN</code>,
                         origin: <code>REPLAYHAVEN_PUBLIC_ORIGIN</code>,
-                        openssl: <code>openssl rand -hex 24</code>,
                       })}
                     />
-                    <div className="sg-block">
-                      <Command label={t('pages.setup.server.startCommand')}>
-                        docker compose up -d
-                      </Command>
-                    </div>
                   </>
                 ) : (
                   <SettingsRow

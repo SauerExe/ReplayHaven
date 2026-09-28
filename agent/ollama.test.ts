@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { LocalAnalyzer, PausedError, validateLocalOllama } from './ollama';
+import { checkOllama, LocalAnalyzer, PausedError, validateLocalOllama } from './ollama';
 import { DeferredError } from './watcher';
 import type { ReplayLookup } from './fortnite';
 import type { AnalysisTrace } from './ollama';
@@ -11,6 +11,22 @@ afterEach(() => vi.unstubAllGlobals());
 // Frames are interleaved in their own messages, one per frame with its timestamp.
 const imagesOf = (body: { messages: { images?: string[] }[] }) =>
   body.messages.flatMap((m) => m.images ?? []);
+it('reports the Ollama version and refuses the one that breaks answers', async () => {
+  const answer = (version: string) =>
+    vi.fn(async (url: string) =>
+      Response.json(
+        url.endsWith('/api/version') ? { version } : { models: [{ name: 'qwen3.5:9b' }] },
+      ),
+    );
+  vi.stubGlobal('fetch', answer('0.34.3'));
+  expect(await checkOllama()).toMatchObject({
+    installed: true,
+    version: '0.34.3',
+    supported: true,
+  });
+  vi.stubGlobal('fetch', answer('0.34.4'));
+  expect(await checkOllama()).toMatchObject({ version: '0.34.4', supported: false });
+});
 it('restricts analysis to local Ollama', () => {
   expect(() => validateLocalOllama('https://cloud.invalid')).toThrow();
   expect(() => validateLocalOllama('http://localhost@cloud.invalid')).toThrow();
@@ -973,6 +989,103 @@ it('does not lock the map when the text recognition failed', async () => {
     }).analyze('R6/clip.mp4', "Tom Clancy's Rainbow Six Siege");
     expect(summaries).toHaveLength(1);
     expect(output.result.title).toBe('Kampf um die Treppe auf Bank');
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('translates the checked German result into English and keeps German when that fails', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
+  try {
+    const media = new MediaProcessor({});
+    vi.spyOn(media, 'probe').mockResolvedValue({
+      duration: 20,
+      width: 1920,
+      height: 1080,
+      codec: 'h264',
+      hasAudio: true,
+      audio: [],
+    });
+    vi.spyOn(media, 'frames').mockResolvedValue(
+      Array.from({ length: 4 }, (_, i) => ({ seconds: i * 5, base64: `bild-${i}` })),
+    );
+    vi.spyOn(media, 'frameAt').mockResolvedValue('focus-image');
+    let translation: unknown = {
+      title: 'Building a Base by the River',
+      description: 'You build a small base by the river.',
+      uncertainty: '',
+      highlights: [],
+    };
+    const translations: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string);
+        if (!body.messages.length) return Response.json({ done: true });
+        const prompt: string = body.messages[0].content;
+        if (prompt.startsWith('Translate')) {
+          translations.push(prompt);
+          return Response.json({ message: { content: JSON.stringify(translation) } });
+        }
+        if (!body.format?.properties?.frames)
+          return Response.json({
+            message: {
+              content: JSON.stringify({
+                title: 'Basis am Fluss bauen',
+                description: 'Du baust eine kleine Basis am Fluss.',
+                uncertainty: '',
+                highlights: [],
+              }),
+            },
+          });
+        return Response.json({
+          message: {
+            content: JSON.stringify({
+              frames: imagesOf(body).map((_: string, frame: number) => ({
+                frame,
+                kind: 'gameplay',
+                observation: 'Bauen',
+                visibleText: '',
+              })),
+            }),
+          },
+        });
+      }),
+    );
+    const traces: AnalysisTrace[] = [];
+    const options = {
+      url: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      frames: 24,
+      cacheDir: root,
+      media,
+      isPaused: () => false,
+      onTrace: (trace: AnalysisTrace) => traces.push(trace),
+    };
+    const german = await new LocalAnalyzer(options).analyze('clip.mp4', 'Minecraft');
+    expect(german.result.title).toBe('Basis am Fluss bauen');
+    expect(translations).toHaveLength(0);
+
+    const english = await new LocalAnalyzer({ ...options, language: 'en' }).analyze(
+      'clip.mp4',
+      'Minecraft',
+    );
+    expect(translations).toHaveLength(1);
+    expect(translations[0]).toContain('Basis am Fluss bauen');
+    expect(english.result.title).toBe('Building a Base by the River');
+    expect(english.result.description).toBe('You build a small base by the river.');
+    expect(traces.at(-1)?.translation).toBe('ok');
+
+    translation = { title: '', description: '', uncertainty: '', highlights: [] };
+    const kept = await new LocalAnalyzer({ ...options, language: 'en' }).analyze(
+      'clip.mp4',
+      'Minecraft',
+    );
+    // Two unusable answers: the checked German title stays.
+    expect(translations).toHaveLength(3);
+    expect(kept.result.title).toBe('Basis am Fluss bauen');
+    expect(traces.at(-1)?.translation).toBe('failed');
   } finally {
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
       await rm(root, { recursive: true, force: true });

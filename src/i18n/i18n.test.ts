@@ -6,7 +6,7 @@ import { SMART_RULES } from '../streaming/smart';
 import { de } from './de';
 import { en } from './en';
 import { interpolate } from './core';
-import { getLanguage, locale, setLanguage, t, tp } from '.';
+import { getLanguage, locale, setLanguage, t, tagLabel, tp } from '.';
 
 const NOW = new Date(2026, 8, 24, 21, 40).getTime();
 const at = (daysAgo: number, hours: number, minutes = 0) =>
@@ -64,5 +64,13 @@ describe('English formatting', () => {
     setLanguage('de', false);
     expect(SMART_RULES.find((rule) => rule.id === 'gewonnen')?.title).toBe('Gewonnene Matches');
     expect(formatWhen(at(0, 9, 5), NOW)).toBe('Heute, 09:05');
+  });
+
+  it('names the analysis tags in English and leaves other tags as typed', () => {
+    expect(tagLabel('Rundensieg')).toBe('Round won');
+    expect(tagLabel('Ace')).toBe('Ace');
+    expect(tagLabel('Mein Tag')).toBe('Mein Tag');
+    setLanguage('de', false);
+    expect(tagLabel('Rundensieg')).toBe('Rundensieg');
   });
 });

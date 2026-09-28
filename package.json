@@ -22,7 +22,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "lint": "eslint .",
-    "typecheck": "tsc -b && tsc -p tsconfig.server.json",
+    "typecheck": "tsc -b && tsc -p tsconfig.server.json && tsc -p desktop/renderer/tsconfig.json",
     "test:e2e": "playwright test",
     "check:browser": "node scripts/browser-check.mjs",
     "readme:images": "node scripts/readme-images.mjs",

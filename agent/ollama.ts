@@ -35,11 +35,18 @@ import type { Laugh, SpeechTrace, Transcript } from './speech';
 import { DeferredError } from './watcher';
 import { cleanText, fallbackTitle, tidyHighlights, titleProblems, uncertaintyFor } from './wording';
 import { namesFor } from './players';
+import { applyTranslation, translationJsonSchema, translationPrompt } from './translate';
+import type { TitleLanguage } from './translate';
 import type { PlayerName } from './players';
 
 // On 2026-09-24 Qwen3.5 9B read more on-screen messages than Qwen3-VL 8B
 // (.docs/messungen, sample pruefung-2).
 export const DEFAULT_MODEL = 'qwen3.5:9b';
+/**
+ * Models the client offers. The 4B variant fits cards with 6 to 8 GB VRAM; it has not been measured
+ * against the title checks (docs/AI-RECOGNITION.md lists it for 6 GB cards), so 9B stays the default.
+ */
+export const MODELS = [DEFAULT_MODEL, 'qwen3.5:4b'] as const;
 /** Frame spacing for "whole clip": shorter than the roughly five seconds a killfeed entry stays visible. */
 export const FRAME_SPACING = 3;
 export const OLLAMA_URL = 'http://127.0.0.1:11434';
@@ -86,6 +93,8 @@ export interface AnalysisTrace {
   texts?: TextTrace;
   /** What speech recognition transcribed (agent/speech.ts). */
   speech?: SpeechTrace;
+  /** Whether the English translation (agent/translate.ts) was used or the German text kept. */
+  translation?: 'ok' | 'failed';
 }
 export interface LocalAnalyzerOptions {
   url: string;
@@ -127,6 +136,8 @@ export interface LocalAnalyzerOptions {
    * and gives fun clips without a game event their topic; laughs become highlights.
    */
   speech?: (path: string, signal: AbortSignal) => Promise<Transcript | undefined>;
+  /** Language of title, description and highlights (agent/translate.ts); German by default. */
+  language?: TitleLanguage;
 }
 type Message = { role: 'user' | 'assistant'; content: string; images?: string[] };
 /**
@@ -272,6 +283,24 @@ export class LocalAnalyzer {
       if (error instanceof SyntaxError) return '';
       throw error;
     }
+  }
+  /**
+   * English version of a finished German result. An unusable answer is retried once; if that
+   * fails too, the German result stays, because a checked title beats an unchecked translation.
+   */
+  private async translate(result: AnalysisResult) {
+    const messages: Message[] = [{ role: 'user', content: translationPrompt(result) }];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return applyTranslation(
+          result,
+          await this.ask(messages, translationJsonSchema, BATCH_KEEP_ALIVE_SECONDS),
+        );
+      } catch (error) {
+        if (!isParseError(error)) throw error;
+      }
+    }
+    return undefined;
   }
   async analyze(
     path: string,
@@ -533,7 +562,7 @@ export class LocalAnalyzer {
           mostly,
           map,
         );
-      const result = this.assemble(summary, {
+      const assembled = this.assemble(summary, {
         title,
         game,
         events,
@@ -545,6 +574,13 @@ export class LocalAnalyzer {
         lostFrames: trace.lostFrames,
         laughs,
       });
+      let result = assembled;
+      if (this.options.language === 'en') {
+        this.options.onProgress?.('Translating title and description …');
+        const translated = await this.translate(assembled);
+        trace.translation = translated ? 'ok' : 'failed';
+        result = translated ?? assembled;
+      }
       return { result, duration, model: this.options.model };
     } finally {
       stopReading.abort();
@@ -601,22 +637,37 @@ export class LocalAnalyzer {
 function dirnameIsRoot(path: string, root: string) {
   return resolve(path).startsWith(`${resolve(root)}${process.platform === 'win32' ? '\\' : '/'}`);
 }
+/**
+ * Ollama versions the analysis must not run on: 0.34.4 ignores `think: false` and the response
+ * schema (measured 2026-09-24), so every answer would be unusable.
+ */
+export const BROKEN_OLLAMA = ['0.34.4'];
 export async function checkOllama(url = OLLAMA_URL, model = DEFAULT_MODEL) {
   validateLocalOllama(url);
   const response = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(5000) });
   if (!response.ok) throw new Error('Ollama is not reachable.');
   const data = (await response.json()) as { models?: { name: string }[] };
+  const version = await fetch(`${url}/api/version`, { signal: AbortSignal.timeout(5000) })
+    .then((r) => r.json() as Promise<{ version?: string }>)
+    .then((v) => v.version ?? '')
+    .catch(() => '');
   return {
     running: true,
     installed: !!data.models?.some((m) => m.name === model),
     models: data.models?.map((m) => m.name) || [],
+    version,
+    supported: !BROKEN_OLLAMA.includes(version),
   };
 }
-export async function pullModel(onProgress: (status: string) => void, signal?: AbortSignal) {
+export async function pullModel(
+  onProgress: (status: string) => void,
+  signal?: AbortSignal,
+  model: string = DEFAULT_MODEL,
+) {
   const response = await fetch(`${OLLAMA_URL}/api/pull`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: DEFAULT_MODEL, stream: true }),
+    body: JSON.stringify({ model, stream: true }),
     signal,
   });
   if (!response.ok || !response.body) throw new Error('The model download could not be started.');

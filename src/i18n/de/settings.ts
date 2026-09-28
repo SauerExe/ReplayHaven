@@ -222,6 +222,19 @@ export const settings: Translation<typeof source> = {
   'settings.pcs.removeText':
     'Der PC kann nichts mehr hochladen. Seine Clips bleiben im Archiv. Zum Wiederverbinden koppelst du ihn neu.',
   'settings.pcs.removed': '„{name}“ kann nichts mehr hochladen.',
+  'settings.pcs.link.title': 'Diesen PC verbinden',
+  'settings.pcs.link.text':
+    'Hier auf deinem Gaming-PC angemeldet? Ein Klick öffnet den ReplayHaven-Client und verbindet ihn, ohne Adresse oder Code.',
+  'settings.pcs.link.name': 'Mit einem Klick verbinden',
+  'settings.pcs.link.hint':
+    'Installiere zuerst den Windows-Client. Der Link gilt einmal und 10 Minuten lang.',
+  'settings.pcs.link.opened':
+    'Windows sollte jetzt den Client öffnen. Nichts passiert? Installiere den Client und klicke erneut.',
+  'settings.pcs.link.connect': 'Diesen PC verbinden',
+  'settings.pcs.link.copy': 'Link kopieren',
+  'settings.pcs.link.copied': 'Link kopiert. Füge ihn im Client als Serveradresse ein.',
+  'settings.pcs.link.fallback':
+    'Auf einem anderen Computer: Link kopieren und im Client ins Feld für die Serveradresse einfügen.',
   'settings.pcs.client.title': 'Windows-Client',
   'settings.pcs.client.text':
     'Beobachtet deinen Aufnahmeordner, analysiert Clips mit lokaler KI und lädt sie hierher hoch.',

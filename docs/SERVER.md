@@ -2,6 +2,20 @@
 
 Node.js 24, Fastify, SQLite and FFmpeg in one container. The process runs as an unprivileged user behind `tini`. The AI setting defaults to `none`: the Windows client delivers the analysis results, so the server needs neither a GPU nor a model.
 
+## Install
+
+On a host with Docker Engine and the Compose plugin:
+
+```bash
+curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash
+```
+
+The installer creates `./replayhaven` (or `$REPLAYHAVEN_DIR`), downloads `compose.yaml` and `env.example` from the release and checks them against its `SHA256SUMS.txt`, writes `.env` with a new access key and the address you confirm, runs `docker compose pull` and `docker compose up -d`, waits for the server and prints a setup link. It does not install Docker. Without a terminal (for example from a provisioning script) it takes the suggested defaults. Options go in front of `bash` as environment variables: `REPLAYHAVEN_VERSION=1.1.0` pins a release, `REPLAYHAVEN_PUBLIC_ORIGIN` skips the address question, `REPLAYHAVEN_HOST_PORT` changes the port. Running it again updates: it keeps `.env`, replaces `compose.yaml` (a changed one is kept as `compose.yaml.bak`), pulls the new image and restarts.
+
+The setup link looks like `http://192.168.1.10:8787/#setup-key=<access key>`. The key sits in the URL fragment, which browsers do not send to the server or through a proxy; the sign-in page fills it in and removes it from the address bar. The link only works while the server has no account; after that the server refuses a second setup. Until then the server also prints the link to its log (`docker compose logs replayhaven`), built from the first `REPLAYHAVEN_PUBLIC_ORIGIN`, which helps in Coolify, Unraid and other panels. That log line contains the access key, so treat the logs like `.env`.
+
+By hand instead: download `compose.yaml` and `env.example` from the [latest release](https://github.com/SauerExe/ReplayHaven/releases/latest), save `env.example` as `.env`, set `REPLAYHAVEN_ACCESS_TOKEN` (`openssl rand -hex 24`) and `REPLAYHAVEN_PUBLIC_ORIGIN`, then run `docker compose up -d`. From a source checkout, `bash setup-server.sh` builds the image and starts it (`--pull` uses the published image instead).
+
 ## Files in the server directory
 
 | File              | Purpose                                                                           |
@@ -9,7 +23,7 @@ Node.js 24, Fastify, SQLite and FFmpeg in one container. The process runs as an 
 | `compose.yaml`    | Starts the image `ghcr.io/sauerexe/replayhaven` with a data volume and port 8787  |
 | `.env`            | Your settings: access key, browser address, optionally image and AI provider      |
 | `.env.example`    | Template listing every variable                                                   |
-| `setup-server.sh` | Creates `.env`, builds from source if needed and starts the server                |
+| `setup-server.sh` | Source checkouts: creates `.env`, builds the image and starts the server          |
 | `release/`        | Optional: `ReplayHaven-Client-Setup.exe` for downloading straight from the server |
 
 Compose reads `.env` automatically. Every variable in it also reaches the container.
@@ -20,7 +34,11 @@ Compose reads `.env` automatically. Every variable in it also reaches the contai
 # First start, or after changing .env
 docker compose up -d
 
-# Update to the latest published image
+# Update an installer setup: run the installer again in the parent directory
+# (the compose.yaml of a release is pinned to that release's image)
+curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash
+
+# Update with a compose.yaml that uses the :latest image
 docker compose pull && docker compose up -d
 
 # Update from source (run git pull first)
@@ -41,7 +59,7 @@ docker compose stop
 
 Port 8787 is meant for your home network. To reach the server from outside, use a VPN or an HTTPS reverse proxy; [Deploy behind Coolify/Traefik](#deploy-behind-coolifytraefik) covers the proxy settings (public origin, trusted proxy, 2 GB uploads, 30-minute requests).
 
-Only signed-in users get in. On first visit you create an account; for this one step the server asks for the access key from `.env`, so nobody else can create the first account on a server that is already reachable. After that every device signs in with name and password or by QR code and gets its own session (HttpOnly cookie, 30 days, extended while in use). Recording PCs pair by sending a request that an admin approves under **Settings → Recording PCs**; from then on they send their own credential as a bearer token. Any session can be revoked under **Settings → Devices** (browsers and phones) or **Settings → Recording PCs** (PCs). The access key still works as a bearer token for older clients and scripts. Roles and single sign-on are described in [Users and roles](#users-and-roles) and [Sign in with Authelia (OIDC)](#sign-in-with-authelia-oidc). There are no public share links yet. Failed sign-ins are throttled after 20 attempts within 15 minutes. The database only stores scrypt hashes of passwords and SHA-256 hashes of credentials.
+Only signed-in users get in. On first visit you create an account; for this one step the server asks for the access key from `.env` (the setup link fills it in), so nobody else can create the first account on a server that is already reachable. After that every device signs in with name and password or by QR code and gets its own session (HttpOnly cookie, 30 days, extended while in use). Recording PCs pair by sending a request that an admin approves under **Settings → Recording PCs**; from then on they send their own credential as a bearer token. Any session can be revoked under **Settings → Devices** (browsers and phones) or **Settings → Recording PCs** (PCs). Once the first account exists, the access key opens nothing any more; scripts pair like a PC (`npm run agent -- --pair`). Roles and single sign-on are described in [Users and roles](#users-and-roles) and [Sign in with Authelia (OIDC)](#sign-in-with-authelia-oidc). There are no public share links yet. Failed sign-ins are throttled per address after 20 attempts within 15 minutes (behind a proxy, set `REPLAYHAVEN_TRUST_PROXY` so the real address counts). The database only stores scrypt hashes of passwords and SHA-256 hashes of credentials.
 
 ## Users and roles
 
@@ -54,11 +72,21 @@ Every account has one of two roles:
 
 The first account on a server is always an admin. Accounts created before roles existed are migrated automatically: the first one becomes admin. Admins manage accounts under **Settings → Users** (`/settings/users`): create an account (name, password, role), change the role, disable/enable, reset the password (signs that user's browsers out), sign a user out everywhere, or delete an account. You cannot disable or delete yourself, and the server never lets the last active admin be demoted, disabled or deleted.
 
-A paired recording PC keeps its rights to upload, report its heartbeat and deliver client analysis results; it belongs to the admin who approved it and stops working when that account is disabled or deleted. The access key (`REPLAYHAVEN_ACCESS_TOKEN` as bearer token, or the legacy key login) acts as admin. Forbidden requests are answered with `403` and an English error message.
+A paired recording PC keeps its rights to upload, report its heartbeat and deliver client analysis results; it belongs to the admin who approved it and stops working when that account is disabled or deleted. The access key (`REPLAYHAVEN_ACCESS_TOKEN` as bearer token) acts as admin only while no account exists, that is, to set the server up. Forbidden requests are answered with `403` and an English error message.
+
+## Portainer
+
+`portainer-template.json` in this repository is a Portainer app template (a Compose stack from `compose.yaml`):
+
+1. In Portainer open **Settings → App Templates** and enter `https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/portainer-template.json` as the URL.
+2. Under **App Templates**, pick ReplayHaven, enter the access key (`openssl rand -hex 24`) and the address you open in the browser, and deploy.
+3. The container log shows the setup link for the first account.
 
 ## Deploy behind Coolify/Traefik
 
-ReplayHaven runs well as a Docker Compose resource in [Coolify](https://coolify.io), with Coolify's Traefik terminating HTTPS:
+**Quickest way:** in Coolify create a resource from this repository with the build pack **Docker Compose** and the compose file `docker-compose.coolify.yml`. Coolify generates the domain and the access key (shown under **Environment Variables**), routes HTTPS to port 8787 and keeps the archive volume; the server log prints the setup link. Step 4 below (upload timeout) still applies. This file has not been verified on every Coolify version; if it does not deploy, use the manual way.
+
+**By hand:** ReplayHaven runs well as a Docker Compose resource in [Coolify](https://coolify.io), with Coolify's Traefik terminating HTTPS:
 
 1. Create a new resource from this repository (or paste `compose.yaml`) and remove the `ports:` section, so the plain-HTTP port is not published; Traefik reaches the container over the Docker network.
 2. Give the `replayhaven` service the domain `https://clips.example.com:8787`. The `:8787` only tells Coolify which container port to route to; people still open `https://clips.example.com`.
@@ -200,7 +228,7 @@ Light H.264 clips in MP4 are played directly; heavy ones get a web rendition (se
 
 ## Automatic game info
 
-For recognised games the server fetches the official name, a short description, genre, release date and cover from Steam. The description is in German: the server requests the Steam store details with `l=german`, and games without a German text on Steam get no description. No API key is needed. The feature is on by default; `REPLAYHAVEN_GAME_METADATA=0` in `.env` turns off new lookups. After changing it, recreate the container with `docker compose up -d`.
+For recognised games the server fetches the official name, a short description, genre, release date and cover from Steam. The description is in English by default; with `REPLAYHAVEN_CONTENT_LANGUAGE=de` the server requests the German Steam text instead (`l=german`), and games without one get no description. Descriptions already stored are kept until the next scheduled refresh. No API key is needed. The feature is on by default; `REPLAYHAVEN_GAME_METADATA=0` in `.env` turns off new lookups. After changing it, recreate the container with `docker compose up -d`.
 
 A lookup starts after uploads that carry a game name, after the client or server AI has recognised the game, and after you change a game name by hand. On server start, existing clips are caught up. Only Steam names that match exactly after normalisation are accepted: punctuation, trademark signs and capitalisation may differ, but a merely similar title is not enough. Games that Steam does not list, and short names that differ from the Steam name, keep their current name without made-up metadata.
 
@@ -227,12 +255,13 @@ Set FFmpeg and FFprobe with `REPLAYHAVEN_FFMPEG` and `REPLAYHAVEN_FFPROBE`; with
 
 **Not needed** when you use the Windows client. These interfaces are prepared but have not been tested against a real provider. Add to `.env`:
 
-| Variable                   | Meaning                                                                |
-| -------------------------- | ---------------------------------------------------------------------- |
-| `REPLAYHAVEN_AI_PROVIDER`  | `none` (default), `local` or `gemini`                                  |
-| `REPLAYHAVEN_AI_MODEL`     | Exact model identifier                                                 |
-| `REPLAYHAVEN_LOCAL_AI_URL` | Reachable vision chat completions API, e.g. `http://modelhost:8000/v1` |
-| `REPLAYHAVEN_LOCAL_AI_KEY` | Optional API key                                                       |
-| `GEMINI_API_KEY`           | Key for Gemini analysis, used only when explicitly enabled             |
+| Variable                       | Meaning                                                                                        |
+| ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `REPLAYHAVEN_AI_PROVIDER`      | `none` (default), `local` or `gemini`                                                          |
+| `REPLAYHAVEN_AI_MODEL`         | Exact model identifier                                                                         |
+| `REPLAYHAVEN_LOCAL_AI_URL`     | Reachable vision chat completions API, e.g. `http://modelhost:8000/v1`                         |
+| `REPLAYHAVEN_LOCAL_AI_KEY`     | Optional API key                                                                               |
+| `GEMINI_API_KEY`               | Key for Gemini analysis, used only when explicitly enabled                                     |
+| `REPLAYHAVEN_CONTENT_LANGUAGE` | `en` (default) or `de`: language of titles the server AI writes and of Steam game descriptions |
 
 `local` sends sample frames to a model server you run yourself. `gemini` uploads a downscaled copy of the video to Google and may incur costs. Audio is off at first. Server analysis can then be controlled in the web UI. Uploads that announce a client result keep using the client path.

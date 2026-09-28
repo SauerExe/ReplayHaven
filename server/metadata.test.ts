@@ -69,6 +69,8 @@ it('builds the game info from search hit and details', async () => {
   });
   expect(info?.coverUrl).toContain('648800');
   expect(fetcher.mock.calls[1][0]).toContain('l=german');
+  await lookupGame('Raft', undefined, undefined, 'en');
+  expect(fetcher.mock.calls[3][0]).toContain('l=english');
 });
 
 it('follows Steam when it answers a renamed game under a new app id', async () => {

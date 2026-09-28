@@ -37,10 +37,12 @@ for (const width of [390, 1440]) {
       .poll(() => page.evaluate(() => navigator.clipboard.readText()))
       .toContain('bash setup-server.sh');
     await page.getByRole('button', { name: /Docker image/ }).click();
-    await page.getByRole('button', { name: 'Copy Start the server' }).click();
+    await page.getByRole('button', { name: 'Copy Prepare the server' }).click();
     await expect
       .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-      .toBe('docker compose up -d');
+      .toBe(
+        'curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash',
+      );
 
     await page.getByText('My server can’t be reached.', { exact: true }).click();
     await expect(page.getByText('docker compose logs --tail=80', { exact: true })).toBeVisible();

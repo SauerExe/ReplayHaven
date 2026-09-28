@@ -48,6 +48,8 @@ export interface Pairing {
   expiresAt: string;
   /** Only kept between approval and pickup by the PC, deleted afterwards. */
   token?: string;
+  /** Hash of the requesting address, so one address cannot fill the list. */
+  source?: string;
 }
 export interface OidcIdentity {
   issuer: string;
@@ -104,6 +106,7 @@ export class Accounts {
       CREATE TABLE IF NOT EXISTS sessions(key TEXT PRIMARY KEY, id TEXT NOT NULL UNIQUE, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS pairings(id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS login_codes(key TEXT PRIMARY KEY, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS pair_tickets(key TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS oidc_identities(issuer TEXT NOT NULL, sub TEXT NOT NULL, user_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(issuer, sub));`);
     this.migrateRoles();
   }
@@ -376,10 +379,15 @@ export class Accounts {
       )
       .run(pairing.id, JSON.stringify(pairing));
   }
-  /** A PC asks to be paired. At most five open requests at a time. */
-  requestPairing(name: string, deviceId: string, now = Date.now()) {
+  /**
+   * A PC asks to be paired. At most three open requests per address and twenty in total, so a
+   * stranger on the network cannot crowd out your own PC.
+   */
+  requestPairing(name: string, deviceId: string, now = Date.now(), address = '') {
+    const source = sha(address);
     const open = this.pairings(now).filter((p) => p.status === 'pending');
-    if (open.length >= 5)
+    const mine = open.filter((p) => p.source === source && p.deviceId !== deviceId);
+    if (mine.length >= 3 || open.length >= 20)
       throw new Error('Too many open pairing requests. Try again in a few minutes.');
     // When the same PC asks again, its new request replaces the old one.
     for (const p of open.filter((p) => p.deviceId === deviceId))
@@ -392,6 +400,7 @@ export class Accounts {
       name: name.slice(0, 100),
       deviceId,
       status: 'pending',
+      source,
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + PAIRING_MINUTES * 60000).toISOString(),
     };
@@ -439,6 +448,38 @@ export class Accounts {
       return { status: 'approved' as const, token: pairing.token };
     }
     return { status: pairing.status === 'delivered' ? ('expired' as const) : pairing.status };
+  }
+  /**
+   * Pairing by link: an admin signed in on the gaming PC creates a ticket, the browser hands it
+   * to the client through a replayhaven:// link, and the client redeems it for its own session.
+   * The admin's click is the approval, so no code has to be compared. Only the ticket's hash is
+   * stored; it works once, for PAIRING_MINUTES.
+   */
+  pairingTicket(userId: string, now = Date.now()) {
+    const ticket = `rht_${token()}`;
+    const expiresAt = new Date(now + PAIRING_MINUTES * 60000).toISOString();
+    for (const row of this.db.prepare('SELECT key, data FROM pair_tickets').all() as {
+      key: string;
+      data: string;
+    }[])
+      if (Date.parse((JSON.parse(row.data) as { expiresAt: string }).expiresAt) <= now)
+        this.db.prepare('DELETE FROM pair_tickets WHERE key=?').run(row.key);
+    this.db
+      .prepare('INSERT INTO pair_tickets(key,data) VALUES(?,?)')
+      .run(sha(ticket), JSON.stringify({ userId, expiresAt }));
+    return { ticket, expiresAt };
+  }
+  /** Redeems a ticket exactly once; undefined when it is unknown, used or expired. */
+  redeemTicket(ticket: string, name: string, now = Date.now()) {
+    const key = sha(ticket);
+    const row = this.db.prepare('SELECT data FROM pair_tickets WHERE key=?').get(key) as
+      { data: string } | undefined;
+    if (!row) return undefined;
+    this.db.prepare('DELETE FROM pair_tickets WHERE key=?').run(key);
+    const { userId, expiresAt } = JSON.parse(row.data) as { userId: string; expiresAt: string };
+    const account = this.user(userId);
+    if (Date.parse(expiresAt) <= now || !account || account.disabled) return undefined;
+    return this.createSession(userId, 'client', name.slice(0, 100), now).secret;
   }
 
   /* Signing in another device with a QR code */
@@ -491,18 +532,33 @@ export class Accounts {
   }
 }
 
-/** Counts failed sign-ins; after too many, sign-in pauses for a while. */
+/**
+ * Counts failed sign-ins per client address; after too many, sign-in pauses for that address.
+ * Counting for the whole server would let anyone who can reach it lock everybody out. Behind a
+ * proxy the address is the real client only with REPLAYHAVEN_TRUST_PROXY set.
+ */
 export class Throttle {
-  private readonly failures: number[] = [];
+  private readonly failures = new Map<string, number[]>();
   constructor(
     private readonly limit = 20,
     private readonly windowMs = 15 * 60000,
+    /** Addresses remembered at most; the oldest are forgotten first. */
+    private readonly capacity = 10000,
   ) {}
-  blocked(now = Date.now()) {
-    while (this.failures.length && this.failures[0] <= now - this.windowMs) this.failures.shift();
-    return this.failures.length >= this.limit;
+  private recent(key: string, now: number) {
+    const list = (this.failures.get(key) ?? []).filter((t) => t > now - this.windowMs);
+    if (list.length) this.failures.set(key, list);
+    else this.failures.delete(key);
+    return list;
   }
-  fail(now = Date.now()) {
-    this.failures.push(now);
+  blocked(key: string, now = Date.now()) {
+    return this.recent(key, now).length >= this.limit;
+  }
+  fail(key: string, now = Date.now()) {
+    const list = this.recent(key, now);
+    this.failures.delete(key);
+    this.failures.set(key, [...list, now]);
+    if (this.failures.size > this.capacity)
+      this.failures.delete(this.failures.keys().next().value!);
   }
 }

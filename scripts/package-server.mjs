@@ -12,6 +12,7 @@ for (const name of [
   'Dockerfile',
   '.dockerignore',
   'compose.yaml',
+  'install.sh',
   'setup-server.sh',
   'README.md',
   'tsconfig.json',

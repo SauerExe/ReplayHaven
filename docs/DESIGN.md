@@ -767,7 +767,7 @@ Quality:
 
 * CI checks types, lint, formatting, unit tests, browser tests, the Docker build with a container smoke test, and the unpacked Windows client.
 * PolyForm Noncommercial 1.0.0 for the source code (non-commercial use only). Demo media and bundled FFmpeg builds are subject to their own terms (`THIRD-PARTY.md`).
-* The repository is in English: interface copy, code, comments, commit messages and developer documentation. Generated clip titles and tags are currently still German product content.
+* The repository is in English: interface copy, code, comments, commit messages and developer documentation. Generated clip titles are English or German (a client setting); analysis tags are stored as German keys and labelled per interface language.
 
 Division of work:
 

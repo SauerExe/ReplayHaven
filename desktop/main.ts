@@ -23,11 +23,10 @@ import {
   LocalAnalyzer,
   checkOllama,
   pullModel,
-  DEFAULT_MODEL,
+  MODELS,
   FRAME_SPACING,
   OLLAMA_URL,
 } from '../agent/ollama';
-import { playerNamesSchema, savedPlayerNames, tidyPlayerNames } from '../agent/players';
 import { defaultDemosFolder, FortniteReplays } from '../agent/fortnite';
 import { LATIN_KEYS, LATIN_REC, missingLibrary } from '../agent/ocr';
 import { isR6, WorkerTexts } from '../agent/r6';
@@ -36,67 +35,20 @@ import { SPEECH_BYTES, speechFolder } from '../agent/parakeet';
 import { SpeechProcess } from './speech';
 import { GameWatch, gameTitle } from '../agent/gaming';
 import { keepMatchForClip } from '../agent/r6-replays';
+import { installOllama, OLLAMA_SETUP } from './ollama-setup';
+import { linkIn, PAIRING_SCHEME, parsePairingLink } from './pairing-link';
+import { discoverServers } from './discovery';
+import {
+  configSchema,
+  DEFAULT_CONFIG,
+  fromSaved,
+  normalizeConfig,
+  serverAddress,
+  validateServer,
+} from './config';
+import type { ClientConfig } from './config';
 
-const configSchema = z.object({
-  folder: z.string().max(1000),
-  server: z.string().url().max(500),
-  token: z.string().max(1000).default(''),
-  game: z.string().max(100),
-  // Without your own name the AI may attribute kills and scores to the wrong side. One name per
-  // game; an entry without a game applies everywhere (agent/players.ts).
-  playerNames: playerNamesSchema.default([]),
-  includeExisting: z.boolean(),
-  analyze: z.boolean(),
-  /** 0: whole clip, one frame every FRAME_SPACING seconds. */
-  frames: z.union([z.literal(24), z.literal(48), z.literal(0)]),
-  // Kills, weapon and distance from the Fortnite replays (agent/fortnite.ts). Off until measured.
-  fortniteReplays: z.boolean().default(false),
-  // Your own Epic account IDs; empty: the client detects the account from the replays itself.
-  epicAccounts: z.array(z.string()).max(10).default([]),
-  // Map and round result in R6 via text recognition (agent/r6.ts), about a minute of CPU per clip;
-  // in Valorant the killfeed (agent/valorant.ts), provided a player name is entered.
-  r6Texts: z.boolean().default(false),
-  // Transcribe voice chat (agent/parakeet.ts): Parakeet on the CPU, models ~670 MB once.
-  speech: z.boolean().default(false),
-  // While a game runs full screen, analysis and upload wait (agent/gaming.ts).
-  pauseWhileGaming: z.boolean().default(true),
-  // Keep the R6 match for every R6 clip (agent/r6-replays.ts), about 30 MB per match.
-  keepR6Replays: z.boolean().default(true),
-  // Setup completed: afterwards the window shows the overview instead of the wizard.
-  onboarded: z.boolean().default(false),
-  // Resume work right away when the client opens instead of waiting for "Start".
-  autoStart: z.boolean().default(true),
-  // Start with Windows, in the notification area.
-  openAtLogin: z.boolean().default(false),
-  // Windows notification when a clip is archived (never during a game).
-  notify: z.boolean().default(true),
-  // Fixed ID of this PC for pairing with the server.
-  deviceId: z.string().uuid().optional(),
-  // Language of the client window (desktop/renderer/i18n.js). Main-process messages stay English.
-  language: z.enum(['en', 'de']).default('en'),
-});
-type ClientConfig = z.infer<typeof configSchema>;
-let config: ClientConfig = {
-  folder: '',
-  server: 'http://localhost:8787',
-  token: '',
-  game: '',
-  playerNames: [],
-  includeExisting: false,
-  analyze: true,
-  frames: 24,
-  fortniteReplays: false,
-  epicAccounts: [],
-  r6Texts: false,
-  speech: false,
-  pauseWhileGaming: true,
-  keepR6Replays: true,
-  onboarded: false,
-  autoStart: true,
-  openAtLogin: false,
-  notify: true,
-  language: 'en',
-};
+let config: ClientConfig = { ...DEFAULT_CONFIG };
 // A separate profile (settings, queue, single instance) for tests next to a running client;
 // preview mode shows sample data and starts nothing.
 if (process.env.REPLAYHAVEN_PROFILE)
@@ -300,30 +252,8 @@ function showProgress(message: string) {
 function publicConfig() {
   return { ...config, token: '', hasToken: !!config.token };
 }
-function validateServer(value: string) {
-  const url = new URL(value);
-  if (
-    !['http:', 'https:'].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash
-  )
-    throw new Error('Use a server address without embedded credentials.');
-  return value.replace(/\/$/, '');
-}
 async function saveConfig(value: unknown) {
-  const input = configSchema.parse(value);
-  input.server = validateServer(input.server);
-  input.playerNames = tidyPlayerNames(input.playerNames);
-  input.epicAccounts = [...new Set(input.epicAccounts.map((a) => a.trim().toLowerCase()))].filter(
-    Boolean,
-  );
-  if (input.epicAccounts.some((a) => !/^[0-9a-f]{32}$/.test(a)))
-    throw new Error(
-      'An Epic account ID has 32 characters from 0–9 and a–f. You can find it on epicgames.com in your account settings.',
-    );
-  if (input.token === '') input.token = config.token;
+  const input = normalizeConfig(value, config.token);
   // Switching only the language is allowed at any time, even while the client is running.
   const keys = Object.keys(configSchema.shape) as (keyof ClientConfig)[];
   if (
@@ -367,13 +297,9 @@ async function persist() {
  */
 let pairingAbort: AbortController | undefined;
 async function startPairing(address: string) {
-  // Without a scheme: host names, IPs and addresses with a port usually via http, domains via https.
-  const local = /^(?:localhost|\d+\.\d+\.\d+\.\d+|[^./:]+(?::\d+)?$|[^/]+:\d+)/.test(address);
-  const server = validateServer(
-    address.includes('://')
-      ? address
-      : `${local && !address.endsWith(':443') ? 'http' : 'https'}://${address}`,
-  );
+  // A copied pairing link pasted as the address pairs right away.
+  if (address.startsWith(`${PAIRING_SCHEME}:`)) return pairByLink(address);
+  const server = serverAddress(address);
   if (working || (status.running && !paused))
     throw new Error('Pause the client before pairing it again.');
   pairingAbort?.abort();
@@ -437,6 +363,63 @@ async function startPairing(address: string) {
     if (!abort.signal.aborted) show('expired', 'The request has expired. Start pairing again.');
   })();
   return { code: body.code, server };
+}
+/**
+ * Pairs with the server a link names. A link that Windows hands over came from some web page,
+ * not necessarily the user's own server, so it is only used after the user confirms the host:
+ * otherwise any site could redirect this PC's uploads to itself.
+ */
+async function pairByLink(link: string, { confirm = false } = {}) {
+  const parsed = parsePairingLink(link);
+  const server = validateServer(parsed.server);
+  const { ticket } = parsed;
+  const show = (state: Pairing['state'], message: string) =>
+    emit({ pairing: { state, server, code: '', message } });
+  if (working || (status.running && !paused)) {
+    show('error', 'Pause the client before pairing it again.');
+    throw new Error('Pause the client before pairing it again.');
+  }
+  if (confirm) {
+    const host = new URL(server).host;
+    const german = config.language === 'de';
+    const { response } = await dialog.showMessageBox(window, {
+      type: 'question',
+      buttons: german ? ['Verbinden', 'Abbrechen'] : ['Connect', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+      message: german ? `Diesen PC mit ${host} verbinden?` : `Connect this PC to ${host}?`,
+      detail: german
+        ? `Deine Clips werden dann zu ${server} hochgeladen. Fahre nur fort, wenn du gerade in deinem eigenen ReplayHaven auf „Diesen PC verbinden“ geklickt hast.`
+        : `Your clips will then be uploaded to ${server}. Only continue if you just clicked “Connect this PC” in your own ReplayHaven.`,
+    });
+    if (response !== 0) return { code: '', server: config.server };
+  }
+  pairingAbort?.abort();
+  let response: Response;
+  try {
+    response = await fetch(`${server}/api/pair/redeem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticket, name: hostname() }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch {
+    show('error', 'The server does not respond. Is it running and reachable from this PC?');
+    throw new Error('The server does not respond. Is it running and reachable from this PC?');
+  }
+  const body = (await response.json().catch(() => ({}))) as { token?: string; error?: string };
+  if (!response.ok || !body.token) {
+    const message = body.error || `The server responds with HTTP ${response.status}.`;
+    show(response.status === 410 ? 'expired' : 'error', message);
+    throw new Error(message);
+  }
+  config = { ...config, server, token: body.token };
+  await persist();
+  show('approved', `Paired with ${new URL(server).host}.`);
+  // A PC that was already set up resumes its work with the new server.
+  if (config.onboarded && config.autoStart) void autoStart();
+  return { code: '', server };
 }
 /** Bundled files next to the app archive: FFmpeg, ONNX Runtime, text recognition models. */
 function resource(name: string) {
@@ -604,7 +587,11 @@ async function launch() {
         : `The archive server answered with HTTP ${response.status}.`,
     );
   if (config.analyze) {
-    const ai = await checkOllama();
+    const ai = await checkOllama(OLLAMA_URL, config.model);
+    if (!ai.supported)
+      throw new Error(
+        `Ollama ${ai.version} gives unusable answers. Click Install Ollama under Settings → Local AI to install ${OLLAMA_SETUP.version}.`,
+      );
     if (!ai.installed) throw new Error('Install Ollama and download the local model first.');
     // Otherwise the option would silently do nothing: every clip would come back without a map.
     const problem = config.r6Texts ? await textsProblem() : undefined;
@@ -639,7 +626,7 @@ async function launch() {
   if (!listening) closeSpeech();
   const analyzer = new LocalAnalyzer({
     url: OLLAMA_URL,
-    model: DEFAULT_MODEL,
+    model: config.model,
     frames: config.frames || 24,
     ...(config.frames === 0 ? { spacing: FRAME_SPACING } : {}),
     cacheDir: join(root(), 'cache'),
@@ -647,6 +634,7 @@ async function launch() {
     isPaused: waiting,
     signal: aborter.signal,
     playerNames: config.playerNames,
+    language: config.titleLanguage,
     ...(replays
       ? {
           replays: (path: string, game: string, duration: number) =>
@@ -878,22 +866,22 @@ function startPreview() {
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     if (window) showWindow();
+    const link = linkIn(argv);
+    if (link) void pairByLink(link, { confirm: true }).catch(() => {});
   });
   app
     .whenReady()
     .then(async () => {
       try {
         const saved = JSON.parse(await readFile(join(root(), 'preferences.json'), 'utf8'));
-        config = configSchema.parse({
-          onboarded: !!saved.folder,
-          ...saved,
-          playerNames: savedPlayerNames(saved),
-          token: saved.encryptedToken
+        config = fromSaved(
+          saved,
+          saved.encryptedToken
             ? safeStorage.decryptString(Buffer.from(saved.encryptedToken, 'base64'))
             : '',
-        });
+        );
       } catch {
         /* First start, or a configuration belonging to another Windows account. */
       }
@@ -935,8 +923,19 @@ else {
       });
       handle('vault:start', () => start());
       handle('vault:pause', () => pause());
-      handle('vault:check', async () => {
-        const result = await checkOllama();
+      // The wizard asks about the model it shows before the settings are saved.
+      const modelOf = (value: unknown) => z.enum(MODELS).catch(config.model).parse(value);
+      handle('vault:check', async (value) => {
+        const result = await checkOllama(OLLAMA_URL, modelOf(value));
+        // A broken version counts as missing, so the window offers to install the pinned one.
+        if (!result.supported) {
+          emit({
+            ollama: false,
+            model: false,
+            message: `Ollama ${result.version} gives unusable answers. Install Ollama ${OLLAMA_SETUP.version} instead.`,
+          });
+          return { ...result, running: false };
+        }
         emit({
           ollama: true,
           model: result.installed,
@@ -946,13 +945,13 @@ else {
         });
         return result;
       });
-      handle('vault:download', async () => {
+      handle('vault:download', async (value) => {
         if (status.downloading) throw new Error('The model download is already running.');
         if (working) throw new Error('Pause processing first.');
         downloadAbort = new AbortController();
         emit({ downloading: true });
         try {
-          await pullModel((message) => emit({ message }), downloadAbort.signal);
+          await pullModel((message) => emit({ message }), downloadAbort.signal, modelOf(value));
           emit({
             model: true,
             ollama: true,
@@ -963,9 +962,21 @@ else {
         }
       });
       handle('vault:cancel-download', () => downloadAbort?.abort());
-      handle('vault:ollama-install', () =>
-        shell.openExternal('https://ollama.com/download/windows'),
-      );
+      handle('vault:ollama-install', async () => {
+        if (status.downloading) throw new Error('A download is already running.');
+        downloadAbort = new AbortController();
+        emit({ downloading: true });
+        try {
+          await installOllama(
+            join(root(), 'cache'),
+            (message) => emit({ message }),
+            downloadAbort.signal,
+          );
+          emit({ ollama: true, message: 'Ollama is installed. Now download the model.' });
+        } finally {
+          emit({ downloading: false });
+        }
+      });
       handle('vault:archive', () => openArchive());
       handle('vault:open-clip', (id) => {
         if (typeof id !== 'string' || !/^[\w-]{1,80}$/.test(id)) throw new Error('Invalid clip.');
@@ -1034,6 +1045,7 @@ else {
         const server = status.pairing?.server ?? config.server;
         return shell.openExternal(`${validateServer(server)}/settings/pcs`);
       });
+      handle('vault:discover', () => discoverServers());
       handle('vault:open-at-login', (value) => {
         if (app.isPackaged)
           app.setLoginItemSettings({ openAtLogin: value === true, args: ['--hidden'] });
@@ -1041,8 +1053,19 @@ else {
       // The preview sets its data before the window asks for it.
       if (PREVIEW) startPreview();
       await createWindow();
+      // Windows opens replayhaven:// links with this app (per user, no admin rights needed).
+      if (!PREVIEW && !process.env.REPLAYHAVEN_PROFILE)
+        app.setAsDefaultProtocolClient(
+          PAIRING_SCHEME,
+          process.execPath,
+          app.isPackaged ? [] : [resolve(process.argv[1] ?? '.')],
+        );
+      const link = linkIn(process.argv);
       if (PREVIEW) emit();
-      else if (config.onboarded && config.autoStart) void autoStart();
+      else if (link) {
+        showWindow();
+        void pairByLink(link, { confirm: true }).catch(() => {});
+      } else if (config.onboarded && config.autoStart) void autoStart();
     })
     .catch((error) => {
       console.error(error.message);

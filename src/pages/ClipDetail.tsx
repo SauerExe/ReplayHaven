@@ -18,7 +18,7 @@ import { ClipMenu, useActions } from '../components/Actions';
 import { ClipCard, EmptyState, Section } from '../components/Cards';
 import { Brand } from '../components/Layout';
 import { AnalysisPanel } from '../components/AnalysisPanel';
-import { locale, t } from '../i18n';
+import { locale, t, tagLabel } from '../i18n';
 const Player = lazy(() => import('../components/Player'));
 export default function ClipDetail() {
   const { id } = useParams();
@@ -115,7 +115,7 @@ export default function ClipDetail() {
       <div className="clip-tags">
         {clip.tags.map((tag) => (
           <Link to={`/library?tag=${encodeURIComponent(tag)}`} className="tag" key={tag}>
-            {tag}
+            {tagLabel(tag)}
           </Link>
         ))}
         {editable && (

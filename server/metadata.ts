@@ -41,9 +41,12 @@ export function pickExact<T extends { appid: string | number; name: string }>(
   return candidates.find((c) => gameKey(c.name) === wanted);
 }
 
-async function json(url: string, signal?: AbortSignal) {
+export type ContentLanguage = 'en' | 'de';
+const STEAM_LANGUAGE: Record<ContentLanguage, string> = { en: 'english', de: 'german' };
+
+async function json(url: string, signal?: AbortSignal, language: ContentLanguage = 'de') {
   const response = await fetch(url, {
-    headers: { 'accept-language': 'de' },
+    headers: { 'accept-language': language },
     signal: signal ?? AbortSignal.timeout(15000),
   });
   if (!response.ok) throw new Error(`Steam responded with HTTP ${response.status}.`);
@@ -58,18 +61,23 @@ export async function lookupGame(
   name: string,
   signal?: AbortSignal,
   igdb?: Igdb,
+  /** Language of the Steam description; IGDB only has English. */
+  language: ContentLanguage = 'de',
 ): Promise<GameInfo | undefined> {
   const key = gameKey(name);
   if (!key || NOT_GAMES.has(key)) return undefined;
-  return (await lookupSteam(name, key, signal)) ?? (await igdb?.lookup(name, key, signal));
+  return (
+    (await lookupSteam(name, key, signal, language)) ?? (await igdb?.lookup(name, key, signal))
+  );
 }
 
 async function lookupSteam(
   name: string,
   key: string,
   signal?: AbortSignal,
+  language: ContentLanguage = 'de',
 ): Promise<GameInfo | undefined> {
-  const results = (await json(`${SEARCH}/${encodeURIComponent(name)}`, signal)) as {
+  const results = (await json(`${SEARCH}/${encodeURIComponent(name)}`, signal, language)) as {
     appid: string;
     name: string;
   }[];
@@ -77,10 +85,11 @@ async function lookupSteam(
   if (!hit) return undefined;
   const appId = Number(hit.appid);
   if (!Number.isSafeInteger(appId) || appId <= 0) return undefined;
-  const details = (await json(`${DETAILS}?appids=${appId}&l=german`, signal)) as Record<
-    string,
-    { success?: boolean; data?: Record<string, unknown> }
-  >;
+  const details = (await json(
+    `${DETAILS}?appids=${appId}&l=${STEAM_LANGUAGE[language]}`,
+    signal,
+    language,
+  )) as Record<string, { success?: boolean; data?: Record<string, unknown> }>;
   // Steam redirects renamed games to a new ID and then answers under that one: a request for
   // 359550 (Rainbow Six Siege) returned an entry under 5290420 on 2026-09-24.
   const entries = Object.values(details ?? {});

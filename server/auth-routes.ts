@@ -32,7 +32,7 @@ const OPEN = new Set([
   '/api/auth/oidc/callback',
   '/api/pair/request',
   '/api/pair/status',
-  '/api/session',
+  '/api/pair/redeem',
 ]);
 /** Changing requests every signed-in account may send: its own account and sessions. */
 const SELF_SERVICE = new Set([
@@ -46,7 +46,7 @@ const SELF_SERVICE = new Set([
   'DELETE /api/auth/sessions/:id',
   'POST /api/pair/request',
   'POST /api/pair/status',
-  'POST /api/session',
+  'POST /api/pair/redeem',
 ]);
 /** What a paired recording PC may change besides reading: upload, its result, its heartbeat. */
 const CLIENT_ROUTES = new Set([
@@ -130,7 +130,9 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
   function identify(req: FastifyRequest, reply: FastifyReply): Identity | undefined {
     const bearer = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
     if (bearer) {
-      if (config.token && sameSecret(bearer, config.token)) return { kind: 'key', role: 'admin' };
+      // The access key only sets the server up: once an account exists, it opens nothing.
+      if (config.token && !accounts.hasUsers() && sameSecret(bearer, config.token))
+        return { kind: 'key', role: 'admin' };
       const found = accounts.session(bearer);
       if (found) return fromSession(found.session);
     }
@@ -143,9 +145,6 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
         if (identity) return identity;
       }
     }
-    // Sessions from before accounts existed (signed in with the access key), until they expire.
-    const legacy = req.cookies.vault_session ? req.unsignCookie(req.cookies.vault_session) : null;
-    if (legacy?.valid && legacy.value === 'vault') return { kind: 'key', role: 'admin' };
     return undefined;
   }
   const isAdmin = (identity: Identity | undefined) =>
@@ -230,12 +229,12 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       });
     if (accounts.hasUsers())
       return reply.code(409).send({ error: 'An account already exists. Sign in with it.' });
-    if (throttle.blocked())
+    if (throttle.blocked(req.ip))
       return reply.code(429).send({ error: 'Too many failed attempts. Wait a few minutes.' });
     // A new server is often already reachable from the internet: only someone who knows the
     // access key from the setup may create the first account.
     if (config.token && !sameSecret(body.key, config.token)) {
-      throttle.fail();
+      throttle.fail(req.ip);
       return reply.code(401).send({ error: 'The access key from the server setup is wrong.' });
     }
     const account = await accounts.createUser(body.name, body.password, 'admin');
@@ -251,11 +250,11 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       return reply
         .code(403)
         .send({ error: `Password sign-in is disabled. Sign in with ${config.oidc?.name}.` });
-    if (throttle.blocked())
+    if (throttle.blocked(req.ip))
       return reply.code(429).send({ error: 'Too many failed attempts. Wait a few minutes.' });
     const account = await accounts.verify(body.name, body.password);
     if (!account) {
-      throttle.fail();
+      throttle.fail(req.ip);
       return reply.code(401).send({ error: 'Name or password is wrong.' });
     }
     if (account.disabled) return reply.code(403).send({ error: 'This account is disabled.' });
@@ -280,7 +279,7 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     if (!account) return reply.code(404).send({ error: 'Account not found.' });
     // An account that only signed in through OIDC so far sets its first password without one.
     if (account.hash && !(await accounts.verify(account.name, body.current))) {
-      throttle.fail();
+      throttle.fail(req.ip);
       return reply.code(401).send({ error: 'The current password is wrong.' });
     }
     await accounts.changePassword(userId, body.next);
@@ -330,12 +329,12 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
   });
   app.post('/api/auth/qr/redeem', async (req, reply) => {
     const { code } = z.object({ code: z.string().min(20).max(100) }).parse(req.body);
-    if (throttle.blocked())
+    if (throttle.blocked(req.ip))
       return reply.code(429).send({ error: 'Too many failed attempts. Wait a few minutes.' });
     const redeemed = accounts.redeemLoginCode(code);
     const account = redeemed ? accounts.user(redeemed.userId) : undefined;
     if (!redeemed || !account || account.disabled) {
-      throttle.fail();
+      throttle.fail(req.ip);
       return reply.code(401).send({
         error: 'The code has expired or was already used. Show a new one.',
       });
@@ -387,12 +386,13 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
         `Sign-in was cancelled: ${query.get('error_description') || query.get('error')}`,
       );
     if (!flow) return failed(reply, 'The sign-in took too long or was started elsewhere. Retry.');
-    if (throttle.blocked()) return failed(reply, 'Too many failed attempts. Wait a few minutes.');
+    if (throttle.blocked(req.ip))
+      return failed(reply, 'Too many failed attempts. Wait a few minutes.');
     let profile;
     try {
       profile = await oidc.finish(search, flow);
     } catch (error) {
-      throttle.fail();
+      throttle.fail(req.ip);
       return failed(
         reply,
         error instanceof OidcError ? error.message : 'The sign-in could not be completed.',
@@ -548,7 +548,7 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       .object({ deviceId: z.string().uuid(), name: z.string().trim().min(1).max(100) })
       .parse(req.body);
     try {
-      return accounts.requestPairing(body.name, body.deviceId);
+      return accounts.requestPairing(body.name, body.deviceId, Date.now(), req.ip);
     } catch (error) {
       return reply.code(429).send({ error: (error as Error).message });
     }
@@ -556,6 +556,23 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
   app.post('/api/pair/status', async (req) => {
     const body = z.object({ id: z.string().uuid(), secret: z.string().max(200) }).parse(req.body);
     return accounts.pairingStatus(body.id, body.secret);
+  });
+  // Pairing by link (Accounts.pairingTicket): the admin's click replaces the code comparison.
+  app.post('/api/pair/ticket', async (req, reply) => {
+    const userId = owner(req, reply);
+    if (!userId || adminOnly(req, reply)) return;
+    return accounts.pairingTicket(userId);
+  });
+  app.post('/api/pair/redeem', async (req, reply) => {
+    const body = z
+      .object({ ticket: z.string().max(200), name: z.string().trim().min(1).max(100) })
+      .parse(req.body);
+    const token = accounts.redeemTicket(body.ticket, body.name);
+    if (!token)
+      return reply
+        .code(410)
+        .send({ error: 'The link has expired or was already used. Create a new one.' });
+    return { token };
   });
   app.get('/api/pair/pending', async (req, reply) => {
     if (!owner(req, reply) || adminOnly(req, reply)) return;

@@ -25,7 +25,7 @@
 
 ---
 
-Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.DVR.mp4`, a hundred times over. ReplayHaven turns that into **“Ace auf Inferno”** (“Ace on Inferno”; generated titles are German for now) with a short description, tags and jump marks, and it does so on your own hardware: a small Windows client analyses each new recording with a local vision model, your own server keeps the original forever, and every device you sign in becomes a place to watch it again, at home or on the road.
+Your clip folder probably looks like `Counter-Strike 2 2026.09.24 - 21.14.07.02.DVR.mp4`, a hundred times over. ReplayHaven turns that into **“Ace on Inferno”** (or “Ace auf Inferno”, titles are written in English or German) with a short description, tags and jump marks, and it does so on your own hardware: a small Windows client analyses each new recording with a local vision model, your own server keeps the original forever, and every device you sign in becomes a place to watch it again, at home or on the road.
 
 ## Features
 
@@ -76,7 +76,7 @@ The web library and the Windows client are in English by default and switch to G
   </tr>
   <tr>
     <td width="50%"><img src="docs/images/app-smart.jpg" alt="Automatic Multi-kills collection built from clip tags"><br><sub>Automatic collections such as Aces, Clutches, Multi-kills or Trickshots fill themselves from your tags.</sub></td>
-    <td width="50%"><img src="docs/images/app-settings.jpg" alt="Settings, Recording PCs: a pairing request with a six-digit code next to Approve and Deny, and the paired gaming PC"><br><sub>Settings → Recording PCs: approve a new PC when it shows the same code.</sub></td>
+    <td width="50%"><img src="docs/images/app-settings.jpg" alt="Settings, Recording PCs: a pairing request with a six-digit code next to Approve and Deny, and the paired gaming PC"><br><sub>Settings → Recording PCs: connect this PC with one click, or approve a new PC when it shows the same code.</sub></td>
   </tr>
 </table>
 
@@ -90,7 +90,7 @@ The web library and the Windows client are in English by default and switch to G
 <p align="center"><img src="docs/images/app-mobile.jpg" alt="Web library on a phone with the spotlight clip and the bottom navigation" width="320"></p>
 </details>
 
-<sub>Screenshots use the built-in demo artwork and example texts. Generated clip titles and tags are still German for now.</sub>
+<sub>Screenshots use the built-in demo artwork and example texts; the example titles are German, the language the AI writes in is a client setting.</sub>
 
 ## How it works
 
@@ -125,37 +125,47 @@ You need a machine for the server (anything that runs Docker) and the Windows PC
 Install Docker Engine with the Compose plugin ([guide](https://docs.docker.com/engine/install/)), then:
 
 ```bash
-git clone https://github.com/SauerExe/ReplayHaven.git && cd ReplayHaven
-bash setup-server.sh
+curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash
 ```
 
-The script asks for the server address, generates the access key, builds the image and starts it. Running it again after an update rebuilds and keeps your `.env`.
+The installer creates `./replayhaven` with `compose.yaml` and a `.env` from the latest release (checked against the release's `SHA256SUMS.txt`), generates the access key, asks for the address you open in the browser (your LAN address is suggested), starts the published multi-arch image `ghcr.io/sauerexe/replayhaven` and prints a setup link. Running it again updates to the latest release and keeps your `.env`. Want to read it first? Download [`install.sh`](https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh) and run `bash install.sh`.
+
+Open the setup link to create your admin account. It carries the access key from `.env` in the part after `#`, which the browser never sends to the server; the page removes it from the address bar right away. The key is needed once, so nobody else can claim a server that is already reachable. Lost the link? `docker compose logs replayhaven` shows it until the first account exists, or open the server address and enter `REPLAYHAVEN_ACCESS_TOKEN` from `.env`. Other devices then sign in with name and password, or scan the QR code under **Settings → Devices → Connect phone**.
+
+Using Portainer or Coolify? Add [`portainer-template.json`](portainer-template.json) as an app template in Portainer, or deploy [`docker-compose.coolify.yml`](docker-compose.coolify.yml) in Coolify, which generates the domain and the access key; both are described in [docs/SERVER.md](docs/SERVER.md#portainer).
 
 <details>
-<summary><b>Without a source checkout, from a published release</b></summary>
+<summary><b>By hand, or from a source checkout</b></summary>
 
-Every release publishes a multi-arch image to `ghcr.io/sauerexe/replayhaven`.
+From a published release, without the installer:
 
 ```bash
 mkdir -p replayhaven && cd replayhaven
-curl -fsSLO https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/compose.yaml
-curl -fsSL  https://raw.githubusercontent.com/SauerExe/ReplayHaven/main/.env.example -o .env
+curl -fsSLO https://github.com/SauerExe/ReplayHaven/releases/latest/download/compose.yaml
+curl -fsSL  https://github.com/SauerExe/ReplayHaven/releases/latest/download/env.example -o .env
 # edit .env: REPLAYHAVEN_ACCESS_TOKEN (openssl rand -hex 24) and REPLAYHAVEN_PUBLIC_ORIGIN (http://<server-ip>:8787)
 docker compose up -d
 ```
 
-</details>
+From source, building the image yourself:
 
-Open the server address in a browser and create your account. The access key from `.env` is needed once for this, so nobody else can claim a server that is already reachable. Other devices then sign in with name and password, or scan the QR code under **Settings → Devices → Connect phone**.
+```bash
+git clone https://github.com/SauerExe/ReplayHaven.git && cd ReplayHaven
+bash setup-server.sh
+```
+
+Running `setup-server.sh` again after `git pull` rebuilds and keeps your `.env`.
+
+</details>
 
 Running it behind Coolify, Traefik, Caddy or nginx, with Authelia or another single sign-on, is covered in [docs/SERVER.md](docs/SERVER.md).
 
 ### 2. Gaming PC
 
-1. Install `ReplayHaven-Client-Setup.exe` from the [releases](https://github.com/SauerExe/ReplayHaven/releases) or from **Settings → Recording PCs** on your server. The installer is not code-signed yet, so SmartScreen asks for confirmation. No release yet? Build it on Windows with `npm ci && npm run client:build`.
-2. The setup assistant opens. Enter the server address and click **Connect**. The client shows a six-digit code; approve the same code under **Settings → Recording PCs** in the web library.
+1. Install `ReplayHaven-Client-Setup.exe` from the [releases](https://github.com/SauerExe/ReplayHaven/releases) or from **Settings → Recording PCs** on your server. The installer is not code-signed yet, so SmartScreen asks for confirmation; every release lists SHA-256 checksums and carries a GitHub build attestation, so `gh attestation verify ReplayHaven-Client-Setup.exe --repo SauerExe/ReplayHaven` shows it was built by the release workflow from the tagged commit. No release yet? Build it on Windows with `npm ci && npm run client:build`.
+2. Connect it: on the gaming PC, open the web library, go to **Settings → Recording PCs** and click **Connect this PC**. The client opens and pairs itself, no address or code to type. Alternatively the setup assistant lists servers it finds in your home network, or you enter the address and approve the six-digit code in the web library.
 3. Pick your recording folder (subfolders included).
-4. Install [Ollama](https://ollama.com/download/windows) and let the assistant download the model once: Qwen3.5 9B, about 6.6 GB.
+4. Pick the model size and click **Install Ollama**: the assistant downloads the official Ollama installer, checks its checksum, installs it without admin rights and then downloads the model once (Qwen3.5 9B, about 6.6 GB, or 4B, about 3.4 GB).
 5. Enter your in-game names, choose the optional extras and finish. New recordings are analysed once they are completely written and show up in the library a minute or two later.
 
 The full user guide with every option and troubleshooting is [docs/START.md](docs/START.md).
@@ -184,13 +194,13 @@ Command-line tools show what these sources contribute to your own clips before y
 
 ## Requirements
 
-| Component  | Requirement                                                                                                                                                   |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server     | Docker Engine 24+ with Compose v2.24+, linux/amd64 or linux/arm64, disk space for your clips. Without Docker: Node.js 24+ and FFmpeg.                         |
-| Gaming PC  | Windows 10/11 x64. For local AI: [Ollama](https://ollama.com) and a GPU with about 10 GB VRAM for Qwen3.5 9B. CPU-only works, but slowly.                     |
-| Recordings | MP4, M4V, MOV, WebM or MKV, up to 2 GB, 30 minutes and 8K per file. Light H.264 MP4 plays directly; everything else gets a web version transcoded on the CPU. |
-| Recorder   | Anything that writes files into a folder: NVIDIA App (Instant Replay), OBS, Xbox Game Bar and others.                                                         |
-| Browser    | Any current browser on desktop, tablet or phone. The library can be added to a phone's home screen.                                                           |
+| Component  | Requirement                                                                                                                                                    |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server     | Docker Engine 24+ with Compose v2.24+, linux/amd64 or linux/arm64, disk space for your clips. Without Docker: Node.js 24+ and FFmpeg.                          |
+| Gaming PC  | Windows 10/11 x64. For local AI: [Ollama](https://ollama.com) and a GPU with about 10 GB VRAM for Qwen3.5 9B, or 6 to 8 GB for 4B. CPU-only works, but slowly. |
+| Recordings | MP4, M4V, MOV, WebM or MKV, up to 2 GB, 30 minutes and 8K per file. Light H.264 MP4 plays directly; everything else gets a web version transcoded on the CPU.  |
+| Recorder   | Anything that writes files into a folder: NVIDIA App (Instant Replay), OBS, Xbox Game Bar and others.                                                          |
+| Browser    | Any current browser on desktop, tablet or phone. The library can be added to a phone's home screen.                                                            |
 
 <details>
 <summary><b>Configuration</b></summary>
@@ -199,7 +209,7 @@ All server settings are environment variables, documented in [`.env.example`](.e
 
 | Variable                          | Purpose                                                                                                             |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `REPLAYHAVEN_ACCESS_TOKEN`        | Key for creating the first account (and for older clients and scripts), at least 24 characters. Required.           |
+| `REPLAYHAVEN_ACCESS_TOKEN`        | Key for creating the first account; it opens nothing once an account exists. At least 24 characters. Required.      |
 | `REPLAYHAVEN_PUBLIC_ORIGIN`       | The address people open, e.g. `https://clips.example.com`. Several are allowed, separated by commas.                |
 | `REPLAYHAVEN_TRUST_PROXY`         | Trust `X-Forwarded-*` headers behind a reverse proxy such as Traefik, Caddy or nginx.                               |
 | `REPLAYHAVEN_HOST_PORT`           | Host port published by Compose (default 8787).                                                                      |
@@ -215,7 +225,7 @@ Operations, backups, roles, reverse proxies, single sign-on and server-side AI a
 
 ## What's next
 
-Ideas for later: share links, clip titles in English, and laughs and shouts from the microphone track as highlight markers. Audio cues and Rainbow Six replay events only go into the analysis once measurements on real clips show that they help.
+Ideas for later: share links, and laughs and shouts from the microphone track as highlight markers. Audio cues and Rainbow Six replay events only go into the analysis once measurements on real clips show that they help.
 
 ## FAQ
 
@@ -229,14 +239,14 @@ No. The client only reads. Originals on the gaming PC stay where they are, and t
 <details>
 <summary><b>Is the interface in English?</b></summary>
 
-Yes. The web library, the sign-in screens and the Windows client are English by default and can be switched to German under **Settings → Appearance** (web) or **Settings → Language** (client). The titles, descriptions and tags the AI writes are German for now; English titles are on the list.
+Yes. The web library, the sign-in screens and the Windows client are English by default and can be switched to German under **Settings → Appearance** (web) or **Settings → Language** (client). The titles, descriptions and jump marks the AI writes are English or German, set under **Settings → Local AI → Title language** in the client; on first setup they follow the window language. The analysis itself runs in German, the language all measurements were made in, and the checked German result is translated. The translation must keep the kill count, every number and the map; otherwise the checked German text is kept. Tags are stored in German and shown in the interface language.
 
 </details>
 
 <details>
 <summary><b>Do I need a powerful GPU?</b></summary>
 
-For the local AI, a GPU with about 10 GB VRAM keeps analysis quick. Without one, Ollama runs on the CPU and takes much longer. You can also switch analysis off and use ReplayHaven as a plain archive. The server needs no GPU at all.
+For the local AI, a GPU with about 10 GB VRAM keeps analysis quick with Qwen3.5 9B; with 6 to 8 GB, choose the 4B model in the client, which is smaller but not measured as thoroughly. Without one, Ollama runs on the CPU and takes much longer. You can also switch analysis off and use ReplayHaven as a plain archive. The server needs no GPU at all.
 
 </details>
 
@@ -284,7 +294,7 @@ Not yet. The server and the web library run anywhere; the client that watches th
 
 ## Development
 
-Node.js 24 or newer is required (SQLite is built in). The web UI and server run on Windows, macOS and Linux; the client installer is built on Windows.
+Node.js 24 or newer is required (SQLite is built in). `node:sqlite` is not yet marked stable by Node.js; the server uses only its basic synchronous API, keeps it behind `server/database.ts`, and the Docker image pins the Node.js major version, so a Node.js update cannot change it unnoticed. The web UI and server run on Windows, macOS and Linux; the client installer is built on Windows.
 
 ```bash
 npm ci

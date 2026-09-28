@@ -2,7 +2,7 @@ import { Fragment, useEffect, useId, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Download, Heart, Play, Plus, Sparkles, X } from 'lucide-react';
-import { t } from '../i18n';
+import { t, tagLabel } from '../i18n';
 import {
   confidenceLabel,
   formatDuration,
@@ -197,7 +197,7 @@ function DetailBody({
               <ul className="stream-chips" aria-label={t('stream.tags')}>
                 {clip.tags.map((tag) => (
                   <li key={tag} className="stream-chip">
-                    {tag}
+                    {tagLabel(tag)}
                   </li>
                 ))}
                 {onEditTags && (

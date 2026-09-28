@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import ffmpeg from 'ffmpeg-static';
 import sharp from 'sharp';
+import { bundleRenderer } from './renderer-bundle.mjs';
 
 /**
  * Generates the README images in docs/images: the web library and settings with sample data and
@@ -603,9 +604,13 @@ async function clientShot(browser) {
     },
     { now, thumbnail: `data:image/jpeg;base64,${thumbnail.toString('base64')}` },
   );
-  // Vite serves the renderer; icon and fonts only land next to it in the client build
+  // Vite serves the renderer; app.js, icon and fonts only land next to it in the client build
   // (scripts/build-client.mjs), so they are handed out from their sources here.
   const renderer = `${base}/desktop/renderer`;
+  const script = await bundleRenderer({ write: false });
+  await page.route(`${renderer}/app.js`, (route) =>
+    route.fulfill({ body: script.outputFiles[0].text, contentType: 'text/javascript' }),
+  );
   const icon = await sharp(join(root, 'desktop', 'icon-source.png'))
     .resize(256, 256)
     .toBuffer();
