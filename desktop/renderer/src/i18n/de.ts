@@ -328,4 +328,39 @@ export const de: Partial<Record<MessageKey, Message>> = {
   'w.done.noNames': 'keine',
   'w.done.detection': 'Texte {texts} · Voice-Chat {speech} · Replays {replays}',
   'w.done.behavior': 'Pause beim Spielen {pause} · mit Windows {login}',
+  'err.server.invalid': 'Gib eine gültige Serveradresse ein.',
+  'err.server.credentials': 'Verwende eine Serveradresse ohne eingebettete Zugangsdaten.',
+  'err.server.http': 'Der Server antwortet mit HTTP {status}.',
+  'err.config.epic':
+    'Eine Epic-Konto-ID hat 32 Zeichen aus 0–9 und a–f. Du findest sie auf epicgames.com in deinen Kontoeinstellungen.',
+  'err.save.working': 'Pausiere den Client und warte, bis der aktuelle Schritt abgeschlossen ist.',
+  'err.save.running': 'Pausiere den Client, bevor du Einstellungen änderst.',
+  'err.save.encryption': 'Windows kann den Zugangsschlüssel gerade nicht verschlüsselt speichern.',
+  'err.pair.busy': 'Pausiere den Client, bevor du ihn neu koppelst.',
+  'err.pair.noAddress': 'Gib die Serveradresse ein.',
+  'err.pair.noResponse': 'Keine Antwort. Prüfe die Adresse und ob der Server läuft.',
+  'err.pair.unsupported':
+    'Dieser Server unterstützt das Koppeln noch nicht. Aktualisiere ihn oder verbinde dich mit dem Zugangsschlüssel.',
+  'err.pair.serverDown':
+    'Der Server antwortet nicht. Läuft er und ist er von diesem PC aus erreichbar?',
+  'err.pair.waiting': 'Warte auf die Freigabe in der Weboberfläche …',
+  'err.pair.approved': 'Gekoppelt mit {host}.',
+  'err.pair.denied': 'Die Kopplung wurde abgelehnt.',
+  'err.pair.expired': 'Die Anfrage ist abgelaufen. Starte das Koppeln erneut.',
+  'err.test.noResponse': 'Keine Antwort. Prüfe Adresse und Port und ob der Server läuft.',
+  'err.test.rejected': 'Der Server antwortet, lehnt aber den Zugangsschlüssel ab.',
+  'err.launch.starting': 'Der Start läuft bereits.',
+  'err.launch.noFolder': 'Wähle zuerst deinen NVIDIA-Aufnahmeordner.',
+  'err.launch.working': 'Der aktuelle Schritt wird noch abgeschlossen.',
+  'err.launch.unreachable': 'Der Archivserver unter {host} ist nicht erreichbar.',
+  'err.launch.rejected':
+    'Der Server hat diesen PC abgelehnt. Koppel ihn unter Einstellungen erneut.',
+  'err.launch.ollamaBroken':
+    'Ollama {version} liefert unbrauchbare Antworten. Klicke unter Einstellungen → Lokale KI auf „Ollama installieren“, um {pinned} zu installieren.',
+  'err.launch.noModel': 'Installiere zuerst Ollama und lade das lokale Modell herunter.',
+  'err.launch.vcRedist':
+    'Die R6-Texterkennung braucht eine aktuelle Version des „Microsoft Visual C++ Redistributable“ (x64). Installiere es von Microsoft oder schalte die Option aus. ({detail})',
+  'err.launch.texts': 'Die R6-Texterkennung kann nicht geladen werden: {detail}',
+  'err.launch.speech': 'Die Spracherkennung kann nicht geladen werden: {detail}',
+  'err.autoStart': 'Automatischer Start noch nicht möglich: {reason} Neuer Versuch in 30 Sekunden.',
 };

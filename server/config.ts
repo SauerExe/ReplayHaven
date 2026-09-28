@@ -87,7 +87,9 @@ export function parseOrigins(value: string | undefined) {
 export function parseTrustProxy(value: string | undefined): ServerConfig['trustProxy'] {
   const text = (value || '').trim();
   if (!text || ['0', 'false', 'off', 'no'].includes(text.toLowerCase())) return false;
-  if (['1', 'true', 'on', 'yes'].includes(text.toLowerCase())) return true;
+  if (['true', 'on', 'yes'].includes(text.toLowerCase())) return true;
+  // A number counts the proxies in front of the server: "1" trusts only the nearest one, so a
+  // client cannot add addresses of its own to X-Forwarded-For.
   if (/^\d+$/.test(text)) return Number(text);
   // Addresses or CIDR ranges of the proxies, e.g. "10.0.0.0/8,172.16.0.0/12".
   return text;
@@ -136,13 +138,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const logLevel = (env.REPLAYHAVEN_LOG_LEVEL || 'info').trim().toLowerCase();
   if (!['error', 'warn', 'info', 'debug', 'silent'].includes(logLevel))
     throw new Error('REPLAYHAVEN_LOG_LEVEL must be error, warn, info, debug or silent.');
+  const portText = (env.REPLAYHAVEN_PORT || '8787').trim();
+  const port = Number(portText);
+  if (!/^\d+$/.test(portText) || port < 1 || port > 65535)
+    throw new Error('REPLAYHAVEN_PORT must be a whole number from 1 to 65535.');
   const contentLanguage = (env.REPLAYHAVEN_CONTENT_LANGUAGE || 'en').trim().toLowerCase();
   if (!['en', 'de'].includes(contentLanguage))
     throw new Error('REPLAYHAVEN_CONTENT_LANGUAGE must be en or de.');
 
   return {
     host,
-    port: Number(env.REPLAYHAVEN_PORT || 8787),
+    port,
     dataDir: resolve(env.REPLAYHAVEN_DATA_DIR || 'vault-data'),
     token,
     publicOrigin,

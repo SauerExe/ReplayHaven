@@ -40,6 +40,23 @@ export function t(key: string, params: Record<string, string | number> = {}) {
     params[name] === undefined ? match : String(params[name]),
   );
 }
+/**
+ * A message of the main process in the window language: its code names err.<code>, and a code
+ * this window does not know (an older client, a message without one) shows the English text.
+ */
+export function coded(
+  code: string | undefined,
+  params: Record<string, string | number> | undefined,
+  fallback: string,
+): string {
+  if (!code) return fallback;
+  if (code === 'autoStart' && params) {
+    // The reason is itself a coded message, put into the retry sentence.
+    const reason = coded(String(params.cause ?? ''), params, String(params.reason ?? ''));
+    return t('err.autoStart', { reason });
+  }
+  return Object.hasOwn(I18N.en, `err.${code}`) ? t(`err.${code}`, params) : fallback;
+}
 export function locale() {
   return LOCALES[language] || LOCALES.en;
 }

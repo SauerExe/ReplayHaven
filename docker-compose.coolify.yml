@@ -12,21 +12,38 @@
 # docs/SERVER.md, "Deploy behind Coolify/Traefik".
 services:
   replayhaven:
+    # :1 follows every 1.x release on redeploy. For controlled updates pin a release instead,
+    # e.g. ghcr.io/sauerexe/replayhaven:1.1.4, and back up the volume before raising it.
     image: ghcr.io/sauerexe/replayhaven:1
     restart: unless-stopped
     environment:
       - SERVICE_URL_REPLAYHAVEN_8787
       - REPLAYHAVEN_ACCESS_TOKEN=${SERVICE_PASSWORD_64_ACCESSTOKEN}
       - REPLAYHAVEN_PUBLIC_ORIGIN=${SERVICE_URL_REPLAYHAVEN}
-      # Traefik is the only way in; the container port is not published.
-      - REPLAYHAVEN_TRUST_PROXY=true
+      # Traefik is the only way in; the container port is not published. Put Traefik's address
+      # range here instead (for example 10.0.0.0/8) to trust only the proxy.
+      - REPLAYHAVEN_TRUST_PROXY=${REPLAYHAVEN_TRUST_PROXY:-true}
+      # Coolify only passes variables listed here; empty means the default (see .env.example).
       - REPLAYHAVEN_PLAYBACK=${REPLAYHAVEN_PLAYBACK:-web}
       - REPLAYHAVEN_CONTENT_LANGUAGE=${REPLAYHAVEN_CONTENT_LANGUAGE:-en}
+      - REPLAYHAVEN_SUPPORT_BANNER=${REPLAYHAVEN_SUPPORT_BANNER:-}
+      - REPLAYHAVEN_LOG_LEVEL=${REPLAYHAVEN_LOG_LEVEL:-}
+      - REPLAYHAVEN_GAME_METADATA=${REPLAYHAVEN_GAME_METADATA:-}
+      - REPLAYHAVEN_IGDB_CLIENT_ID=${REPLAYHAVEN_IGDB_CLIENT_ID:-}
+      - REPLAYHAVEN_IGDB_CLIENT_SECRET=${REPLAYHAVEN_IGDB_CLIENT_SECRET:-}
+      - REPLAYHAVEN_AI_PROVIDER=${REPLAYHAVEN_AI_PROVIDER:-none}
+      - REPLAYHAVEN_AI_MODEL=${REPLAYHAVEN_AI_MODEL:-}
+      - REPLAYHAVEN_LOCAL_AI_URL=${REPLAYHAVEN_LOCAL_AI_URL:-}
+      - REPLAYHAVEN_LOCAL_AI_KEY=${REPLAYHAVEN_LOCAL_AI_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - REPLAYHAVEN_OIDC_ISSUER=${REPLAYHAVEN_OIDC_ISSUER:-}
       - REPLAYHAVEN_OIDC_CLIENT_ID=${REPLAYHAVEN_OIDC_CLIENT_ID:-}
       - REPLAYHAVEN_OIDC_CLIENT_SECRET=${REPLAYHAVEN_OIDC_CLIENT_SECRET:-}
       - REPLAYHAVEN_OIDC_NAME=${REPLAYHAVEN_OIDC_NAME:-}
+      - REPLAYHAVEN_OIDC_SCOPES=${REPLAYHAVEN_OIDC_SCOPES:-}
       - REPLAYHAVEN_OIDC_ADMIN_GROUP=${REPLAYHAVEN_OIDC_ADMIN_GROUP:-}
+      - REPLAYHAVEN_OIDC_AUTO_CREATE=${REPLAYHAVEN_OIDC_AUTO_CREATE:-}
+      - REPLAYHAVEN_PASSWORD_LOGIN=${REPLAYHAVEN_PASSWORD_LOGIN:-}
     volumes:
       # Originals, thumbnails, playback copies and the SQLite database.
       - archive:/app/vault-data

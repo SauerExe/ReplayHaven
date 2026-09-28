@@ -336,3 +336,47 @@ it('puts a microphone that sits on one channel in the middle of the playback mix
       await rm(root, { recursive: true, force: true });
   }
 }, 30000);
+
+it('only reads the accepted containers, whatever the file is called', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-media-'));
+  try {
+    const media = new MediaProcessor({});
+    const make = (output: string, codec: string[]) =>
+      runFile(media.ffmpeg, [
+        '-nostdin',
+        '-v',
+        'error',
+        '-y',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=black:s=64x36:r=10:d=1',
+        ...codec,
+        output,
+      ]);
+    const mkv = join(root, 'test-only.mkv');
+    const webm = join(root, 'test-only.webm');
+    await make(mkv, ['-c:v', 'libx264', '-pix_fmt', 'yuv420p']);
+    await make(webm, ['-c:v', 'libvpx-vp9']);
+    expect((await media.probe(mkv)).duration).toBeGreaterThan(0);
+    expect((await media.probe(webm)).duration).toBeGreaterThan(0);
+    // An AVI is a perfectly readable video, but not one of the accepted containers.
+    const avi = join(root, 'test-only.avi');
+    await make(avi, ['-c:v', 'mpeg4', '-f', 'avi']);
+    const disguised = join(root, 'disguised.mp4');
+    await writeFile(disguised, await readFile(avi));
+    await expect(media.probe(disguised)).rejects.toThrow();
+    await expect(media.prepare(disguised, root, '.mp4')).rejects.toThrow();
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-media-'))
+      await rm(root, { recursive: true, force: true });
+  }
+}, 30000);
+
+it('stops reading audio when asked to', async () => {
+  const media = new MediaProcessor({});
+  const signal = AbortSignal.abort();
+  await expect(media.pcm('test-only.mp4', 0, 1, { signal })).rejects.toThrow();
+  await expect(media.probe('test-only.mp4', signal)).rejects.toThrow();
+  await expect(media.audioLevels('test-only.mp4', 0, signal)).rejects.toThrow();
+});

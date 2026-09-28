@@ -2528,6 +2528,15 @@
   container-type: inline-size;
   --stream-tile-w: 100cqw;
 }
+/*
+ * Large libraries: the browser skips rendering previews far outside the view. Only the media box
+ * (which clips its content anyway), not the whole tile: that would cut off the hover lift, its
+ * shadow and the focus ring. The size stays fixed by aspect-ratio.
+ */
+.stream-tile--grid .stream-tile-media {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 248px auto 140px;
+}
 .stream-tile-badges {
   position: absolute;
   left: 8px;

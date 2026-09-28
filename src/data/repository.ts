@@ -19,36 +19,55 @@ export const repository = {
           collections: withSamples
             ? data.collections
             : data.collections.filter((c: { id: string }) => !sampleCollectionIds.has(c.id)),
-          clips: (withSamples
-            ? data.clips
-            : data.clips.filter((clip: Clip) => clip.server || clip.local)
-          ).map((clip: Clip) => ({
-            ...clip,
-            thumbnail: clip.thumbnail?.startsWith('/media/')
-              ? clip.thumbnail.replace(/\.jpg$/, '.webp')
-              : clip.thumbnail,
-          })),
+          // Server clips come fresh from the server; older versions stored them here as well.
+          clips: data.clips
+            .filter((clip: Clip) => !clip.server && (withSamples || clip.local))
+            .map((clip: Clip) => ({
+              ...clip,
+              thumbnail: clip.thumbnail?.startsWith('/media/')
+                ? clip.thumbnail.replace(/\.jpg$/, '.webp')
+                : clip.thumbnail,
+            })),
         };
     } catch {
       /* A damaged or unavailable store falls back to the initial archive. */
     }
     return createSeed();
   },
+  /**
+   * Keeps preferences, collections, progress and the sample clips. Server clips are not stored:
+   * the server sends them anew on every start, and they would only fill the storage (and stay
+   * behind after signing out). Local uploads are blob URLs that do not survive a reload.
+   */
   save(state: VaultState) {
-    const clips = state.clips.filter((c) => !c.local);
-    const ids = new Set(clips.map((c) => c.id));
+    const local = new Set(state.clips.filter((c) => c.local).map((c) => c.id));
     localStorage.setItem(
       KEY,
       JSON.stringify({
         ...state,
-        clips,
+        clips: state.clips.filter((c) => !c.local && !c.server),
         collections: state.collections.map((c) => ({
           ...c,
-          clipIds: c.clipIds.filter((id) => ids.has(id)),
+          clipIds: c.clipIds.filter((id) => !local.has(id)),
         })),
-        progress: Object.fromEntries(Object.entries(state.progress).filter(([id]) => ids.has(id))),
+        progress: Object.fromEntries(
+          Object.entries(state.progress).filter(([id]) => !local.has(id)),
+        ),
       }),
     );
+  },
+  /** On sign-out: drops the server clips that older versions kept in this browser. */
+  forgetServerClips() {
+    try {
+      const data = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (!Array.isArray(data?.clips)) return;
+      localStorage.setItem(
+        KEY,
+        JSON.stringify({ ...data, clips: data.clips.filter((clip: Clip) => !clip.server) }),
+      );
+    } catch {
+      /* Nothing stored or no storage: nothing to forget. */
+    }
   },
 };
 export function filterClips(clips: Clip[], filters: ClipFilters): Clip[] {

@@ -1,5 +1,12 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { checkOllama, LocalAnalyzer, PausedError, validateLocalOllama } from './ollama';
+import {
+  checkOllama,
+  LocalAnalyzer,
+  PausedError,
+  TIMED_OUT,
+  validateLocalOllama,
+  withDeadline,
+} from './ollama';
 import { DeferredError } from './watcher';
 import type { ReplayLookup } from './fortnite';
 import type { AnalysisTrace } from './ollama';
@@ -268,12 +275,19 @@ it('names only the player names that belong to the clip game', async () => {
 });
 
 it.each([
-  ['Gegner in der Halle ausgeschaltet', 'Gegner in der Halle ausgeschaltet'],
+  [
+    'Gegner in der Halle ausgeschaltet',
+    'Gegner in der Halle ausgeschaltet',
+    '.Eliminierung',
+    'high',
+  ],
   // If the second version fails too, the proven event carries the title.
-  ['Tod am Ende', 'Gegner ausgeschaltet'],
+  ['Tod am Ende', 'Gegner ausgeschaltet', '.Eliminierung', 'high'],
+  // A message the model read in a single frame, backed up by nothing else.
+  ['Gegner in der Halle ausgeschaltet', 'Gegner in der Halle ausgeschaltet', '', 'medium'],
 ])(
-  'survives misnumbered batches, tags what the screen proves, and corrects a contradicting title (%s)',
-  async (secondTitle, expectedTitle) => {
+  'survives misnumbered batches, tags what the screen proves, and corrects a contradicting title (%s%s)',
+  async (secondTitle, expectedTitle, nvidia, confidence) => {
     const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
     try {
       const media = new MediaProcessor({});
@@ -336,13 +350,13 @@ it.each([
         cacheDir: root,
         media,
         isPaused: () => false,
-      }).analyze('Fortnite 2025.02.14 - 16.55.58.18.Eliminierung.DVR.mp4', 'Fortnite');
+      }).analyze(`Fortnite 2025.02.14 - 16.55.58.18${nvidia}.DVR.mp4`, 'Fortnite');
       expect(summaries[0].messages[0].content).toContain('Du hast einen Gegner ausgeschaltet');
       expect(summaries[1].messages.at(-1)?.content).toContain('behauptet deinen Tod');
       expect(output.result).toMatchObject({
         title: expectedTitle,
         tags: ['Kill'],
-        confidence: 'high',
+        confidence,
         description: 'Du triffst den Gegner.',
         uncertainty: '',
         highlights: [{ seconds: 11.5, title: 'Gegner ausgeschaltet' }],
@@ -889,6 +903,88 @@ it('asks for the topic of a voice chat and hands it to the title of a clip witho
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
       await rm(root, { recursive: true, force: true });
   }
+});
+
+it('rejects a place the model invents outside R6 and survives a topic answer of null', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
+  try {
+    const media = new MediaProcessor({});
+    vi.spyOn(media, 'probe').mockResolvedValue({
+      duration: 20,
+      width: 1920,
+      height: 1080,
+      codec: 'h264',
+      hasAudio: true,
+      audio: [],
+    });
+    vi.spyOn(media, 'frames').mockResolvedValue(
+      Array.from({ length: 4 }, (_, i) => ({ seconds: i * 5, base64: `bild-${i}` })),
+    );
+    vi.spyOn(media, 'frameAt').mockResolvedValue('focus-image');
+    const summaries: { messages: { content: string }[] }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string);
+        if (!body.messages.length) return Response.json({ done: true });
+        if (body.format?.properties?.frames)
+          return Response.json({
+            message: {
+              content: JSON.stringify({
+                frames: imagesOf(body).map((_: string, i: number) => ({
+                  frame: i,
+                  kind: 'gameplay',
+                  observation: 'Bagger',
+                  visibleText: '',
+                })),
+              }),
+            },
+          });
+        // Valid JSON, but no object.
+        if (body.format?.properties?.topic) return Response.json({ message: { content: 'null' } });
+        summaries.push(body);
+        return Response.json({
+          message: {
+            content: JSON.stringify({
+              title: summaries.length === 1 ? 'Gelber Bagger auf Dantzig' : 'Gelber Bagger im Wald',
+              description: 'Du fährst mit dem Bagger.',
+              uncertainty: '',
+              highlights: [],
+            }),
+          },
+        });
+      }),
+    );
+    const text =
+      'Das ist Obi-Wan Kenobi! Der hatte doch einen Bart. Nur weil er ein grünes Lichtschwert hat, ist er nicht grün. Das ist Yoda, sag ich dir, schau doch hin, wie klein er ist.';
+    const output = await new LocalAnalyzer({
+      url: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      frames: 24,
+      cacheDir: root,
+      media,
+      isPaused: () => false,
+      speech: async () => ({
+        segments: [{ start: 10, end: 18, text }],
+        trace: { engine: 'test', seconds: 1, words: 33, laughs: 0 },
+      }),
+    }).analyze('Fortnite/Fortnite 2026.09.25 - 21.00.00.01.DVR.mp4', 'Fortnite');
+    expect(summaries[0].messages[0].content).toContain('Die Karte ist unbekannt');
+    expect(summaries[1].messages.at(-1)?.content).toContain('nennt den Ort Dantzig');
+    expect(output.result.title).toBe('Gelber Bagger im Wald');
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('stops a side job that outlives its deadline and keeps one that finishes', async () => {
+  const stop = new AbortController();
+  expect(await withDeadline(new Promise(() => {}), 10, stop)).toBe(TIMED_OUT);
+  expect(stop.signal.aborted).toBe(true);
+  const fine = new AbortController();
+  expect(await withDeadline(Promise.resolve(5), 1000, fine)).toBe(5);
+  expect(fine.signal.aborted).toBe(false);
 });
 
 it('stops the text recognition when the analysis fails', async () => {

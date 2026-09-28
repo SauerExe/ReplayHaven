@@ -206,7 +206,12 @@ it('rejects forged, missing or cancelled flows with a readable error', async () 
     url: '/api/auth/oidc/callback?error=access_denied&error_description=User%20declined',
     headers: { cookie: flow },
   });
-  expect(loginError(cancelled)).toBe('Sign-in was cancelled: User declined');
+  // The provider's text is not shown: anyone can send a browser here with any text.
+  expect(loginError(cancelled)).toBe('Sign-in was cancelled at the sign-in provider.');
+  const injected = await app.inject({
+    url: '/api/auth/oidc/callback?error=x&error_description=Call%20+1%20555%20for%20support',
+  });
+  expect(loginError(injected)).toBe('Sign-in was cancelled at the sign-in provider.');
   await app.close();
 });
 

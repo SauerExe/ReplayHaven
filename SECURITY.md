@@ -18,7 +18,10 @@ ReplayHaven is a personal archive for your home network. This is what protects i
   else gets the setup link first, so open registration at the provider cannot claim the server.
 - Single sign-on creates accounts for unknown identities only with
   `REPLAYHAVEN_OIDC_AUTO_CREATE=true`, and an account an admin prepared is only claimed by the
-  exact `preferred_username`, never by a display name or e-mail.
+  exact `preferred_username`, never by a display name or e-mail. Prepare accounts this way only
+  when your provider does not let people pick or change their user name freely; otherwise
+  someone could register the prepared name and take the account. Linking an existing account
+  under **Settings → Account** does not depend on the user name.
 - There are two roles: users can watch the archive; every change to the archive, accounts,
   recording PCs and server settings is for admins.
 - Each browser signs in with name and password, single sign-on or a one-time QR code valid for
@@ -27,7 +30,9 @@ ReplayHaven is a personal archive for your home network. This is what protects i
   sign-in); session, device, QR and pairing tokens only as SHA-256 hashes. A paired PC's token is
   created when the PC picks it up, so it is never stored in plain text. After 20 failed sign-ins within 15 minutes from one address, sign-in pauses for
   that address only, so nobody can lock out everyone else. Behind a reverse proxy this needs
-  `REPLAYHAVEN_TRUST_PROXY`, otherwise all requests share the proxy's address.
+  `REPLAYHAVEN_TRUST_PROXY`, otherwise all requests share the proxy's address. Prefer the
+  proxy's address or CIDR range (e.g. `10.0.0.0/8`) or a hop count (`1` for a single proxy) over `true`: with `true` the server takes the leftmost `X-Forwarded-For` entry, which a client can set
+  itself unless the proxy replaces the header, and so get around the throttle. A number trusts that many proxy hops.
 - Recording PCs pair in one of two ways, and each gets its own bearer token, stored encrypted
   with the Windows user account:
   - by request: the client shows a six-digit code and an admin approves the matching request in
@@ -52,7 +57,8 @@ ReplayHaven is a personal archive for your home network. This is what protects i
   from other sites are rejected. Requests without an `Origin` header, such as the client's, need
   a valid session or token.
 - There are no public share links yet; "Share" in the UI is a local preview only.
-- The server binds to loopback unless an access key of at least 24 characters is set.
+- The server refuses to start on an address beyond loopback (such as `0.0.0.0`, which the Docker
+  image uses) unless an access key of at least 24 characters is set.
 
 Expose the server to the internet only behind HTTPS (reverse proxy) or a VPN. Reports about
 bypassing the access key, the pairing flows, path traversal in uploads or downloads, or unsafe

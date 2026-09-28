@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { parseFrameBatch, parseSummary, salvageFrameBatch } from './schema';
+import { isParseError, parseFrameBatch, parseSummary, salvageFrameBatch } from './schema';
 
 const frame = (index: number) => ({
   frame: index,
@@ -57,4 +57,21 @@ it('drops time marks outside the clip instead of rejecting the whole summary', (
   expect(summary.title).toBe('Runde gewonnen');
   expect(summary.highlights.map((h) => h.title)).toEqual(['Sieg']);
   expect(() => parseSummary(JSON.stringify({ title: '' }), 20)).toThrow();
+});
+
+it('treats valid JSON that is no object as an unusable summary, not a crash', () => {
+  for (const raw of ['null', '"Titel"', '42', '[]']) {
+    let error: unknown;
+    try {
+      parseSummary(raw, 20);
+    } catch (caught) {
+      error = caught;
+    }
+    expect(isParseError(error), raw).toBe(true);
+  }
+  const summary = parseSummary(
+    JSON.stringify({ title: 'Sprung', highlights: [null, { seconds: 2, title: 'Absprung' }] }),
+    20,
+  );
+  expect(summary.highlights.map((h) => h.title)).toEqual(['Absprung']);
 });

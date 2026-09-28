@@ -17,6 +17,7 @@ import {
   ownRound,
   readRound,
   recorder,
+  roundFileTimes,
   roundForClip,
 } from './r6-replays';
 import type { OwnKill, OwnRound, RoundChoice } from './r6-replays';
@@ -118,7 +119,9 @@ function roundLine(r: OwnRound) {
   const facts = [
     r.kills.length ? `kills ${r.kills.map(killText).join(', ')}` : 'no kills',
     ...(r.knocks.length ? [`enemies knocked down ${r.knocks.map(clock).join(', ')}`] : []),
-    ...(r.death !== undefined ? [`died ${clock(r.death)}`] : []),
+    ...(r.death !== undefined
+      ? [`died ${clock(r.death)}${r.deathAfterPlant ? ' (after plant)' : ''}`]
+      : []),
     ...r.series.map((n) => `streak ${n}`),
     ...(r.ace ? ['Ace'] : []),
     ...(r.clutch ? [`clutch 1 vs ${r.clutch}`] : []),
@@ -143,11 +146,11 @@ for (const folder of folders) {
     const errors: MatchResult['errors'] = [];
     const read = await pool(match.rounds, jobs, async (path) => {
       try {
-        const info = await stat(path);
+        const times = await roundFileTimes(path);
         const round = await readRound(program, path);
         const me = recorder(round)?.username;
         if (me) names.add(me);
-        return ownRound(round, { path, mtime: info.mtimeMs, birthtime: info.birthtimeMs });
+        return ownRound(round, { path, ...times });
       } catch (error) {
         errors.push({
           file: basename(path),
@@ -216,7 +219,13 @@ async function clockFor(path: string, round: OwnRound): Promise<ClockResult> {
         seconds: at(k.clock, k.afterPlant),
       })),
       ...(round.death !== undefined
-        ? [{ kind: 'death' as const, clock: round.death, seconds: at(round.death) }]
+        ? [
+            {
+              kind: 'death' as const,
+              clock: round.death,
+              seconds: at(round.death, round.deathAfterPlant),
+            },
+          ]
         : []),
     ],
     seconds: Math.round((performance.now() - started) / 100) / 10,

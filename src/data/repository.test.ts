@@ -60,6 +60,30 @@ describe('library and persisted state', () => {
     expect(restored.collections[0].clipIds).not.toContain('local');
     expect([...memory.values()].join('')).not.toContain('blob:');
   });
+  it('does not store server clips but keeps their collections and progress', () => {
+    const memory = new Map();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => memory.get(k),
+      setItem: (k: string, v: string) => memory.set(k, v),
+    });
+    const state = createSeed();
+    state.clips.push({ ...state.clips[0], id: 'srv-1', server: true, title: 'From the server' });
+    state.collections[0].clipIds.push('srv-1');
+    state.progress['srv-1'] = { seconds: 8, duration: 40, updatedAt: new Date().toISOString() };
+    repository.save(state);
+    expect([...memory.values()].join('')).not.toContain('From the server');
+    const restored = repository.load();
+    expect(restored.clips.some((c) => c.id === 'srv-1')).toBe(false);
+    expect(restored.collections[0].clipIds).toContain('srv-1');
+    expect(restored.progress['srv-1']?.seconds).toBe(8);
+    // Older versions stored server clips; signing out removes them.
+    memory.set(
+      'replayhaven.v1',
+      JSON.stringify({ ...JSON.parse(memory.get('replayhaven.v1')), clips: state.clips }),
+    );
+    repository.forgetServerClips();
+    expect(memory.get('replayhaven.v1')).not.toContain('From the server');
+  });
   it('recovers from damaged browser storage', () => {
     vi.stubGlobal('localStorage', { getItem: () => '{broken' });
     expect(repository.load().clips).toHaveLength(20);

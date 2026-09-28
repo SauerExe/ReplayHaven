@@ -50,7 +50,10 @@ const GERMAN: Record<string, string> = {
   'This server has no admin yet. Create the first account with the setup link from the server log, then link this sign-in under Settings → Account.':
     'Dieser Server hat noch keinen Admin. Lege das erste Konto mit dem Einrichtungslink aus dem Server-Log an und verknüpfe diese Anmeldung dann unter Einstellungen → Konto.',
   'The sign-in provider returned no ID token.': 'Der Anmeldedienst hat kein ID-Token geliefert.',
+  'Sign-in was cancelled at the sign-in provider.':
+    'Die Anmeldung wurde beim Anmeldedienst abgebrochen.',
   'Clip not found.': 'Clip nicht gefunden.',
+  'This clip was uploaded by another PC.': 'Dieser Clip wurde von einem anderen PC hochgeladen.',
   'The clip was removed.': 'Der Clip wurde entfernt.',
   'Choose a video file.': 'Wähle eine Videodatei aus.',
   'Supported formats are MP4, WebM, MOV, M4V and MKV.':
@@ -70,6 +73,10 @@ const GERMAN: Record<string, string> = {
   'Automatic game info lookups are disabled on this server.':
     'Das automatische Abrufen von Spielinfos ist auf diesem Server abgeschaltet.',
   'No cover available.': 'Kein Cover verfügbar.',
+  'The server is running out of disk space. Free up space on the server, then retry.':
+    'Auf dem Server wird der Speicherplatz knapp. Schaff dort Platz und versuch es dann noch einmal.',
+  'The server is busy. Try again in a moment.':
+    'Der Server ist gerade ausgelastet. Versuch es gleich noch einmal.',
   'Not found.': 'Nicht gefunden.',
   'API endpoint not found.': 'API-Endpunkt nicht gefunden.',
   'The request could not be processed. Check the server and the file.':
@@ -86,7 +93,6 @@ const GERMAN_PATTERNS: [RegExp, string][] = [
     /^The sign-in could not be completed: (.+)$/,
     'Die Anmeldung konnte nicht abgeschlossen werden: $1',
   ],
-  [/^Sign-in was cancelled: (.+)$/, 'Die Anmeldung wurde abgebrochen: $1'],
   [
     /^The address (.+) is not allowed\. Add it to REPLAYHAVEN_PUBLIC_ORIGIN on the server\.$/,
     'Die Adresse $1 ist nicht erlaubt. Trag sie auf dem Server in REPLAYHAVEN_PUBLIC_ORIGIN ein.',

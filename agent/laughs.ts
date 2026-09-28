@@ -81,6 +81,12 @@ async function matches(path: string, model: ModelFile) {
 }
 
 /**
+ * A download is given up after this long without data. No overall limit: the speech model is
+ * 650 MB and may take long on a slow line, but a connection that stalls must not hang forever.
+ */
+export const DOWNLOAD_STALL_MS = 60000;
+
+/**
  * Path to the model in `folder`; if it is missing there or does not match, it is downloaded and
  * checked against size and SHA-256. A file with a wrong checksum is never stored.
  */
@@ -89,35 +95,63 @@ export async function ensureModel(
   model: ModelFile = YAMNET,
   get: typeof fetch = fetch,
   onDownload?: () => void,
+  options: { signal?: AbortSignal; stallMs?: number } = {},
 ) {
   const path = join(folder, model.file ?? model.url.split('/').at(-1)!);
   if (await matches(path, model)) return path;
+  options.signal?.throwIfAborted();
   onDownload?.();
-  const response = await get(model.url);
-  if (!response.ok || !response.body)
-    throw new Error(`Model could not be downloaded (HTTP ${response.status}).`);
-  await mkdir(folder, { recursive: true });
-  const partial = `${path}.part`;
-  // Streamed to disk: the speech model is 650 MB and does not belong in memory.
-  const hash = createHash('sha256');
-  const wrong = () => new Error('The downloaded model has a wrong checksum and was discarded.');
-  let size = 0;
-  try {
-    await pipeline(
-      Readable.fromWeb(response.body as import('node:stream/web').ReadableStream),
-      new Transform({
-        transform(chunk: Buffer, _encoding, done) {
-          size += chunk.length;
-          if (size > model.bytes) return done(wrong());
-          hash.update(chunk);
-          done(null, chunk);
-        },
-      }),
-      createWriteStream(partial),
+  const stallMs = options.stallMs ?? DOWNLOAD_STALL_MS;
+  const stall = new AbortController();
+  let timer: NodeJS.Timeout | undefined;
+  const alive = () => {
+    clearTimeout(timer);
+    timer = setTimeout(
+      () =>
+        stall.abort(
+          new Error(`Model download stalled (no data for ${Math.round(stallMs / 1000)} s).`),
+        ),
+      stallMs,
     );
+  };
+  const signal = options.signal ? AbortSignal.any([options.signal, stall.signal]) : stall.signal;
+  // The abort reason says why; a stream aborted by fetch may report a generic AbortError.
+  const reason = (error: unknown) => (signal.aborted ? (signal.reason as unknown) : error);
+  const partial = `${path}.part`;
+  alive();
+  try {
+    const response = await get(model.url, { signal }).catch((error: unknown) => {
+      throw reason(error);
+    });
+    if (!response.ok || !response.body)
+      throw new Error(`Model could not be downloaded (HTTP ${response.status}).`);
+    await mkdir(folder, { recursive: true });
+    // Streamed to disk: the speech model is 650 MB and does not belong in memory.
+    const hash = createHash('sha256');
+    const wrong = () => new Error('The downloaded model has a wrong checksum and was discarded.');
+    let size = 0;
+    try {
+      await pipeline(
+        Readable.fromWeb(response.body as import('node:stream/web').ReadableStream),
+        new Transform({
+          transform(chunk: Buffer, _encoding, done) {
+            alive();
+            size += chunk.length;
+            if (size > model.bytes) return done(wrong());
+            hash.update(chunk);
+            done(null, chunk);
+          },
+        }),
+        createWriteStream(partial),
+        { signal },
+      );
+    } catch (error) {
+      throw reason(error);
+    }
     if (size !== model.bytes || hash.digest('hex') !== model.sha256) throw wrong();
     await rename(partial, path);
   } finally {
+    clearTimeout(timer);
     await rm(partial, { force: true });
   }
   return path;

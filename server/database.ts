@@ -17,6 +17,11 @@ export interface StoredClip extends Clip {
   playbackProfile?: string;
   /** Profile for which rendering the playback file failed, so the backfill does not loop. */
   playbackFailed?: string;
+  /**
+   * Session and account of the paired PC that uploaded the clip; only that PC delivers its AI
+   * result. Unset for browser uploads and clips from before 1.1.5.
+   */
+  uploader?: { session: string; user: string };
 }
 export interface AgentDevice {
   id: string;
@@ -48,16 +53,31 @@ export interface StoredGame {
     cover?: string;
   };
 }
+/**
+ * Version of the database layout (PRAGMA user_version). Raise it when a release changes the
+ * layout in a way older releases cannot read: they then refuse to start instead of damaging it.
+ */
+export const SCHEMA_VERSION = 1;
 export class VaultDatabase {
   readonly db: DatabaseSync;
   constructor(directory: string) {
     mkdirSync(directory, { recursive: true });
     this.db = new DatabaseSync(join(directory, 'vault.sqlite'));
+    const { user_version: version } = this.db.prepare('PRAGMA user_version').get() as {
+      user_version: number;
+    };
+    if (version > SCHEMA_VERSION) {
+      this.db.close();
+      throw new Error(
+        `The database was written by a newer ReplayHaven (layout ${version}, this release reads up to ${SCHEMA_VERSION}). Restore a backup or use the newer version.`,
+      );
+    }
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS clips(id TEXT PRIMARY KEY, hash TEXT NOT NULL UNIQUE, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS settings(id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY, data TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS games(key TEXT PRIMARY KEY, data TEXT NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS games(key TEXT PRIMARY KEY, data TEXT NOT NULL);
+      PRAGMA user_version=${SCHEMA_VERSION};`);
   }
   /**
    * Looked-up game info. An entry without `info` remembers that nothing was found for this
@@ -148,6 +168,7 @@ export function publicClip(clip: StoredClip): Clip {
     deleted: _deleted,
     playbackProfile: _profile,
     playbackFailed: _failed,
+    uploader: _uploader,
     ...publicData
   } = clip;
   void _hash;
@@ -157,5 +178,6 @@ export function publicClip(clip: StoredClip): Clip {
   void _deleted;
   void _profile;
   void _failed;
+  void _uploader;
   return publicData;
 }

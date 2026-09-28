@@ -61,4 +61,11 @@ export const auth = {
   'auth.connect.failedLead':
     'Ask for a new QR code under Settings → Devices on a signed-in device, or sign in with your name and password.',
   'auth.connect.toLogin': 'Go to sign-in',
+  'auth.connect.switchTitle': 'Sign in as another account?',
+  'auth.connect.signedInAs': 'This device is already signed in as {name}.',
+  'auth.connect.signedIn': 'This device is already signed in.',
+  'auth.connect.codeFor': 'The code signs it in as {name} instead.',
+  'auth.connect.codeForCreator': 'The code signs it in with the account that created it instead.',
+  'auth.connect.switchConfirm': 'Switch account',
+  'auth.connect.switchCancel': 'Stay signed in',
 } satisfies Messages;

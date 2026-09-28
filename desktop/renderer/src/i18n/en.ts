@@ -328,5 +328,39 @@ export const en = {
   'w.done.noNames': 'none',
   'w.done.detection': 'Texts {texts} · Voice chat {speech} · Replays {replays}',
   'w.done.behavior': 'Pause while gaming {pause} · with Windows {login}',
+  // Errors and messages of the main process, by code (CodedError in desktop/config.ts).
+  'err.server.invalid': 'Enter a valid server address.',
+  'err.server.credentials': 'Use a server address without embedded credentials.',
+  'err.server.http': 'The server responds with HTTP {status}.',
+  'err.config.epic':
+    'An Epic account ID has 32 characters from 0–9 and a–f. You can find it on epicgames.com in your account settings.',
+  'err.save.working': 'Pause the client and wait until the current step has finished.',
+  'err.save.running': 'Pause the client before changing settings.',
+  'err.save.encryption': 'Windows cannot store the access key encrypted right now.',
+  'err.pair.busy': 'Pause the client before pairing it again.',
+  'err.pair.noAddress': 'Enter the server address.',
+  'err.pair.noResponse': 'No response. Check the address and whether the server is running.',
+  'err.pair.unsupported':
+    'This server does not support pairing yet. Update it or connect with the access key.',
+  'err.pair.serverDown': 'The server does not respond. Is it running and reachable from this PC?',
+  'err.pair.waiting': 'Waiting for approval in the web interface …',
+  'err.pair.approved': 'Paired with {host}.',
+  'err.pair.denied': 'The pairing was denied.',
+  'err.pair.expired': 'The request has expired. Start pairing again.',
+  'err.test.noResponse': 'No response. Check address and port and whether the server is running.',
+  'err.test.rejected': 'The server responds but rejects the access key.',
+  'err.launch.starting': 'Already starting.',
+  'err.launch.noFolder': 'Choose your NVIDIA recording folder first.',
+  'err.launch.working': 'The current step is still finishing.',
+  'err.launch.unreachable': 'The archive server at {host} is not reachable.',
+  'err.launch.rejected': 'The server rejected this PC. Pair it again under Settings.',
+  'err.launch.ollamaBroken':
+    'Ollama {version} gives unusable answers. Click Install Ollama under Settings → Local AI to install {pinned}.',
+  'err.launch.noModel': 'Install Ollama and download the local model first.',
+  'err.launch.vcRedist':
+    'R6 text recognition needs a current version of the “Microsoft Visual C++ Redistributable” (x64). Install it from Microsoft or turn the option off. ({detail})',
+  'err.launch.texts': 'R6 text recognition cannot be loaded: {detail}',
+  'err.launch.speech': 'Speech recognition cannot be loaded: {detail}',
+  'err.autoStart': 'Automatic start not possible yet: {reason} Retrying in 30 seconds.',
 } satisfies Dictionary;
 export type MessageKey = keyof typeof en;

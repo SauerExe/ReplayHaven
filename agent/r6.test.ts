@@ -6,7 +6,17 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { build } from 'esbuild';
 import sharp from 'sharp';
 import { expect, it, vi } from 'vitest';
-import { bannerResult, ClipTexts, isR6, mapIn, r6Findings, respace, WorkerTexts } from './r6';
+import {
+  bannerResult,
+  ClipTexts,
+  feedNames,
+  feedRead,
+  isR6,
+  mapIn,
+  r6Findings,
+  respace,
+  WorkerTexts,
+} from './r6';
 import { developmentModels, missingLibrary, TextReader } from './ocr';
 import { MediaProcessor, runFile } from '../server/media';
 import type { FrameText } from './r6';
@@ -313,6 +323,56 @@ parentPort.on('message', (m) => {
     if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-r6-'))
       await rm(root, { recursive: true, force: true });
   }
+});
+
+it('trusts the Valorant killfeed only when it was read and shows one of the player names', async () => {
+  const line = (text: string, x: number) => ({
+    text,
+    score: 0.95,
+    box: { x, y: 10, w: 60, h: 14 },
+  });
+  let lines = [line('Player', 10), line('Enemy', 120)];
+  const load = vi
+    .spyOn(TextReader, 'load')
+    .mockResolvedValue({ read: async () => lines, close: async () => {} } as unknown as TextReader);
+  try {
+    let count = 2;
+    const media = {
+      rawFrames: async function* () {
+        for (let i = 0; i < count; i++)
+          yield { seconds: i, frame: { width: 64, height: 36, data: new Uint8Array(64 * 36 * 3) } };
+      },
+    } as unknown as MediaProcessor;
+    const texts = new ClipTexts({ media, models: developmentModels() });
+    const signal = new AbortController().signal;
+    // The Riot tag does not appear in the killfeed.
+    const read = await texts.forClip('clip.mp4', 'Valorant', signal, ['Player#EUW']);
+    expect(read?.feed).toBe(true);
+    expect(read?.events.map((e) => [e.kind, e.other])).toEqual([['kill', 'Enemy']]);
+    // Lines without any of the player's names prove nothing about the player.
+    lines = [line('Someone', 10), line('Enemy', 120)];
+    expect((await texts.forClip('clip.mp4', 'Valorant', signal, ['Player']))?.feed).toBe(false);
+    // Neither does a clip without frames.
+    count = 0;
+    expect((await texts.forClip('clip.mp4', 'Valorant', signal, ['Player']))?.feed).toBe(false);
+    // Aborted reads return nothing, in Valorant as in R6.
+    count = 2;
+    const stop = new AbortController();
+    stop.abort();
+    expect(await texts.forClip('clip.mp4', 'Valorant', stop.signal, ['Player'])).toBeUndefined();
+    expect(await texts.forClip('clip.mp4', 'R6', stop.signal)).toBeUndefined();
+  } finally {
+    load.mockRestore();
+  }
+});
+
+it('drops the Riot tag from the player names for the killfeed', () => {
+  expect(feedNames(['Player#EUW', 'Other Name #1234', '#tag', 'Plain'])).toEqual([
+    'Player',
+    'Other Name',
+    'Plain',
+  ]);
+  expect(feedRead([], ['Player'])).toBe(false);
 });
 
 it('loads the models again after a failed attempt', async () => {

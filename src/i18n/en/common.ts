@@ -17,4 +17,8 @@ export const common = {
   'notFound.title': 'No clip landed here.',
   'notFound.text': 'This page does not exist. Your archive is right next door.',
   'notFound.home': 'Go to home',
+  'error.title': 'This page could not be loaded',
+  'error.text':
+    'Perhaps ReplayHaven was just updated. Reloading the page usually fixes it; your clips are safe.',
+  'error.reload': 'Reload page',
 } satisfies Messages;

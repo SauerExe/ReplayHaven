@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
-import { micTrack } from './audio';
+import { speechTrack } from './audio';
 import { ensureModel, modelFolder, monoFrom } from './laughs';
 import type { ModelFile } from './laughs';
 import type { SpeechSegment, Transcript } from './speech';
@@ -63,11 +63,42 @@ type SpeechPaths = Record<keyof typeof SPEECH_MODELS, string>;
 export async function ensureSpeechModels(
   folder = speechFolder(),
   onDownload?: (file: string) => void,
+  signal?: AbortSignal,
 ): Promise<SpeechPaths> {
   const paths = {} as SpeechPaths;
   for (const [key, model] of Object.entries(SPEECH_MODELS) as [keyof SpeechPaths, ModelFile][])
-    paths[key] = await ensureModel(folder, model, fetch, () => onDownload?.(model.file!));
+    paths[key] = await ensureModel(folder, model, fetch, () => onDownload?.(model.file!), {
+      signal,
+    });
   return paths;
+}
+
+export const cancelled = () => new Error('Speech recognition cancelled.');
+
+/**
+ * `work`, but rejected as soon as `signal` aborts. The work itself runs on; for FFmpeg calls it
+ * ends by its own timeout.
+ */
+export function untilAborted<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return work;
+  if (signal.aborted) {
+    work.catch(() => {});
+    return Promise.reject(cancelled());
+  }
+  return new Promise<T>((resolve, reject) => {
+    const stop = () => reject(cancelled());
+    signal.addEventListener('abort', stop, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener('abort', stop);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', stop);
+        reject(error as Error);
+      },
+    );
+  });
 }
 
 const SAMPLE_RATE = 16000;
@@ -128,26 +159,30 @@ export class ParakeetSpeech {
     return { sherpa: this.sherpa, recognizer: this.recognizer };
   }
 
-  /** The audio track with the voice: the microphone track, otherwise the only, mixed track. */
-  private async voice(path: string) {
-    const { audio } = await this.options.media.probe(path);
+  /** The audio track with the voice (see speechTrack); undefined if there is none to trust. */
+  private async voice(path: string, signal?: AbortSignal) {
+    // The signal stops FFmpeg; the race also returns at once if a step ignores it.
+    const { media } = this.options;
+    const { audio, duration } = await untilAborted(media.probe(path, signal), signal);
     if (!audio.length) return undefined;
     const levels = new Map<number, { max: number }>();
     if (audio.length > 1)
       for (const t of audio)
-        levels.set(t.index, await this.options.media.audioLevels(path, t.index));
-    const track =
-      audio.length > 1 ? (micTrack(audio, levels).track ?? audio[0].index) : audio[0].index;
+        levels.set(t.index, await untilAborted(media.audioLevels(path, t.index, signal), signal));
+    const track = speechTrack(audio, levels);
+    if (track === undefined) return undefined;
     const channels = audio.find((t) => t.index === track)?.channels ?? 1;
-    return monoFrom(await this.options.media.pcm(path, track, channels)).samples;
+    return monoFrom(
+      await untilAborted(media.pcm(path, track, channels, { signal, duration }), signal),
+    ).samples;
   }
 
   async transcribe(path: string, signal?: AbortSignal): Promise<Transcript> {
     const started = Date.now();
-    const samples = await this.voice(path);
-    const { sherpa, recognizer } = this.load();
+    const samples = await this.voice(path, signal);
     const segments: SpeechSegment[] = [];
     if (samples) {
+      const { sherpa, recognizer } = this.load();
       const vad = new sherpa.Vad(
         {
           sileroVad: {
@@ -165,7 +200,7 @@ export class ParakeetSpeech {
       );
       const drain = async () => {
         while (!vad.isEmpty()) {
-          if (signal?.aborted) throw new Error('Speech recognition cancelled.');
+          if (signal?.aborted) throw cancelled();
           const part = vad.front(false);
           vad.pop();
           const stream = recognizer.createStream();

@@ -1,4 +1,4 @@
-import { Fragment, useId, useMemo, useState } from 'react';
+import { Fragment, memo, useCallback, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowUpRight,
@@ -36,6 +36,7 @@ import {
 } from './library';
 import { Picture } from './Picture';
 import { gameTiles } from './rows';
+import type { StreamClip } from './model';
 
 /** Whether a game's source link is its Steam store page (by host, not by a text match). */
 function isSteamStore(source: string | undefined) {
@@ -149,8 +150,68 @@ function GameSpotlight({
   );
 }
 
+type MenuAction = (id: string, opener: HTMLElement | null) => void;
+/** Callbacks shared by every tile; stable, so a memoized tile only re-renders for its own clip. */
+interface TileActions {
+  open: (id: string) => void;
+  play: (id: string) => void;
+  select: (id: string) => void;
+  navigate: (href: string) => void;
+  addToCollection: MenuAction;
+  share: MenuAction;
+  /** Missing for plain accounts, which only watch. */
+  toggleFavorite?: (id: string) => void;
+  rename?: MenuAction;
+  editTags?: MenuAction;
+  remove?: MenuAction;
+}
+
+const LibraryTile = memo(function LibraryTile({
+  clip,
+  meta,
+  isNew,
+  selecting,
+  selected,
+  actions,
+}: {
+  clip: StreamClip;
+  meta: string;
+  isNew: boolean;
+  selecting: boolean;
+  selected: boolean;
+  actions: TileActions;
+}) {
+  return (
+    <GridClipTile
+      clip={clip}
+      meta={meta}
+      isNew={isNew}
+      onOpen={actions.open}
+      onPlay={actions.play}
+      onToggleFavorite={actions.toggleFavorite}
+      selecting={selecting}
+      selected={selected}
+      onSelect={actions.select}
+      menu={
+        <ClipMenu
+          clip={clip}
+          onPlay={actions.play}
+          onAddToCollection={actions.addToCollection}
+          onRename={actions.rename}
+          onEditTags={actions.editTags}
+          onShare={actions.share}
+          download
+          pageHref={`/clips/${encodeURIComponent(clip.id)}`}
+          onNavigate={actions.navigate}
+          onDelete={actions.remove}
+        />
+      }
+    />
+  );
+});
+
 export default function StreamingLibraryPage() {
-  const { state, patchClip } = useVault();
+  const { state, patchClip, patchClips } = useVault();
   const action = useActions();
   const navigate = useNavigate();
   // Plain accounts only watch: upload, favorites, tags, renaming and deleting are hidden.
@@ -160,7 +221,7 @@ export default function StreamingLibraryPage() {
   const library = useStreamLibrary();
   const layers = useClipLayers();
   const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const search = params.toString();
@@ -174,7 +235,10 @@ export default function StreamingLibraryPage() {
   const shelfPager = useScrollPager(shelf.length);
   const tags = useMemo(() => tagOptions(state.clips), [state.clips]);
   const spotlight = filters.game ? gameSummary(library, filters.game) : null;
-  const selectedIds = selected.filter((id) => clips.some((c) => c.id === id));
+  const selectedIds = useMemo(
+    () => clips.filter((c) => selected.has(c.id)).map((c) => c.id),
+    [clips, selected],
+  );
   const extraFilters = [filters.favorite, filters.period, filters.tag, filters.status].filter(
     Boolean,
   ).length;
@@ -188,18 +252,50 @@ export default function StreamingLibraryPage() {
       },
       { replace: true },
     );
-    setSelected([]);
+    setSelected(new Set());
   }
 
   function reset() {
     setParams({});
-    setSelected([]);
+    setSelected(new Set());
   }
 
-  function toggleFavorite(id: string) {
-    const clip = library.clips.find((c) => c.id === id);
-    if (clip) void patchClip(id, { favorite: !clip.favorite });
-  }
+  // The tile callbacks read the latest values here, so they can stay the same between renders.
+  const latest = useRef({ layers, action, navigate, patchClip, library });
+  latest.current = { layers, action, navigate, patchClip, library };
+  const toggleSelected = useCallback(
+    (id: string) =>
+      setSelected((ids) => {
+        const next = new Set(ids);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }),
+    [],
+  );
+  const actions = useMemo<TileActions>(() => {
+    const get = () => latest.current;
+    return {
+      open: (id) => get().layers.open('clip', id),
+      play: (id) => get().layers.open('play', id),
+      select: toggleSelected,
+      navigate: (href) => get().navigate(href),
+      addToCollection: (id, opener) => get().action({ kind: 'add', ids: [id] }, opener),
+      share: (id, opener) => get().action({ kind: 'share', id }, opener),
+      ...(admin && {
+        toggleFavorite: (id: string) => {
+          const clip = get().library.clips.find((c) => c.id === id);
+          if (clip) void get().patchClip(id, { favorite: !clip.favorite });
+        },
+        rename: (id: string, opener: HTMLElement | null) =>
+          get().action({ kind: 'rename', id }, opener),
+        editTags: (id: string, opener: HTMLElement | null) =>
+          get().action({ kind: 'tags', id }, opener),
+        remove: (id: string, opener: HTMLElement | null) =>
+          get().action({ kind: 'delete', ids: [id] }, opener),
+      }),
+    };
+  }, [admin, toggleSelected]);
 
   // Within one game every tile would show the same name; show date and tags instead.
   const metaFor = (clip: (typeof clips)[number]) =>
@@ -225,7 +321,7 @@ export default function StreamingLibraryPage() {
             aria-pressed={selecting}
             onClick={() => {
               setSelecting(!selecting);
-              setSelected([]);
+              setSelected(new Set());
             }}
           >
             {selecting ? (
@@ -427,42 +523,13 @@ export default function StreamingLibraryPage() {
         <ul className="stream-grid">
           {clips.map((clip) => (
             <li key={clip.id}>
-              <GridClipTile
+              <LibraryTile
                 clip={clip}
                 meta={metaFor(clip)}
                 isNew={isNew(clip.recordedAt, now)}
-                onOpen={(id) => layers.open('clip', id)}
-                onPlay={(id) => layers.open('play', id)}
-                onToggleFavorite={admin ? toggleFavorite : undefined}
                 selecting={selecting}
-                selected={selectedIds.includes(clip.id)}
-                onSelect={(id) =>
-                  setSelected((ids) =>
-                    ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id],
-                  )
-                }
-                menu={
-                  <ClipMenu
-                    clip={clip}
-                    onPlay={(id) => layers.open('play', id)}
-                    onAddToCollection={(id, opener) => action({ kind: 'add', ids: [id] }, opener)}
-                    onRename={
-                      admin ? (id, opener) => action({ kind: 'rename', id }, opener) : undefined
-                    }
-                    onEditTags={
-                      admin ? (id, opener) => action({ kind: 'tags', id }, opener) : undefined
-                    }
-                    onShare={(id, opener) => action({ kind: 'share', id }, opener)}
-                    download
-                    pageHref={`/clips/${encodeURIComponent(clip.id)}`}
-                    onNavigate={navigate}
-                    onDelete={
-                      admin
-                        ? (id, opener) => action({ kind: 'delete', ids: [id] }, opener)
-                        : undefined
-                    }
-                  />
-                }
+                selected={selected.has(clip.id)}
+                actions={actions}
               />
             </li>
           ))}
@@ -492,7 +559,9 @@ export default function StreamingLibraryPage() {
             type="button"
             className="stream-action"
             onClick={() =>
-              setSelected(selectedIds.length === clips.length ? [] : clips.map((c) => c.id))
+              setSelected(
+                new Set(selectedIds.length === clips.length ? [] : clips.map((c) => c.id)),
+              )
             }
           >
             {selectedIds.length === clips.length
@@ -510,7 +579,7 @@ export default function StreamingLibraryPage() {
               disabled={!selectedIds.length}
               aria-label={t('library.bulk.favorite')}
               title={t('library.bulk.favorite')}
-              onClick={() => selectedIds.forEach((id) => void patchClip(id, { favorite: true }))}
+              onClick={() => void patchClips(selectedIds, { favorite: true })}
             >
               <Heart size={19} strokeWidth={2.2} aria-hidden="true" />
             </button>

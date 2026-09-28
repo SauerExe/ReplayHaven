@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { micTrack } from './audio';
+import { micTrack, speechTrack } from './audio';
 
 const track = (index: number, title = '', channels = 2) => ({
   index,
@@ -28,4 +28,17 @@ it('skips silent tracks and gives no microphone where it cannot tell', () => {
     basis: 'only one track with sound: the microphone was silent or is mixed in',
   });
   expect(micTrack([track(0), track(1), track(2)], loud(-12, -20, -30)).track).toBeUndefined();
+});
+
+it('transcribes the microphone, the only track or the only audible one, else nothing', () => {
+  expect(speechTrack([track(0)])).toBe(0);
+  expect(speechTrack([track(0), track(1)], loud(-12, -20))).toBe(1);
+  expect(speechTrack([track(0, 'Game'), track(1, 'Mikrofon')], loud(-12, -91))).toBe(1);
+  // Only one track with sound: that one, not a silent first track.
+  expect(speechTrack([track(0), track(1)], loud(-91, -15))).toBe(1);
+  expect(speechTrack([track(0), track(1)], loud(-12, -91))).toBe(0);
+  // Several audible tracks without a microphone, or all silent: no guess.
+  expect(speechTrack([track(0), track(1), track(2)], loud(-12, -20, -30))).toBeUndefined();
+  expect(speechTrack([track(0), track(1)], loud(-91, -95))).toBeUndefined();
+  expect(speechTrack([])).toBeUndefined();
 });

@@ -25,6 +25,7 @@ export class PlaybackBackfill {
   private stopped = false;
   private readonly abort = new AbortController();
   private wake?: () => void;
+  private retryTimer?: ReturnType<typeof setTimeout>;
   private current: string | null = null;
   private done = 0;
   readonly profile: string;
@@ -37,27 +38,28 @@ export class PlaybackBackfill {
     /** True while uploads or analyses need the CPU; the backfill waits for them. */
     private readonly busy: () => boolean = () => false,
     private readonly pauseMs = 5000,
+    /** Wait before trying again after an unexpected failure. */
+    private readonly retryMs = 60000,
   ) {
     this.profile = playbackProfile(mode);
   }
 
   /** Clips that still need a rendition, newest first (those are watched first). */
-  pending(): StoredClip[] {
+  pending(clips?: StoredClip[]): StoredClip[] {
     if (this.mode !== 'web') return [];
-    return this.db
-      .list()
-      .filter(
-        (c) =>
-          !c.deleted &&
-          c.status === 'ready' &&
-          c.playbackProfile !== this.profile &&
-          c.playbackFailed !== this.profile,
-      );
+    return (clips ?? this.db.list()).filter(
+      (c) =>
+        !c.deleted &&
+        c.status === 'ready' &&
+        c.playbackProfile !== this.profile &&
+        c.playbackFailed !== this.profile,
+    );
   }
-  status() {
+  /** `clips`: the clip list when the caller already has it. */
+  status(clips?: StoredClip[]) {
     return {
       mode: this.mode,
-      pending: this.pending().length,
+      pending: this.pending(clips).length,
       current: this.current,
       done: this.done,
     };
@@ -65,12 +67,25 @@ export class PlaybackBackfill {
   kick() {
     this.wake?.();
     if (this.running || this.stopped || this.mode !== 'web') return;
-    this.running = this.drain().finally(() => {
-      this.running = null;
-    });
+    clearTimeout(this.retryTimer);
+    this.running = this.drain()
+      // An unhandled rejection (e.g. the database failing on a full disk) would end the whole
+      // server; the backfill tries again later instead.
+      .catch((error: unknown) => {
+        if (this.stopped) return;
+        console.error(
+          `Playback backfill stopped, retrying in ${this.retryMs / 1000} s: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        this.retryTimer = setTimeout(() => this.kick(), this.retryMs);
+        this.retryTimer.unref?.();
+      })
+      .finally(() => {
+        this.running = null;
+      });
   }
   async stop() {
     this.stopped = true;
+    clearTimeout(this.retryTimer);
     // A running FFmpeg is cancelled; its clip is simply rendered again after a restart.
     this.abort.abort();
     this.wake?.();
