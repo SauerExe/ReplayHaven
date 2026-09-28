@@ -14,7 +14,8 @@ RUN npm run build && npm run server:bundle
 FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
 ARG REPLAYHAVEN_VERSION=dev
 # Baked in by the release workflow so the "Download Windows client" button works
-# out of the box. Override at runtime with the same variable.
+# out of the box. Stored under its own name so an empty REPLAYHAVEN_CLIENT_DOWNLOAD_URL
+# (e.g. a blank line in .env) cannot switch it off; that variable still overrides it.
 ARG REPLAYHAVEN_CLIENT_DOWNLOAD_URL=""
 LABEL org.opencontainers.image.title="ReplayHaven" \
       org.opencontainers.image.description="Self-hosted game clip archive: web UI, upload API, SQLite and FFmpeg" \
@@ -41,7 +42,7 @@ ENV NODE_ENV=production \
     REPLAYHAVEN_FFPROBE=/usr/bin/ffprobe \
     REPLAYHAVEN_AI_PROVIDER=none \
     REPLAYHAVEN_VERSION=${REPLAYHAVEN_VERSION} \
-    REPLAYHAVEN_CLIENT_DOWNLOAD_URL=${REPLAYHAVEN_CLIENT_DOWNLOAD_URL}
+    REPLAYHAVEN_RELEASE_DOWNLOAD_URL=${REPLAYHAVEN_CLIENT_DOWNLOAD_URL}
 VOLUME ["/app/vault-data"]
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \

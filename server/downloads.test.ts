@@ -65,3 +65,29 @@ describe('Windows client download', () => {
     await vault.app.close();
   });
 });
+
+describe('Windows client download address', () => {
+  const base = { REPLAYHAVEN_ACCESS_TOKEN: 'download-test-token-with-32-characters!!' };
+  const baked = 'https://github.com/SauerExe/ReplayHaven/releases/download/v9.9.9/Setup.exe';
+
+  it('keeps the address baked into the image when the override is empty', async () => {
+    const { loadConfig } = await import('./config');
+    const config = loadConfig({
+      ...base,
+      REPLAYHAVEN_RELEASE_DOWNLOAD_URL: baked,
+      REPLAYHAVEN_CLIENT_DOWNLOAD_URL: '',
+    });
+    expect(config.clientDownloadUrl).toBe(baked);
+  });
+
+  it('lets a set override win over the baked address', async () => {
+    const { loadConfig } = await import('./config');
+    const own = 'https://example.com/ReplayHaven-Client-Setup.exe';
+    const config = loadConfig({
+      ...base,
+      REPLAYHAVEN_RELEASE_DOWNLOAD_URL: baked,
+      REPLAYHAVEN_CLIENT_DOWNLOAD_URL: own,
+    });
+    expect(config.clientDownloadUrl).toBe(own);
+  });
+});

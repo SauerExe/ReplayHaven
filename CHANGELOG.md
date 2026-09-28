@@ -38,6 +38,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The "Download Windows client" button keeps working when `.env` has an empty
+  `REPLAYHAVEN_CLIENT_DOWNLOAD_URL=` line: release images keep their download address under
+  `REPLAYHAVEN_RELEASE_DOWNLOAD_URL`, and only a set value overrides it.
 - Changing the server address in the client no longer drops clips that were still waiting.
 - A settings file with one bad field keeps all other settings (and a backup) instead of resetting.
 - A database error in the background job no longer crashes the server; two simultaneous uploads

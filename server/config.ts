@@ -105,7 +105,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     throw new Error(
       'Set REPLAYHAVEN_ACCESS_TOKEN to at least 24 characters before listening on the network.',
     );
-  const clientDownloadUrl = (env.REPLAYHAVEN_CLIENT_DOWNLOAD_URL || '').trim();
+  // An empty override falls back to the address baked into release images.
+  const clientDownloadUrl =
+    (env.REPLAYHAVEN_CLIENT_DOWNLOAD_URL || '').trim() ||
+    (env.REPLAYHAVEN_RELEASE_DOWNLOAD_URL || '').trim();
   if (clientDownloadUrl && !/^https?:\/\/\S+$/.test(clientDownloadUrl))
     throw new Error('REPLAYHAVEN_CLIENT_DOWNLOAD_URL must be an http(s) URL.');
   const [publicOrigin, ...extraOrigins] = parseOrigins(env.REPLAYHAVEN_PUBLIC_ORIGIN);
