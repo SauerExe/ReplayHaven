@@ -217,6 +217,12 @@ function DetailBody({
           <dl className="stream-facts">
             <dt>{t('stream.detail.game')}</dt>
             <dd>{clip.game}</dd>
+            {clip.uploadedBy && (
+              <>
+                <dt>{t('stream.detail.uploadedBy')}</dt>
+                <dd>{clip.uploadedBy}</dd>
+              </>
+            )}
             {clip.deviceName && (
               <>
                 <dt>{t('stream.detail.recording')}</dt>

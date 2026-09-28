@@ -178,6 +178,7 @@ export async function buildServer(
   // Accounts, roles, devices and pairing (server/auth-routes.ts).
   const accounts = new Accounts(db.db);
   const auth = registerAuth(app, accounts, config);
+  const toPublic = (clip: StoredClip) => publicClip(clip, (id) => accounts.user(id)?.name);
   app.setErrorHandler((error, req, reply) => {
     const status =
       error instanceof z.ZodError ? 400 : (error as { statusCode?: number }).statusCode || 500;
@@ -291,16 +292,18 @@ export async function buildServer(
     const clip = db.findHash(hash);
     return { clip: clip ? { id: clip.id, removed: !!clip.deleted } : null };
   });
-  app.get('/api/clips', async () =>
-    db
+  app.get('/api/clips', async () => {
+    // All account names in one query instead of one per clip.
+    const names = new Map(accounts.users().map((u) => [u.id, u.name]));
+    return db
       .list()
       .filter((c) => !c.deleted)
-      .map(publicClip),
-  );
+      .map((c) => publicClip(c, (id) => names.get(id)));
+  });
   app.get<{ Params: { id: string } }>('/api/clips/:id', async (req, reply) => {
     const clip = db.get(idSchema.parse(req.params.id));
     if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
-    return publicClip(clip);
+    return toPublic(clip);
   });
   app.post('/api/clips', async (req, reply) => {
     // Checked before receiving anything: a full disk would also stop the database.
@@ -344,7 +347,7 @@ export async function buildServer(
         // before uploading (lookup above), so they stay removed there.
         if (duplicate.deleted) db.patch(duplicate.id, { deleted: false });
         if (duplicate.gameName) games.schedule(duplicate.gameName);
-        return reply.code(200).send({ clip: publicClip(db.get(duplicate.id)!), duplicate: true });
+        return reply.code(200).send({ clip: toPublic(db.get(duplicate.id)!), duplicate: true });
       };
       const duplicate = db.findHash(digest);
       if (duplicate) return answerDuplicate(duplicate);
@@ -402,7 +405,7 @@ export async function buildServer(
         return answerDuplicate(first);
       }
       worker.kick();
-      return reply.code(201).send({ clip: publicClip(clip), duplicate: false });
+      return reply.code(201).send({ clip: toPublic(clip), duplicate: false });
     } finally {
       await rm(temporary, { force: true }).catch(() => {});
     }
@@ -412,7 +415,8 @@ export async function buildServer(
     const clip = db.get(id);
     if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
     // A paired PC only delivers results for its own uploads. After a new pairing its old
-    // session is gone; a PC of the same account then takes over.
+    // session is gone; a PC of the same account then takes over. The same holds for clips the
+    // admin command assign-uploader gave an account: their session is empty and matches none.
     const caller = req.identity?.kind === 'client' ? req.identity.session : undefined;
     const uploader = clip.uploader;
     if (
@@ -443,10 +447,10 @@ export async function buildServer(
         : undefined;
     // Sending the same result again changes nothing. A new analysis replaces the old one:
     // otherwise the archive would keep titles and tags of earlier versions forever.
-    if (previous && JSON.stringify(previous) === JSON.stringify(result)) return publicClip(latest);
+    if (previous && JSON.stringify(previous) === JSON.stringify(result)) return toPublic(latest);
     // Tags of the previous analysis go, the user's own tags stay.
     const stale = new Set(previous?.tags ?? []);
-    return publicClip(
+    return toPublic(
       db.patch(id, {
         expectsClientAnalysis: true,
         ...(db.settings().autoTitle && !latest.userEditedTitle ? { title: result.title } : {}),
@@ -472,9 +476,7 @@ export async function buildServer(
     if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
     const patch = clipPatchSchema.parse(req.body);
     if (patch.gameName) games.schedule(patch.gameName);
-    return publicClip(
-      db.patch(id, { ...patch, ...(patch.title ? { userEditedTitle: true } : {}) })!,
-    );
+    return toPublic(db.patch(id, { ...patch, ...(patch.title ? { userEditedTitle: true } : {}) })!);
   });
   app.delete<{ Params: { id: string } }>('/api/clips/:id', async (req, reply) => {
     const id = idSchema.parse(req.params.id);
@@ -496,7 +498,7 @@ export async function buildServer(
       analysis: { ...clip.analysis, status: 'queued', error: undefined },
     })!;
     worker.kick();
-    return reply.code(202).send(publicClip(queued));
+    return reply.code(202).send(toPublic(queued));
   });
   app.post<{ Params: { id: string } }>('/api/clips/:id/retry-media', async (req, reply) => {
     const id = idSchema.parse(req.params.id);

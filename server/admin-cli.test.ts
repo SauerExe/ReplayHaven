@@ -94,3 +94,68 @@ it('purges removed clips for good only when confirmed', async () => {
       await fs.rm(dataDir, { recursive: true, force: true });
   }
 });
+
+it('assigns clips without an uploader to an account only when confirmed', async () => {
+  const fs = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join, resolve, sep } = await import('node:path');
+  const { VaultDatabase } = await import('./database');
+  const dataDir = await fs.mkdtemp(join(tmpdir(), 'replayhaven-assign-'));
+  const db = new VaultDatabase(dataDir);
+  try {
+    const accounts = new Accounts(db.db);
+    const timo = await accounts.createUser('timo', 'timo-password', 'admin');
+    const brother = await accounts.createUser('bruder', 'bruder-password', 'user');
+    const clip = (n: number, uploader?: { session: string; user: string }) => ({
+      id: `${n}`.repeat(8) + '-1111-4111-8111-111111111111',
+      title: `Clip ${n}`,
+      gameId: 'recording',
+      gameName: '',
+      thumbnail: '',
+      duration: 1,
+      recordedAt: new Date(0).toISOString(),
+      size: 4,
+      resolution: '',
+      tags: [],
+      favorite: false,
+      status: 'ready' as const,
+      note: '',
+      server: true as const,
+      originalName: `${n}.mp4`,
+      originalFile: join(dataDir, 'clips', `${n}`, 'original.mp4'),
+      hash: `${n}`.repeat(64),
+      ...(uploader ? { uploader } : {}),
+    });
+    db.put(clip(1));
+    db.put(clip(2));
+    db.put(clip(3, { session: 'pc-session', user: brother.id }));
+    const archive = { db, dataDir };
+    await expect(runAdminCommand(['assign-uploader'], accounts, archive)).rejects.toThrow(/Usage/);
+    await expect(
+      runAdminCommand(['assign-uploader', 'nobody', '--yes'], accounts, archive),
+    ).rejects.toThrow(/No account named "nobody"/);
+    expect(await runAdminCommand(['assign-uploader', 'timo'], accounts, archive)).toBe(
+      '2 clip(s) without an uploader. Run again with --yes to assign them to timo.',
+    );
+    expect(db.list().filter((c) => c.uploader)).toHaveLength(1);
+    expect(await runAdminCommand(['assign-uploader', 'timo', '--yes'], accounts, archive)).toBe(
+      'Assigned 2 clip(s) to timo.',
+    );
+    const uploaders = Object.fromEntries(db.list().map((c) => [c.title, c.uploader]));
+    expect(uploaders).toEqual({
+      'Clip 1': { session: '', user: timo.id },
+      'Clip 2': { session: '', user: timo.id },
+      'Clip 3': { session: 'pc-session', user: brother.id },
+    });
+    expect(await runAdminCommand(['assign-uploader', 'timo'], accounts, archive)).toBe(
+      'Every clip already has an uploader.',
+    );
+  } finally {
+    db.close();
+    if (
+      resolve(dataDir).startsWith(resolve(tmpdir()) + sep) &&
+      dataDir.includes('replayhaven-assign-')
+    )
+      await fs.rm(dataDir, { recursive: true, force: true });
+  }
+});

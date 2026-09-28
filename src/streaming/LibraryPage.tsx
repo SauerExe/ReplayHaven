@@ -32,6 +32,8 @@ import {
   hasFilters,
   readFilters,
   tagOptions,
+  uploaderOptions,
+  UNKNOWN_UPLOADER,
   type GameSummary,
 } from './library';
 import { Picture } from './Picture';
@@ -234,14 +236,19 @@ export default function StreamingLibraryPage() {
   const shelf = useMemo(() => gameTiles(library.clips), [library.clips]);
   const shelfPager = useScrollPager(shelf.length);
   const tags = useMemo(() => tagOptions(state.clips), [state.clips]);
+  const uploaders = useMemo(() => uploaderOptions(state.clips), [state.clips]);
   const spotlight = filters.game ? gameSummary(library, filters.game) : null;
   const selectedIds = useMemo(
     () => clips.filter((c) => selected.has(c.id)).map((c) => c.id),
     [clips, selected],
   );
-  const extraFilters = [filters.favorite, filters.period, filters.tag, filters.status].filter(
-    Boolean,
-  ).length;
+  const extraFilters = [
+    filters.favorite,
+    filters.period,
+    filters.tag,
+    filters.status,
+    filters.uploader,
+  ].filter(Boolean).length;
 
   function set(key: string, value: string) {
     setParams(
@@ -490,6 +497,20 @@ export default function StreamingLibraryPage() {
               ['error', t('library.filters.status.error')],
             ]}
           />
+          {uploaders && (
+            <FilterSelect
+              label={t('library.filters.uploader')}
+              value={filters.uploader}
+              onChange={(value) => set('by', value)}
+              options={[
+                ['', t('library.filters.uploader.all')],
+                ...uploaders.people.map((p): [string, string] => [p.id, p.name]),
+                ...(uploaders.unknown
+                  ? [[UNKNOWN_UPLOADER, t('library.filters.uploader.unknown')] as [string, string]]
+                  : []),
+              ]}
+            />
+          )}
           {active && (
             <button type="button" className="stream-text-button" onClick={reset}>
               <X size={16} strokeWidth={2.4} aria-hidden="true" />

@@ -255,3 +255,87 @@ test('bulk favorite sends a few PATCHes at a time, refreshes once and stores no 
   const stored = await page.evaluate(() => localStorage.getItem('replayhaven.v1') || '');
   expect(stored).not.toContain('Bulk 0');
 });
+
+test('the library filters by who recorded a clip and keeps the choice in the URL', async ({
+  page,
+}) => {
+  const timo = { id: 'user-timo', name: 'Timo' };
+  const brother = { id: 'user-bruder', name: 'Bruder' };
+  const clips: Clip[] = [
+    { ...serverClip('von-timo', 'Ace auf Oregon', 1), uploadedBy: timo },
+    { ...serverClip('vom-bruder', 'Clutch auf Villa', 2), uploadedBy: brother },
+    serverClip('alt', 'Alter Clip', 30),
+  ];
+  await page.route('**/api/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/status')
+      return route.fulfill({
+        json: {
+          connected: true,
+          provider: 'none',
+          configured: false,
+          model: '',
+          settings: { autoAnalyze: true, autoTitle: true, includeAudio: false },
+          queue: 0,
+          devices: [],
+        },
+      });
+    if (path === '/api/clips') return route.fulfill({ json: clips });
+    return route.fulfill({ status: 404, json: { error: 'Not part of the test.' } });
+  });
+
+  await page.goto('/library');
+  await expect(tiles(page)).toHaveCount(3);
+  const recordedBy = page.getByRole('combobox', { name: 'Recorded by' });
+  await expect(recordedBy.locator('option')).toHaveText(['Everyone', 'Bruder', 'Timo', 'Unknown']);
+  await recordedBy.selectOption({ label: 'Bruder' });
+  await expect(page).toHaveURL(/[?&]by=user-bruder/);
+  await expect(tiles(page)).toHaveCount(1);
+  await expect(tiles(page)).toContainText('Clutch auf Villa');
+  await recordedBy.selectOption({ label: 'Unknown' });
+  await expect(page).toHaveURL(/[?&]by=unknown/);
+  await expect(tiles(page)).toHaveCount(1);
+  await expect(tiles(page)).toContainText('Alter Clip');
+
+  // After a reload the filter still applies.
+  await page.goto('/library?by=user-timo');
+  await expect(tiles(page)).toHaveCount(1);
+  await page.getByRole('button', { name: 'Ace auf Oregon', exact: true }).click();
+  const facts = page.getByRole('dialog').locator('.stream-facts');
+  await expect(facts).toContainText('Recorded by');
+  await expect(facts).toContainText('Timo');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Reset' }).click();
+  await expect(tiles(page)).toHaveCount(3);
+});
+
+test('the "Recorded by" filter stays hidden while one person recorded everything', async ({
+  page,
+}) => {
+  const timo = { id: 'user-timo', name: 'Timo' };
+  const clips: Clip[] = [
+    { ...serverClip('a', 'Ace auf Oregon', 1), uploadedBy: timo },
+    { ...serverClip('b', 'Clutch auf Villa', 2), uploadedBy: timo },
+  ];
+  await page.route('**/api/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/status')
+      return route.fulfill({
+        json: {
+          connected: true,
+          provider: 'none',
+          configured: false,
+          model: '',
+          settings: { autoAnalyze: true, autoTitle: true, includeAudio: false },
+          queue: 0,
+          devices: [],
+        },
+      });
+    if (path === '/api/clips') return route.fulfill({ json: clips });
+    return route.fulfill({ status: 404, json: { error: 'Not part of the test.' } });
+  });
+  await page.goto('/library');
+  await expect(tiles(page)).toHaveCount(2);
+  await expect(page.getByRole('combobox', { name: 'Filter by tag' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Recorded by' })).toHaveCount(0);
+});

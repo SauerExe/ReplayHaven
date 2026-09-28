@@ -43,6 +43,8 @@ export interface StreamClip {
   confidence?: Confidence;
   provider?: string;
   deviceName?: string;
+  /** Name of the account whose PC uploaded the clip. */
+  uploadedBy?: string;
   progress?: PlaybackProgress;
 }
 
@@ -130,6 +132,7 @@ export function toStreamClip(
     confidence: result?.confidence,
     provider: result ? analysis?.provider || undefined : undefined,
     deviceName: clip.deviceName || undefined,
+    uploadedBy: clip.uploadedBy?.name || undefined,
     progress,
   };
 }

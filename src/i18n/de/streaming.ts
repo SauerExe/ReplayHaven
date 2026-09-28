@@ -79,6 +79,7 @@ export const streaming: Translation<typeof source> = {
   'stream.detail.download': 'Original herunterladen',
   'stream.detail.addTag': 'Tag hinzufügen',
   'stream.detail.game': 'Spiel',
+  'stream.detail.uploadedBy': 'Aufgenommen von',
   'stream.detail.recording': 'Aufnahme',
   'stream.detail.analysis': 'Analyse',
   'stream.detail.running': 'Läuft gerade',
