@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The client setup asks "Without AI" or "With AI on this PC" up front and recommends one from the
+  detected NVIDIA graphics card; setting up AI installs Ollama and the model with calm progress,
+  and a failure offers to retry or continue without AI.
 - Resumable uploads: the Windows client sends clips in 50 MiB pieces and continues where it
   stopped after a dropped connection or restart, so servers behind Cloudflare Tunnel (100 MB per
   request) accept large clips. Older servers still get the single upload. docs/SERVER.md explains

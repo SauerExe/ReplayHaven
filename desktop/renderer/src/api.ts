@@ -120,6 +120,11 @@ export interface OllamaCheck {
   installed: boolean;
   models?: string[];
 }
+/** The graphics card and what the wizard suggests for it (desktop/gpu.ts); model null: no AI. */
+export interface AiAdvice {
+  gpu: { name: string; memoryGb: number } | null;
+  model: Model | null;
+}
 
 /** Every action of the bridge: what it takes and what it answers. */
 interface Actions {
@@ -134,6 +139,8 @@ interface Actions {
   download: [Model | undefined, unknown];
   'cancel-download': [undefined, unknown];
   'ollama-install': [undefined, unknown];
+  /** The graphics card and the AI choice suggested for it. */
+  gpu: [undefined, AiAdvice];
   archive: [undefined, unknown];
   'open-clip': [string, unknown];
   reveal: [string | undefined, unknown];

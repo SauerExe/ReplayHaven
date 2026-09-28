@@ -1,5 +1,5 @@
-import type { FolderInfo, OllamaCheck, PublicConfig, Switch } from '../api';
-import { el } from '../dom';
+import type { AiAdvice, FolderInfo, OllamaCheck, PublicConfig, Switch } from '../api';
+import { $, el } from '../dom';
 import { t } from '../i18n';
 import type { NameRows } from '../names';
 
@@ -19,6 +19,13 @@ export interface Step {
   onSkip?: () => void;
   /** Redraws the open step when the status changes. */
   paint?: () => void;
+  /** True while the step cannot be finished yet; Next is disabled then (see syncNext). */
+  blocked?: () => boolean;
+}
+
+/** Enables Next unless the open step is blocked. */
+export function syncNext(step: Step) {
+  $<HTMLButtonElement>('wizard-next').disabled = !!step.blocked?.();
 }
 
 /** The settings as the wizard edits them; saved only in the last step. */
@@ -34,8 +41,16 @@ export const wizard: {
   clips: number;
   games: FolderInfo['games'];
   ai: OllamaCheck | null;
+  /** Without or with local AI; undefined until chosen or suggested. */
+  aiChoice?: 'none' | 'local';
+  /** The graphics card and the suggestion for it; undefined while it is being detected. */
+  advice?: AiAdvice;
+  /** Whether the AI is being set up right now, and which part. */
+  aiBusy?: 'ollama' | 'model';
+  /** Why the last setup attempt failed; empty if it did not. */
+  aiFailed: string;
   names: NameRows | null;
-} = { serverOk: false, useKey: false, clips: 0, games: [], ai: null, names: null };
+} = { serverOk: false, useKey: false, clips: 0, games: [], ai: null, aiFailed: '', names: null };
 
 export function recommendedChip() {
   return el('span', {

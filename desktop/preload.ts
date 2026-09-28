@@ -10,6 +10,7 @@ const actions = new Set([
   'download',
   'cancel-download',
   'ollama-install',
+  'gpu',
   'archive',
   'open-clip',
   'reveal',

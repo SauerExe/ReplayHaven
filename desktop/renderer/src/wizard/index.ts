@@ -7,7 +7,7 @@ import { showView } from '../tabs';
 import { serverStep, welcomeStep } from './connect';
 import { detectStep, doneStep } from './finish';
 import { aiStep, namesStep, recordingsStep } from './setup';
-import { setDraft, wizard } from './state';
+import { setDraft, syncNext, wizard } from './state';
 import type { Step } from './state';
 
 /* ---------- Setup wizard ---------- */
@@ -42,6 +42,9 @@ export function openWizard() {
   setDraft(draft);
   wizard.serverOk = !!config.hasToken;
   wizard.useKey = false;
+  // A first setup suggests the AI choice from the graphics card (aiStep); later runs keep it.
+  wizard.aiChoice = config.onboarded ? (config.analyze ? 'local' : 'none') : undefined;
+  wizard.aiFailed = '';
   step = 0;
   $('wizard').hidden = false;
   $('app').inert = true;
@@ -73,6 +76,7 @@ export function renderWizard() {
   $('wizard-next').textContent = current.next ? text('next') : t('btn.next');
   $('wizard-skip').hidden = !current.skip;
   $('wizard-skip').textContent = current.skip ? text('skip') : '';
+  syncNext(current);
   $('wizard-title').focus();
 }
 async function advance(skip = false) {
@@ -93,7 +97,7 @@ async function advance(skip = false) {
   } catch (e) {
     $('wizard-error').textContent = errorText(e);
   } finally {
-    next.disabled = false;
+    syncNext(STEPS[step]);
   }
 }
 $('wizard-next').onclick = () => advance();

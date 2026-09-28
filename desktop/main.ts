@@ -38,6 +38,8 @@ import { keepMatchForClip } from '../agent/r6-replays';
 import { installOllama, OLLAMA_SETUP } from './ollama-setup';
 import { linkIn, PAIRING_SCHEME, parsePairingLink } from './pairing-link';
 import { discoverServers } from './discovery';
+import { detectAi } from './gpu';
+import type { AiAdvice } from './gpu';
 import { isNewer, releasePage } from './update';
 import {
   backupFile,
@@ -1132,6 +1134,9 @@ else {
         }
       });
       handle('vault:cancel-download', () => downloadAbort?.abort());
+      // The graphics card does not change while the client runs, so it is asked only once.
+      let gpu: Promise<AiAdvice> | undefined;
+      handle('vault:gpu', () => (gpu ??= detectAi()));
       handle('vault:ollama-install', async () => {
         if (status.downloading) throw new Error('A download is already running.');
         downloadAbort = new AbortController();
