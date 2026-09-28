@@ -126,6 +126,24 @@ The image tag `:1` follows every 1.x release whenever Coolify redeploys. For con
 
 The same applies to Caddy or nginx: forward to port 8787, allow 2 GB bodies and 30-minute requests (for nginx `client_max_body_size 2g; proxy_read_timeout 1800s; proxy_request_buffering off;`) and set `REPLAYHAVEN_TRUST_PROXY`.
 
+## Behind Cloudflare Tunnel or a forward-auth proxy (Authelia)
+
+**Cloudflare Tunnel** rejects request bodies over 100 MB. The Windows client from this release on uploads in pieces of 50 MiB when the server announces it (`uploads` in `GET /api/status`), so clips up to 2 GB pass the tunnel. A dropped connection only costs the piece in flight: the client asks the server how far it got and continues there, also after a restart of the PC or the server. Unfinished uploads without progress for 24 hours are removed. Older clients and uploads in the browser still send the whole file in one request, which the tunnel refuses above 100 MB.
+
+**Forward-auth proxies** such as Authelia in front of the whole domain must let `/api/` through. ReplayHaven checks every API request itself (session cookie or the bearer token of a paired PC), and the Windows client cannot pass an Authelia login page: it would only see the redirect. The web interface stays behind Authelia. In Authelia's `configuration.yml`, place the rule before the other rules for that domain, because the first matching rule wins:
+
+```yaml
+access_control:
+  rules:
+    - domain: 'replay.example.com'
+      resources:
+        - '^/api/.*$'
+      policy: bypass
+    # further rules for replay.example.com, e.g. policy: two_factor
+```
+
+To sign in to ReplayHaven itself with Authelia, use [single sign-on](#sign-in-with-authelia-oidc) instead of forward auth.
+
 ## Playback over the internet
 
 Recordings from the NVIDIA App are often H.264 at 1080p120 and around 50 Mbit/s, too much to stream over a typical upload line. With `REPLAYHAVEN_PLAYBACK=web` (default) the server therefore creates a web rendition for every clip above 12 Mbit/s, above 60 fps or wider than 1920 px: H.264 High profile, at most 1920 px wide, at most 60 fps, CRF 23 capped at 8 Mbit/s, AAC 160 kbit/s (all audio tracks mixed), keyframes every two seconds and `+faststart`. FFmpeg runs with two threads and a lowered CPU priority.
@@ -262,7 +280,7 @@ services:
 - **Permission errors with a folder instead of the volume** (`EACCES` in the log). The server runs as the user `node` with UID 1000 and must be able to write the data folder: `chown -R 1000:1000 data`. On a NAS, give that UID write access in the share settings.
 - **403 on every request after signing in.** The browser address does not match `REPLAYHAVEN_PUBLIC_ORIGIN` exactly (scheme, host and port). Add the address you use, comma-separated.
 - **Single sign-on fails with a redirect error at the provider.** The redirect URI registered there must be exactly `<first REPLAYHAVEN_PUBLIC_ORIGIN>/api/auth/oidc/callback`, including `https://` and without an extra port or slash. `REPLAYHAVEN_OIDC_ISSUER` must match the `issuer` in the provider's `/.well-known/openid-configuration`, including a trailing slash if it has one.
-- **Uploads end with 413 or break off after a minute behind a proxy.** The proxy limits the body size or the request time. Allow 2 GB and 30 minutes: for nginx `client_max_body_size 2g; proxy_read_timeout 1800s; proxy_send_timeout 1800s; proxy_request_buffering off;`, for Traefik the `readTimeout` from [Deploy behind Coolify/Traefik](#deploy-behind-coolifytraefik). Proxies with a fixed upload limit, such as Cloudflare's free plan at 100 MB, cannot take large clips; upload through the LAN or a VPN instead.
+- **Uploads end with 413 or break off after a minute behind a proxy.** The proxy limits the body size or the request time. Allow 2 GB and 30 minutes: for nginx `client_max_body_size 2g; proxy_read_timeout 1800s; proxy_send_timeout 1800s; proxy_request_buffering off;`, for Traefik the `readTimeout` from [Deploy behind Coolify/Traefik](#deploy-behind-coolifytraefik). Proxies with a fixed upload limit, such as Cloudflare at 100 MB, only take large clips from a current Windows client, which uploads in pieces (see [Behind Cloudflare Tunnel or a forward-auth proxy](#behind-cloudflare-tunnel-or-a-forward-auth-proxy-authelia)); upload large files in the browser through the LAN or a VPN.
 - **Every sign-in comes from the same address** in the log, and one person's failed attempts pause sign-in for everyone. Set `REPLAYHAVEN_TRUST_PROXY`, see [Deploy behind Coolify/Traefik](#deploy-behind-coolifytraefik).
 
 ## Windows client download

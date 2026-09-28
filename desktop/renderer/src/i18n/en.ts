@@ -70,6 +70,7 @@ export const en = {
   'detail.view': 'The AI is reviewing the frames',
   'detail.summary': 'Writing title, description and highlights',
   'detail.upload': 'Uploading to your archive',
+  'detail.uploadOf': 'Uploading to your archive: {percent} %',
   'progress.section': 'Local AI is reviewing section {current} of {total} …',
   'progress.prepare': 'Preparing frames from your recording …',
   'progress.texts': 'Text recognition is reading map, round and killfeed …',

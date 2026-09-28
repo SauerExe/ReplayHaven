@@ -59,6 +59,19 @@ const GERMAN: Record<string, string> = {
   'Supported formats are MP4, WebM, MOV, M4V and MKV.':
     'Unterstützt werden MP4, WebM, MOV, M4V und MKV.',
   'The file is larger than 2 GB.': 'Die Datei ist größer als 2 GB.',
+  'The file is empty.': 'Die Datei ist leer.',
+  'Upload not found.': 'Upload nicht gefunden.',
+  'This upload is busy. Try again in a moment.':
+    'Dieser Upload ist gerade beschäftigt. Versuch es gleich noch einmal.',
+  'The upload continues at another position.': 'Der Upload geht an einer anderen Stelle weiter.',
+  'Send the piece as application/octet-stream.':
+    'Sende das Teilstück als application/octet-stream.',
+  'The piece is larger than the server accepts.':
+    'Das Teilstück ist größer, als der Server annimmt.',
+  'The piece goes beyond the end of the file.': 'Das Teilstück reicht über das Dateiende hinaus.',
+  'The upload is not complete yet.': 'Der Upload ist noch nicht vollständig.',
+  'Too many unfinished uploads from this device. Finish or cancel one first.':
+    'Zu viele unfertige Uploads von diesem Gerät. Schließ zuerst einen ab oder brich ihn ab.',
   'Choose a readable video of at most 30 minutes and at most 8K resolution.':
     'Wähle ein lesbares Video mit höchstens 30 Minuten und höchstens 8K-Auflösung.',
   'The file is not available yet.': 'Die Datei ist noch nicht verfügbar.',

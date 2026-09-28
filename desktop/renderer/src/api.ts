@@ -63,6 +63,8 @@ export interface QueueEntry {
 export interface Activity extends Omit<QueueEntry, 'state' | 'note'> {
   stage: 'analyzing' | 'uploading';
   since: number;
+  /** Bytes the server has confirmed, while uploading in pieces. */
+  sent?: number;
   step: 'prepare' | 'view' | 'summary' | 'upload';
   current: number;
   total: number;

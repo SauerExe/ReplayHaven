@@ -71,6 +71,7 @@ export const de: Partial<Record<MessageKey, Message>> = {
   'detail.view': 'Die KI sichtet die Bilder',
   'detail.summary': 'Titel, Beschreibung und Zeitmarken entstehen',
   'detail.upload': 'Wird in dein Archiv hochgeladen',
+  'detail.uploadOf': 'Wird in dein Archiv hochgeladen: {percent} %',
   'progress.section': 'Lokale KI sichtet Abschnitt {current} von {total} …',
   'progress.prepare': 'Bilder aus deiner Aufnahme werden vorbereitet …',
   'progress.texts': 'Texterkennung liest Karte, Runde und Killfeed …',

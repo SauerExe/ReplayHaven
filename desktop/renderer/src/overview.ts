@@ -134,7 +134,9 @@ function renderActive(active: Activity | null) {
           : t('detail.view')
         : active.step === 'summary'
           ? t('detail.summary')
-          : t('detail.upload');
+          : active.sent !== undefined && active.size
+            ? t('detail.uploadOf', { percent: Math.floor((active.sent / active.size) * 100) })
+            : t('detail.upload');
   tickElapsed();
 }
 function tickElapsed() {
