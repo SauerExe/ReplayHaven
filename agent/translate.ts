@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AnalysisResult } from '../server/schema';
+import { COMMON_AFTER_AUF } from './wording';
 
 /**
  * Language of the generated title, description and highlights. The analysis itself (frame
@@ -67,7 +68,8 @@ export function applyTranslation(result: AnalysisResult, raw: string): AnalysisR
   if (numbers(title) !== numbers(result.title))
     throw fail('The translated title changed a number.');
   const map = /\bauf ([A-ZÄÖÜ][\wäöüß-]+)/.exec(result.title)?.[1];
-  if (map && !title.includes(map)) throw fail('The translated title lost the map.');
+  if (map && !COMMON_AFTER_AUF.test(map) && !title.includes(map))
+    throw fail('The translated title lost the map.');
   return {
     ...result,
     title,

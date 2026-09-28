@@ -61,8 +61,9 @@ on your machine with Go, from the maintained fork `Gipson62/r6-dissect` pinned t
 neither bundled nor redistributed. Sources: https://github.com/Gipson62/r6-dissect and the
 original https://github.com/redraskal/r6-dissect.
 
-Ollama and the Qwen3.5 model are **not** bundled. The client only opens the official Ollama
-download page and pulls the model when you click the button. See https://ollama.com and
+Ollama and the Qwen3.5 model are **not** bundled. When you click **Install Ollama**, the client
+downloads the official Ollama installer (a pinned version, checked against size and SHA-256) and
+runs it for your Windows user; it pulls the model when you click the button. See https://ollama.com and
 https://ollama.com/library/qwen3.5 for their licenses.
 
 ## Server image

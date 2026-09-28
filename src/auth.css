@@ -289,10 +289,11 @@
   font-size: 12px;
   letter-spacing: 0.02em;
 }
-/* Wide screens: pitch and showcase side by side, so the violet half has no empty corner. */
-@media (min-width: 1400px) {
+/* Wide screens: pitch and showcase side by side, so the violet half has no empty corner. Below
+   1700 px the left half is too narrow for both (the pitch would shrink to a word per line). */
+@media (min-width: 1700px) {
   .auth-aside {
-    grid-template-columns: minmax(0, 520px) minmax(280px, 400px);
+    grid-template-columns: minmax(360px, 520px) minmax(280px, 400px);
     grid-template-rows: auto 1fr auto;
     column-gap: clamp(40px, 4vw, 72px);
     justify-content: space-between;

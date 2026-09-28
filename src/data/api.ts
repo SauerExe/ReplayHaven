@@ -21,14 +21,29 @@ export class ApiError extends Error {
   }
 }
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    ...options,
-    headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...options.headers,
-    },
-    signal: options.signal || AbortSignal.timeout(15000),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      ...options,
+      headers: {
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...options.headers,
+      },
+      signal: options.signal || AbortSignal.timeout(15000),
+    });
+  } catch (error) {
+    // The browser's own texts ("Failed to fetch") are neither helpful nor translated.
+    if (error instanceof DOMException && error.name === 'AbortError' && options.signal?.aborted)
+      throw error;
+    throw new ApiError(
+      t(
+        error instanceof DOMException && error.name === 'TimeoutError'
+          ? 'app.api.slow'
+          : 'app.api.offline',
+      ),
+      0,
+    );
+  }
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new ApiError(

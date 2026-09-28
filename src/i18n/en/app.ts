@@ -225,6 +225,8 @@ export const app = {
 
   // Data layer
   'app.api.httpError': 'The server responded with HTTP {status}.',
+  'app.api.offline': 'The server cannot be reached. Check the connection and try again.',
+  'app.api.slow': 'The server took too long to answer. Try again.',
   'app.api.unreachable': 'Server unreachable. The file was not confirmed.',
   'app.api.timeout': 'The upload took too long. Try again.',
   'app.api.uploadFailed': 'Upload failed.',

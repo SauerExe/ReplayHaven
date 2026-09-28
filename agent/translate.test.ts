@@ -49,6 +49,21 @@ it('replaces the texts and keeps everything the code decided', () => {
   expect(result.game).toBe('Rainbow Six Siege');
 });
 
+it('does not take a common phrase after "auf" for a map', () => {
+  const headshot = { ...german, title: 'Kopfschuss auf Distanz', highlights: [] };
+  expect(
+    applyTranslation(
+      headshot,
+      JSON.stringify({
+        title: 'Long-Range Headshot',
+        description: 'x',
+        uncertainty: '',
+        highlights: [],
+      }),
+    ).title,
+  ).toBe('Long-Range Headshot');
+});
+
 it('rejects a translation that loses the kill count, a highlight or the title', () => {
   const attempts = [
     { ...english, title: 'Double Kill on Oregon' },

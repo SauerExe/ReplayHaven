@@ -37,9 +37,21 @@ users` and `reset-password <name>`, which sets a new random password and signs o
 
 - Error messages from the server, such as a wrong password, appear in the interface language
   instead of always in English.
+- A server that cannot be reached shows a clear, translated message instead of the browser's
+  "Failed to fetch".
+- The sign-in page keeps a readable text column between 1400 and 1700 px.
+- An English title is no longer rejected when the German one says "auf" plus a common word
+  ("Kopfschuss auf Distanz" becomes "Long-Range Headshot").
+- THIRD-PARTY.md, docs/START.md and .env.example match the client and the image tags again.
 
 ### Security
 
+- **Fixed a sign-in bypass present since 1.0.0:** an API path with percent-escapes (for
+  example `/%61pi/clips`) skipped the sign-in check, so anyone who could reach the server could
+  list, download, upload and remove clips. The check now follows the route the server actually
+  matched. Update every server that is reachable without a login proxy in front.
+- The open mode of a server without access key and accounts no longer applies to requests a
+  reverse proxy on the same machine forwards.
 - A paired PC's token is created when the PC picks it up; it is no longer kept in plain text
   between approval and pickup.
 - Single sign-on no longer creates accounts for unknown identities unless
