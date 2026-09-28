@@ -38,6 +38,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The client explains when an address answers but is not ReplayHaven, such as the sign-in page of
+  Authelia in front of the public address, instead of reporting "HTTP 200" as an error, and
+  points to the address in the home network.
 - The "Download Windows client" button keeps working when `.env` has an empty
   `REPLAYHAVEN_CLIENT_DOWNLOAD_URL=` line: release images keep their download address under
   `REPLAYHAVEN_RELEASE_DOWNLOAD_URL`, and only a set value overrides it.
