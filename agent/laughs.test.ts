@@ -99,6 +99,52 @@ it('loads the model once, checks its hash and keeps a broken download away', asy
   }
 });
 
+it('gives up a download that stalls or is cancelled and leaves no partial file', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-laughs-'));
+  try {
+    const model: ModelFile = {
+      url: 'https://example.invalid/model/big.onnx',
+      bytes: 1000,
+      sha256: '0'.repeat(64),
+    };
+    // One chunk, then the connection stays open without data.
+    const stalling: typeof fetch = async (_url, init) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array(10));
+          },
+        }),
+      );
+    };
+    await expect(ensureModel(root, model, stalling, undefined, { stallMs: 50 })).rejects.toThrow(
+      /stalled/,
+    );
+    expect(await readdir(root)).toEqual([]);
+    // Headers that never come count as a stall too.
+    const silent: typeof fetch = (_url, init) =>
+      new Promise((_, reject) =>
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))),
+      );
+    await expect(ensureModel(root, model, silent, undefined, { stallMs: 50 })).rejects.toThrow(
+      /stalled/,
+    );
+    // The caller cancels.
+    const control = new AbortController();
+    const cancelled = ensureModel(root, model, stalling, undefined, {
+      signal: control.signal,
+      stallMs: 60000,
+    });
+    setTimeout(() => control.abort(new Error('cancelled by the test')), 20);
+    await expect(cancelled).rejects.toThrow(/cancelled by the test/);
+    expect(await readdir(root)).toEqual([]);
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-laughs-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});
+
 // With the real model only if it is already downloaded; the test downloads nothing.
 const yamnet = process.env.REPLAYHAVEN_YAMNET ?? join(modelFolder(), 'yamnet.onnx');
 it.skipIf(!existsSync(yamnet))(

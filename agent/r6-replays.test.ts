@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -10,10 +10,12 @@ import {
   pruneArchive,
   matchFolders,
   matchStarted,
+  ROUND_TIMES_FILE,
   newerSeason,
   ownRound,
   parseDissect,
   recorder,
+  roundFileTimes,
   roundForClip,
   roundStart,
   series,
@@ -193,6 +195,24 @@ it('marks kills after the plant and warns about disagreements and newer seasons'
     file,
   );
   expect(r.kills.every((kill) => kill.afterPlant)).toBe(true);
+  expect(r.deathAfterPlant).toBeUndefined();
+  const died = ownRound(
+    round([
+      ['Kill', 'EnemyOne', 'PlayerOne', 100],
+      ['DefuserPlantComplete', 'PlayerTwo', undefined, 40],
+    ]),
+    file,
+  );
+  expect(died).toMatchObject({ death: 100 });
+  expect(died.deathAfterPlant).toBeUndefined();
+  const late = ownRound(
+    round([
+      ['DefuserPlantComplete', 'PlayerTwo', undefined, 40],
+      ['Kill', 'EnemyOne', 'PlayerOne', 25],
+    ]),
+    file,
+  );
+  expect(late).toMatchObject({ death: 25, deathAfterPlant: true });
   expect(r.warnings).toEqual([
     'Season Y11S3 is newer than the parser revision (Y11S2)',
     'kill with unknown player',
@@ -380,6 +400,7 @@ it('keeps the match a clip was saved in and adds rounds written later', async ()
       `${name}-R01.rec`,
       `${name}-R02.rec`,
       `${name}-R03.rec`,
+      ROUND_TIMES_FILE,
     ]);
     // An earlier match that ended shortly before loses to the running one.
     const earlier = join(replays, 'Match-2026-07-12_20-25-52-36588');
@@ -392,6 +413,85 @@ it('keeps the match a clip was saved in and adds rounds written later', async ()
     expect(await keepMatchForClip(started + 60 * 60000, [replays], archive)).toBeUndefined();
     expect(await keepMatchForClip(started - 60 * 60000, [replays], archive)).toBeUndefined();
     expect(await keepMatchForClip(saved, [join(root, 'missing')], archive)).toBeUndefined();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('keeps the times of the original rounds for archived copies', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'r6-times-'));
+  try {
+    const replays = join(root, 'MatchReplay');
+    const archive = join(root, 'archive');
+    const name = 'Match-2026-07-12_20-41-13-36588';
+    const started = matchStarted(name)!;
+    await mkdir(join(replays, name), { recursive: true });
+    const source = join(replays, name, `${name}-R01.rec`);
+    await writeFile(source, 'round');
+    const at = new Date(started + 4 * 60000);
+    await utimes(source, at, at);
+    const original = await stat(source);
+    const kept = await keepMatchForClip(
+      started + 3 * 60000,
+      [replays],
+      archive,
+      started + 60 * 60000,
+    );
+    const copy = join(kept!.target!, `${name}-R01.rec`);
+    // The copy keeps the modification time; the creation time comes from the sidecar.
+    expect(Math.abs((await stat(copy)).mtimeMs - original.mtimeMs)).toBeLessThan(1000);
+    expect(await roundFileTimes(copy)).toEqual({
+      mtime: original.mtimeMs,
+      birthtime: original.birthtimeMs,
+    });
+    // Outside the archive the file's own times count.
+    expect(await roundFileTimes(source)).toEqual({
+      mtime: original.mtimeMs,
+      birthtime: original.birthtimeMs,
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('waits for the first round of a new match before keeping the previous one', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'r6-next-'));
+  try {
+    const replays = join(root, 'MatchReplay');
+    const archive = join(root, 'archive');
+    const write = async (match: string, n: number, time: number) => {
+      await mkdir(join(replays, match), { recursive: true });
+      const file = join(replays, match, `${match}-R0${n}.rec`);
+      await writeFile(file, 'x');
+      await utimes(file, new Date(time), new Date(time));
+    };
+    const old = 'Match-2026-07-12_20-25-52-36588';
+    const minute = (n: number) => matchStarted(old)! + n * 60000;
+    await write(old, 1, minute(10));
+    // End screen shortly after the last round: the old match right away.
+    expect(await keepMatchForClip(minute(11), [replays], archive, minute(12))).toMatchObject({
+      target: join(archive, old),
+    });
+    await rm(archive, { recursive: true, force: true });
+    // Six minutes later: maybe round 1 of a new match without a written round yet.
+    const saved = minute(16);
+    expect(await keepMatchForClip(saved, [replays], archive, minute(17))).toEqual({
+      running: true,
+    });
+    await expect(readdir(archive)).rejects.toMatchObject({ code: 'ENOENT' });
+    // The new match writes its first round: it gets the clip.
+    const next = 'Match-2026-07-12_20-39-52-36588';
+    await write(next, 1, minute(20));
+    expect(await keepMatchForClip(saved, [replays], archive, minute(21))).toEqual({
+      target: join(archive, next),
+      running: true,
+    });
+    // Without a new match, the old one counts once a round would long have been written.
+    await rm(join(replays, next), { recursive: true, force: true });
+    expect(await keepMatchForClip(saved, [replays], archive, minute(27))).toEqual({
+      target: join(archive, old),
+      running: false,
+    });
   } finally {
     await rm(root, { recursive: true, force: true });
   }

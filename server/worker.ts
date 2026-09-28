@@ -14,9 +14,15 @@ function logFailure(what: string, error: unknown) {
   );
 }
 
+/** First wait before the queue tries again after an unexpected failure; doubles up to the cap. */
+const RETRY_MS = 5000;
+const RETRY_MAX_MS = 5 * 60000;
+
 export class AnalysisWorker {
   private running: Promise<void> | null = null;
   private stopped = false;
+  private retryMs = RETRY_MS;
+  private retryTimer?: ReturnType<typeof setTimeout>;
   constructor(
     readonly db: VaultDatabase,
     readonly config: ServerConfig,
@@ -33,21 +39,52 @@ export class AnalysisWorker {
     this.kick();
   }
   kick() {
-    if (!this.running && !this.stopped) {
-      this.running = this.drain().finally(() => {
-        this.running = null;
-        if (!this.stopped && this.hasWork()) this.kick();
-      });
-    }
+    if (this.running || this.stopped) return;
+    clearTimeout(this.retryTimer);
+    this.running = this.drain()
+      .then(() => {
+        this.retryMs = RETRY_MS;
+        return this.hasWork();
+      })
+      .then(
+        (more) => {
+          this.running = null;
+          if (more) this.kick();
+        },
+        // Something beyond a single clip failed, e.g. the database (disk full). Unhandled, the
+        // rejection would end the whole server; the queue tries again later instead.
+        (error: unknown) => {
+          this.running = null;
+          // After stop() the database may already be closed; that is no failure.
+          if (this.stopped) return;
+          logFailure(`Analysis queue stopped, retrying in ${this.retryMs / 1000} s`, error);
+          this.retryTimer = setTimeout(() => this.kick(), this.retryMs);
+          this.retryTimer.unref?.();
+          this.retryMs = Math.min(this.retryMs * 2, RETRY_MAX_MS);
+        },
+      );
   }
   hasWork() {
     return this.db
       .list()
       .some((c) => !c.deleted && (c.status === 'processing' || c.analysis?.status === 'queued'));
   }
-  async stop() {
+  /**
+   * Waits for the clip in progress, but at most `waitMs`: an AI request can take minutes.
+   * Nothing is lost by not waiting, recover() queues an interrupted clip again on the next start.
+   */
+  async stop(waitMs = 8000) {
     this.stopped = true;
-    await this.running;
+    clearTimeout(this.retryTimer);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      this.running,
+      new Promise<void>((done) => {
+        timer = setTimeout(done, waitMs);
+        timer.unref?.();
+      }),
+    ]);
+    clearTimeout(timer);
   }
   async drain() {
     while (!this.stopped) {
@@ -99,13 +136,21 @@ export class AnalysisWorker {
           this.onPrepared?.();
         } catch (error) {
           logFailure(`Clip ${clip.id}: preparing the video failed`, error);
+          const latest = this.db.get(clip.id);
+          if (!latest || latest.deleted) continue;
+          // A result the PC delivered while the video was being prepared stays; retrying the
+          // media keeps it too (app.ts retry-media).
+          const delivered =
+            latest.analysis?.provider === 'client' && latest.analysis.status === 'ready';
           this.db.patch(clip.id, {
             status: 'error',
-            analysis: {
-              status: 'error',
-              error:
-                'The video could not be read. The original stays stored. Check FFmpeg or upload another recording.',
-            },
+            analysis: delivered
+              ? latest.analysis
+              : {
+                  status: 'error',
+                  error:
+                    'The video could not be read. The original stays stored. Check FFmpeg or upload another recording.',
+                },
           });
         }
         continue;
@@ -154,10 +199,13 @@ export class AnalysisWorker {
         this.onGame?.(latest.gameName || result.game);
       } catch (error) {
         logFailure(`Clip ${clip.id}: server analysis failed`, error);
-        if (!this.db.get(clip.id)?.deleted)
+        const latest = this.db.get(clip.id);
+        // Only the analysis this run started turns into an error: a result delivered or a new
+        // request made in the meantime stays.
+        if (latest && !latest.deleted && latest.analysis?.status === 'analyzing')
           this.db.patch(clip.id, {
             analysis: {
-              ...clip.analysis,
+              ...latest.analysis,
               status: 'error',
               error:
                 'The AI analysis failed. Check provider, model, credentials and available memory. You can start the analysis again.',

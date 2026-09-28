@@ -1,6 +1,7 @@
 import { call, errorText, run } from '../api';
 import type { Language } from '../api';
 import { el } from '../dom';
+import { pairingMessage } from '../format';
 import { language, t } from '../i18n';
 import { saveLanguage } from '../language';
 import { state } from '../state';
@@ -133,12 +134,14 @@ export const serverStep: Step = {
             el('p', { textContent: t('w.server.codeText') }),
             el('div', { className: 'row' }, open, cancel),
           ),
-          checkLine('', p.message),
+          checkLine('', pairingMessage(p)),
         );
       } else if (p?.state === 'approved' || wizard.serverOk) {
         if (p?.state === 'approved') draft.server = p.server;
         wizard.serverOk = true;
-        children.push(checkLine('ok', p?.state === 'approved' ? p.message : t('w.server.paired')));
+        children.push(
+          checkLine('ok', p?.state === 'approved' ? pairingMessage(p) : t('w.server.paired')),
+        );
       } else {
         const connect = el('button', {
           type: 'button',
@@ -164,7 +167,7 @@ export const serverStep: Step = {
           wizard.useKey = true;
           paint();
         };
-        if (p) children.push(checkLine('bad', p.message));
+        if (p) children.push(checkLine('bad', pairingMessage(p)));
         // Servers in the home network, searched once per wizard (desktop/discovery.ts).
         if (wizard.found === undefined) {
           wizard.found = null;

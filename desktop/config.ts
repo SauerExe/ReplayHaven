@@ -1,3 +1,4 @@
+import { copyFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { DEFAULT_MODEL, MODELS } from '../agent/ollama';
 import { playerNamesSchema, savedPlayerNames, tidyPlayerNames } from '../agent/players';
@@ -77,8 +78,28 @@ export const DEFAULT_CONFIG: ClientConfig = {
   model: DEFAULT_MODEL,
 };
 
+/**
+ * An error the window shows in its own language: `code` names the text (err.<code> in
+ * desktop/renderer/src/i18n), `params` fill it, and the English message is the fallback for
+ * codes a window does not know.
+ */
+export class CodedError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly params: Record<string, string | number> = {},
+  ) {
+    super(message);
+  }
+}
+
 export function validateServer(value: string) {
-  const url = new URL(value);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new CodedError('server.invalid', 'Enter a valid server address.');
+  }
   if (
     !['http:', 'https:'].includes(url.protocol) ||
     url.username ||
@@ -86,21 +107,37 @@ export function validateServer(value: string) {
     url.search ||
     url.hash
   )
-    throw new Error('Use a server address without embedded credentials.');
+    throw new CodedError(
+      'server.credentials',
+      'Use a server address without embedded credentials.',
+    );
   return value.replace(/\/$/, '');
 }
 
 /**
- * A server address as typed: without a scheme, host names, IPs and addresses with a port usually
- * mean http in the home network, domains https.
+ * Whether a host is in the home network: localhost, an IP address, a name without dots (a PC or
+ * NAS on the LAN) or one of the names routers and mDNS hand out there.
+ */
+function lanHost(host: string) {
+  const name = host.toLowerCase().replace(/\.$/, '');
+  return (
+    name === 'localhost' ||
+    /^\d+\.\d+\.\d+\.\d+$/.test(name) ||
+    name.startsWith('[') ||
+    !name.includes('.') ||
+    /\.(?:local|lan|home|internal|localdomain|home\.arpa|fritz\.box)$/.test(name)
+  );
+}
+
+/**
+ * A server address as typed: without a scheme, hosts in the home network mean http, every other
+ * domain https — also with a port, so a public server is never contacted unencrypted by accident.
  */
 export function serverAddress(address: string) {
-  const local = /^(?:localhost|\d+\.\d+\.\d+\.\d+|[^./:]+(?::\d+)?$|[^/]+:\d+)/.test(address);
-  return validateServer(
-    address.includes('://')
-      ? address
-      : `${local && !address.endsWith(':443') ? 'http' : 'https'}://${address}`,
-  );
+  if (address.includes('://')) return validateServer(address);
+  const host = /^(\[[^\]]*\]|[^/:]*)(?::(\d+))?/.exec(address);
+  const http = !!host && lanHost(host[1]) && host[2] !== '443';
+  return validateServer(`${http ? 'http' : 'https'}://${address}`);
 }
 
 /** Settings from the window, checked and tidied; an empty token keeps the saved one. */
@@ -112,7 +149,8 @@ export function normalizeConfig(value: unknown, savedToken: string) {
     Boolean,
   );
   if (input.epicAccounts.some((a) => !/^[0-9a-f]{32}$/.test(a)))
-    throw new Error(
+    throw new CodedError(
+      'config.epic',
       'An Epic account ID has 32 characters from 0–9 and a–f. You can find it on epicgames.com in your account settings.',
     );
   if (input.token === '') input.token = savedToken;
@@ -122,13 +160,73 @@ export function normalizeConfig(value: unknown, savedToken: string) {
 /**
  * Settings from preferences.json. Files from older versions lack newer fields: a saved folder
  * means setup was done, and the titles follow the window language they were written in before.
+ * A field that does not fit the schema (edited by hand, written by a newer version) falls back to
+ * its default on its own, so one bad value never costs the other settings; `repaired` names them.
  */
-export function fromSaved(saved: Record<string, unknown>, token: string) {
-  return configSchema.parse({
-    onboarded: !!saved.folder,
-    titleLanguage: saved.language,
-    ...saved,
-    playerNames: savedPlayerNames(saved),
+export function readSaved(saved: unknown, token: string) {
+  const isRecord = !!saved && typeof saved === 'object' && !Array.isArray(saved);
+  const record = (isRecord ? saved : {}) as Record<string, unknown>;
+  const repaired: string[] = isRecord ? [] : ['*'];
+  let playerNames: unknown = [];
+  try {
+    playerNames = savedPlayerNames(record);
+  } catch {
+    repaired.push('playerNames');
+  }
+  const input: Record<string, unknown> = {
+    onboarded: !!record.folder,
+    titleLanguage: record.language,
+    ...record,
+    playerNames,
     token,
+  };
+  const output: Record<string, unknown> = {};
+  const shape = configSchema.shape;
+  for (const key of Object.keys(shape) as (keyof typeof shape)[]) {
+    const field = shape[key].safeParse(input[key]);
+    if (field.success) {
+      if (field.data !== undefined) output[key] = field.data;
+      continue;
+    }
+    // Missing values are expected in older files; only a saved but broken one counts.
+    if (record[key] !== undefined) repaired.push(key);
+    if (DEFAULT_CONFIG[key] !== undefined) output[key] = DEFAULT_CONFIG[key];
+  }
+  return { config: configSchema.parse(output), repaired };
+}
+
+export function fromSaved(saved: Record<string, unknown>, token: string) {
+  return readSaved(saved, token).config;
+}
+
+/**
+ * preferences.json as read from disk. Whatever cannot be read falls back on its own: a damaged
+ * file to the defaults ('*'), a broken field to its default, an access key this Windows account
+ * cannot decrypt to none ('token', pair again) while all other settings stay.
+ */
+export function parseSaved(text: string, decrypt: (encrypted: string) => string) {
+  let saved: unknown;
+  try {
+    saved = JSON.parse(text);
+  } catch {
+    saved = undefined;
+  }
+  const encrypted = (saved as { encryptedToken?: unknown } | undefined)?.encryptedToken;
+  let token = '';
+  let lost = false;
+  if (typeof encrypted === 'string' && encrypted)
+    try {
+      token = decrypt(encrypted);
+    } catch {
+      lost = true;
+    }
+  const { config, repaired } = readSaved(saved, token);
+  return { config, repaired: lost ? [...repaired, 'token'] : repaired };
+}
+
+/** Copies a file to <file>.bak before it is overwritten; a missing file needs none. */
+export async function backupFile(file: string) {
+  await copyFile(file, `${file}.bak`).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== 'ENOENT') throw error;
   });
 }

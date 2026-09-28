@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import {
+  certain,
   collectEvents,
   eventsFromFileName,
   eventsInText,
@@ -519,11 +520,13 @@ it.each([
   expect(titleProblems(title, events, headline(events, 0)).join(' ')).toMatch(problem);
 });
 
-it('keeps checking titles of clips without replay as before', () => {
-  // Without a replay a streak is not counted; the title may name it as before.
+it('counts streaks in titles of clips without replay against the kills that were read', () => {
+  // One kill that was read does not carry a double kill; two do.
   expect(
-    titleProblems('Doppel-Kill im Lagerhaus', [at('kill')], headline([at('kill')], 0)),
-  ).toEqual([]);
+    titleProblems('Doppel-Kill im Lagerhaus', [at('kill')], headline([at('kill')], 0)).join(' '),
+  ).toMatch(/2 Kills in Folge, belegt sind 1/);
+  const two = [at('kill'), { ...at('kill'), seconds: 8 }];
+  expect(titleProblems('Doppel-Kill im Lagerhaus', two, headline(two, 0))).toEqual([]);
   expect(titleProblems('Knock am Turm', [], [])).toEqual([]);
 });
 
@@ -574,7 +577,7 @@ it('rejects an R6 place the text recognition never read, but keeps plain phrases
     /Ort Dantzig/,
   );
   const kills = [at('kill'), at('headshot')] as GameEvent[];
-  expect(titleProblems('Dreifach-Kill auf Border', kills, [], read)).toEqual([]);
+  expect(titleProblems('Kill auf Border', kills, [], read)).toEqual([]);
   expect(titleProblems('Kopfschuss auf Distanz', kills, [], place)).toEqual([]);
   expect(titleProblems('Bagger auf dem Hof', [], [], place)).toEqual([]);
   // For the same frame Qwen3.5 wrote "Übersicht über Dirt Haul" in the second run.
@@ -622,4 +625,35 @@ it('rejects titles about the voice chat itself and spelled-out round numbers', (
   ] as GameEvent[];
   expect(titleProblems('Runde zwei gewonnen', won, []).join(' ')).toMatch(/Rundennummer/);
   expect(titleProblems('Runde gewonnen', won, [])).toEqual([]);
+});
+
+it('counts a message read in a single frame as certain only when something backs it up', () => {
+  const events = collectEvents(
+    [
+      frame(10, 'ELIMINIERT: SpielerZwei'),
+      frame(20, 'SIEG', 'result'),
+      frame(21, 'SIEG', 'result'),
+    ],
+    'clip.mp4',
+  );
+  const kill = events.find((e) => e.kind === 'kill')!;
+  const won = events.find((e) => e.kind === 'matchWon')!;
+  expect(kill.once).toBe(true);
+  expect(won.once).toBeUndefined();
+  expect(certain(kill, events)).toBe(false);
+  expect(certain(won, events)).toBe(true);
+  const read = {
+    kind: 'kill' as const,
+    seconds: 11,
+    text: 'Player → SpielerZwei',
+    source: 'ocr' as const,
+  };
+  expect(certain(kill, [...events, read])).toBe(true);
+  expect(certain(read, [read])).toBe(true);
+  // The NVIDIA file name names the same kill.
+  const named = collectEvents(
+    [frame(10, 'ELIMINIERT: SpielerZwei')],
+    'Fortnite 2025.02.14 - 16.55.58.18.Eliminierung.DVR.mp4',
+  );
+  expect(named.map((e) => [e.kind, e.source, e.once])).toEqual([['kill', 'screen', undefined]]);
 });

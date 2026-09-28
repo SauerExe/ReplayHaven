@@ -1,5 +1,5 @@
 import { MediaProcessor } from '../server/media';
-import { ensureSpeechModels, ParakeetSpeech } from './parakeet';
+import { ensureSpeechModels, ParakeetSpeech, untilAborted } from './parakeet';
 
 /**
  * Entry point of the background process for speech recognition (Electron utilityProcess, see
@@ -35,24 +35,32 @@ const media = new MediaProcessor({ ffmpeg: data.ffmpeg, ffprobe: data.ffprobe })
 let engine: Promise<ParakeetSpeech> | undefined;
 const running = new Map<number, AbortController>();
 
+/**
+ * The models, loaded once and shared by all requests. A failed or stalled load (the download
+ * gives up after a minute without data) is forgotten, so the next request tries again.
+ */
 function load(id: number) {
-  engine ??= ensureSpeechModels(data.folder, (file) => port?.postMessage({ id, progress: file }))
-    .then((models) => new ParakeetSpeech({ media, models, runtime: data.runtime }))
-    .catch((error: unknown) => {
-      engine = undefined;
-      throw error;
-    });
-  return engine;
+  if (engine) return engine;
+  const current = ensureSpeechModels(data.folder, (file) =>
+    port?.postMessage({ id, progress: file }),
+  ).then((models) => new ParakeetSpeech({ media, models, runtime: data.runtime }));
+  engine = current;
+  current.catch(() => {
+    if (engine === current) engine = undefined;
+  });
+  return current;
 }
 
 port?.on('message', ({ data: request }) => {
   if (request.type === 'abort') return void running.get(request.id)?.abort();
   const control = new AbortController();
   running.set(request.id, control);
+  // A cancel also ends the wait for the shared load, without cancelling it for the others.
+  const loaded = untilAborted(load(request.id), control.signal);
   const work =
     request.type === 'prepare'
-      ? load(request.id).then(() => true)
-      : load(request.id).then((speech) => speech.transcribe(request.path, control.signal));
+      ? loaded.then(() => true)
+      : loaded.then((speech) => speech.transcribe(request.path, control.signal));
   void work
     .then(
       (value) => port.postMessage({ id: request.id, value }),

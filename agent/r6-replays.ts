@@ -1,5 +1,15 @@
 import { spawn } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readdir, rename, rm, stat } from 'node:fs/promises';
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { localToUtc } from './fortnite';
@@ -149,6 +159,8 @@ export interface OwnRound {
   knocks: number[];
   /** Round clock at the player's own death. */
   death?: number;
+  /** The own death came after the defuser was planted (other clock, as with kills). */
+  deathAfterPlant?: boolean;
   /** Opponents alive when the player was the last of the team left, in a won round. */
   clutch?: number;
   /** Lengths of the player's own streaks with at least two kills. */
@@ -256,6 +268,7 @@ export function ownRound(
   const kills: OwnKill[] = [];
   const knocks: number[] = [];
   let death: number | undefined;
+  let deathAfterPlant = false;
   let lastStanding: number | undefined;
   let planted = false;
   let strange = false;
@@ -281,7 +294,10 @@ export function ownRound(
           : undefined;
     if (!gone || !alive.has(gone)) continue;
     alive.delete(gone);
-    if (timed && gone === me.username && type !== 'PlayerLeave') death ??= clock;
+    if (timed && gone === me.username && type !== 'PlayerLeave' && death === undefined) {
+      death = clock;
+      deathAfterPlant = planted;
+    }
     const mates = players.filter((p) => p.teamIndex === team && alive.has(p.username));
     if (lastStanding === undefined && mates.length === 1 && mates[0].username === me.username)
       lastStanding = opponents.filter((p) => alive.has(p.username)).length || undefined;
@@ -303,7 +319,7 @@ export function ownRound(
     ...(won !== undefined ? { won } : {}),
     kills,
     knocks,
-    ...(death !== undefined ? { death } : {}),
+    ...(death !== undefined ? { death, ...(deathAfterPlant ? { deathAfterPlant } : {}) } : {}),
     ...(won && death === undefined && lastStanding ? { clutch: lastStanding } : {}),
     series: series(kills),
     ace: kills.length >= 5,
@@ -539,19 +555,61 @@ export async function pruneArchive(archive: string, keep = KEPT_MATCHES, current
 
 /** How long after the last round a clip can still be saved (end screen). */
 const AFTER_MATCH_MS = 10 * 60000;
+/**
+ * A clip saved longer than this after the last written round may belong to round 1 of a new match
+ * whose folder has no round yet; the end screen after a match's last round is shorter.
+ */
+const END_SCREEN_MS = 3 * 60000;
+/** How long to wait for the first round of such a new match before the older match counts. */
+const FIRST_ROUND_WAIT_MS = MAX_ROUND_MS;
+
+/**
+ * Sidecar in an archived match folder with the times of the game's original rounds. A copy gets a
+ * new creation time, but roundStart and ownRound need creation and modification time.
+ */
+export const ROUND_TIMES_FILE = 'replayhaven-times.json';
+
+type RoundTimes = Record<string, { mtime: number; birthtime?: number }>;
+
+async function readRoundTimes(folder: string): Promise<RoundTimes> {
+  try {
+    const data: unknown = JSON.parse(await readFile(join(folder, ROUND_TIMES_FILE), 'utf8'));
+    return data && typeof data === 'object' && !Array.isArray(data) ? (data as RoundTimes) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Modification and creation time of a round file. For an archived copy they come from the sidecar,
+ * i.e. from the game's original file; otherwise from the file itself.
+ */
+export async function roundFileTimes(path: string): Promise<Omit<RoundFile, 'path'>> {
+  const info = await stat(path);
+  const kept = (await readRoundTimes(dirname(path)))[basename(path)];
+  if (kept && typeof kept.mtime === 'number' && Number.isFinite(kept.mtime))
+    return {
+      mtime: kept.mtime,
+      ...(typeof kept.birthtime === 'number' && Number.isFinite(kept.birthtime)
+        ? { birthtime: kept.birthtime }
+        : {}),
+    };
+  return { mtime: info.mtimeMs, birthtime: info.birthtimeMs };
+}
 
 /**
  * Backs up the match in which a clip was saved: from the start in the folder name until shortly
  * after the last written round. Rounds already copied stay, new ones are added. Returns the target
  * folder and whether the match may still be running (last round younger than five minutes); then
- * a second call later is worthwhile.
+ * a second call later is worthwhile. Without a target nothing was copied yet: the clip may belong
+ * to a new match that has no written round, so a later call decides.
  */
 export async function keepMatchForClip(
   savedAt: number,
   roots: readonly string[] = defaultReplayFolders(),
   archive = replayArchive(),
   now = Date.now(),
-): Promise<{ target: string; running: boolean } | undefined> {
+): Promise<{ target?: string; running: boolean } | undefined> {
   // The most recent match that began before the clip: the previous one may still be in its
   // grace period (clip 20:45, match from 20:25 ended 20:38, the next began 20:41; test on 2026-09-25).
   let best: { match: MatchFolder; start: number; last: number } | undefined;
@@ -565,21 +623,39 @@ export async function keepMatchForClip(
     for (const match of matches) {
       const start = matchStarted(match.name);
       if (start === undefined || savedAt < start || (best && start <= best.start)) continue;
-      const last = Math.max(
-        ...(await Promise.all(match.rounds.map((r) => stat(r)))).map((s) => s.mtimeMs),
-      );
+      // The game deletes old matches meanwhile; a match with a vanished round is skipped.
+      let last: number;
+      try {
+        last = Math.max(
+          ...(await Promise.all(match.rounds.map((r) => stat(r)))).map((s) => s.mtimeMs),
+        );
+      } catch {
+        continue;
+      }
       if (savedAt <= last + AFTER_MATCH_MS) best = { match, start, last };
     }
   }
   if (!best) return undefined;
+  // Saved well after the last round: possibly round 1 of a new match. Wait for its first round.
+  if (savedAt > best.last + END_SCREEN_MS && now - savedAt < FIRST_ROUND_WAIT_MS)
+    return { running: true };
   const target = join(archive, best.match.name);
   await mkdir(target, { recursive: true });
+  const times = await readRoundTimes(target);
   for (const round of best.match.rounds) {
-    const copy = join(target, basename(round));
-    const [from, to] = await Promise.all([stat(round), stat(copy).catch(() => undefined)]);
-    // A round that was still being written last time is replaced.
-    if (!to || to.size !== from.size) await cp(round, copy, { force: true });
+    const name = basename(round);
+    const copy = join(target, name);
+    try {
+      const [from, to] = await Promise.all([stat(round), stat(copy).catch(() => undefined)]);
+      // A round that was still being written last time is replaced.
+      if (!to || to.size !== from.size)
+        await cp(round, copy, { force: true, preserveTimestamps: true });
+      times[name] = { mtime: from.mtimeMs, birthtime: from.birthtimeMs };
+    } catch {
+      // Deleted by the game in the meantime; a copy made earlier stays.
+    }
   }
+  await writeFile(join(target, ROUND_TIMES_FILE), JSON.stringify(times));
   await pruneArchive(archive, KEPT_MATCHES, best.match.name);
   return { target, running: now - best.last < 5 * 60000 };
 }

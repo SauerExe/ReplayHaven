@@ -27,6 +27,7 @@ const OPEN = new Set([
   '/api/auth/setup',
   '/api/auth/login',
   '/api/auth/logout',
+  '/api/auth/qr/preview',
   '/api/auth/qr/redeem',
   '/api/auth/oidc/start',
   '/api/auth/oidc/callback',
@@ -41,6 +42,7 @@ const SELF_SERVICE = new Set([
   'POST /api/auth/logout',
   'POST /api/auth/password',
   'POST /api/auth/qr',
+  'POST /api/auth/qr/preview',
   'POST /api/auth/qr/redeem',
   'POST /api/auth/oidc/unlink',
   'DELETE /api/auth/sessions/:id',
@@ -56,6 +58,8 @@ const CLIENT_ROUTES = new Set([
 ]);
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+/** Answer of a throttled check while the address is blocked. */
+const BLOCKED = Symbol('blocked');
 const COOKIE = 'rh_session';
 const FLOW_COOKIE = 'rh_oidc';
 const FLOW_PATH = '/api/auth/oidc';
@@ -204,6 +208,25 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     void reply.code(403).send({ error: 'This action requires an admin account.' });
     return true;
   }
+  /**
+   * Runs a slow password check under the throttle. The attempt counts before hashing starts, so
+   * requests sent at once cannot all get past the limit; a falsy result is a failed attempt. A
+   * busy server (AccountError 503) is returned, not thrown, and counts as no attempt.
+   */
+  async function throttled<T>(req: FastifyRequest, check: () => Promise<T>) {
+    if (!throttle.begin(req.ip)) return BLOCKED;
+    let failed = false;
+    try {
+      const result = await check();
+      failed = !result;
+      return result;
+    } catch (error) {
+      if (error instanceof AccountError) return error;
+      throw error;
+    } finally {
+      throttle.end(req.ip, failed);
+    }
+  }
   /** Answers account rule violations with their own status and message. */
   function accountFailure(reply: FastifyReply, error: unknown) {
     if (error instanceof AccountError)
@@ -268,11 +291,11 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       return reply
         .code(403)
         .send({ error: `Password sign-in is disabled. Sign in with ${config.oidc?.name}.` });
-    if (throttle.blocked(req.ip))
+    const account = await throttled(req, () => accounts.verify(body.name, body.password));
+    if (account === BLOCKED)
       return reply.code(429).send({ error: 'Too many failed attempts. Wait a few minutes.' });
-    const account = await accounts.verify(body.name, body.password);
+    if (account instanceof AccountError) return accountFailure(reply, account);
     if (!account) {
-      throttle.fail(req.ip);
       req.log.warn({ ip: req.ip, name: body.name }, 'Sign-in failed');
       return reply.code(401).send({ error: 'Name or password is wrong.' });
     }
@@ -296,14 +319,20 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       .parse(req.body);
     const account = accounts.user(userId);
     if (!account) return reply.code(404).send({ error: 'Account not found.' });
-    if (throttle.blocked(req.ip))
-      return reply.code(429).send({ error: 'Too many failed attempts. Wait a few minutes.' });
     // An account that only signed in through OIDC so far sets its first password without one.
-    if (account.hash && !(await accounts.verify(account.name, body.current))) {
-      throttle.fail(req.ip);
-      return reply.code(401).send({ error: 'The current password is wrong.' });
+    if (account.hash) {
+      const verified = await throttled(req, () => accounts.verify(account.name, body.current));
+      if (verified === BLOCKED)
+        return reply.code(429).send({ error: 'Too many failed attempts. Wait a few minutes.' });
+      if (verified instanceof AccountError) return accountFailure(reply, verified);
+      if (!verified) return reply.code(401).send({ error: 'The current password is wrong.' });
+    } else if (throttle.blocked(req.ip))
+      return reply.code(429).send({ error: 'Too many failed attempts. Wait a few minutes.' });
+    try {
+      await accounts.changePassword(userId, body.next);
+    } catch (error) {
+      return accountFailure(reply, error);
     }
-    await accounts.changePassword(userId, body.next);
     // A new password signs out the account's other browsers, as when an admin resets it.
     const current = req.identity?.session?.id;
     for (const s of accounts.sessions(userId))
@@ -351,6 +380,21 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     const state = accounts.loginCodeState(userId, id);
     if (!state) return reply.code(404).send({ error: 'Code not found.' });
     return state;
+  });
+  // Before redeeming, the page names the account the code signs in: a code someone else slipped
+  // to this browser would otherwise quietly replace its own sign-in. Nothing is used up here.
+  app.post('/api/auth/qr/preview', async (req, reply) => {
+    const { code } = z.object({ code: z.string().min(20).max(100) }).parse(req.body);
+    if (throttle.blocked(req.ip))
+      return reply.code(429).send({ error: 'Too many failed attempts. Wait a few minutes.' });
+    const account = accounts.loginCodeUser(code);
+    if (!account || account.disabled) {
+      throttle.fail(req.ip);
+      return reply.code(401).send({
+        error: 'The code has expired or was already used. Show a new one.',
+      });
+    }
+    return { user: { name: account.name } };
   });
   app.post('/api/auth/qr/redeem', async (req, reply) => {
     const { code } = z.object({ code: z.string().min(20).max(100) }).parse(req.body);
@@ -405,19 +449,28 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
     reply.clearCookie(FLOW_COOKIE, { path: FLOW_PATH });
     const search = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
     const query = new URLSearchParams(search);
-    if (query.get('error'))
-      return failed(
-        reply,
-        `Sign-in was cancelled: ${query.get('error_description') || query.get('error')}`,
+    if (query.get('error')) {
+      // Anyone can send a browser here with an error of their choosing: its text goes to the
+      // log, the page only shows a fixed message.
+      req.log.warn(
+        {
+          error: query.get('error')?.slice(0, 200),
+          description: query.get('error_description')?.slice(0, 500),
+          flow: !!flow,
+        },
+        'Single sign-on was cancelled by the provider',
       );
+      return failed(reply, 'Sign-in was cancelled at the sign-in provider.');
+    }
     if (!flow) return failed(reply, 'The sign-in took too long or was started elsewhere. Retry.');
-    if (throttle.blocked(req.ip))
+    if (!throttle.begin(req.ip))
       return failed(reply, 'Too many failed attempts. Wait a few minutes.');
     let profile;
     try {
       profile = await oidc.finish(search, flow);
+      throttle.end(req.ip, false);
     } catch (error) {
-      throttle.fail(req.ip);
+      throttle.end(req.ip, true);
       return failed(
         reply,
         error instanceof OidcError ? error.message : 'The sign-in could not be completed.',

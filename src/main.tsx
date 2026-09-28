@@ -13,6 +13,8 @@ import { VaultProvider } from './data/store';
 import { AuthGate } from './components/AuthGate';
 import { App } from './App';
 import { LanguageBoundary } from './i18n';
+import { reloadOnStaleChunks } from './components/ErrorBoundary';
+reloadOnStaleChunks();
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>

@@ -14,26 +14,32 @@ const LOSSES: EventKind[] = ['roundLost', 'matchLost'];
 
 // "von hinten ausgeschaltet" describes the player's own kill, "von Deadlock ausgeschaltet" a death.
 const DEATH_BY =
-  /\bvon\s+(?!hinten\b|oben\b|unten\b|vorne\b|links\b|rechts\b|weitem\b|nahem\b)[^\s,.;:!?]+(?:\s+[^\s,.;:!?]+)?\s+(?:ausgeschaltet|eliminiert|erledigt|erwischt|getötet|niedergestreckt)/i;
+  /\bvon\s+(?!hinten\b|oben\b|unten\b|vorne\b|links\b|rechts\b|weitem\b|nahem\b)[^\s,.;:!?]+(?:\s+[^\s,.;:!?]+)?\s+(?:ausgeschaltet|eliminiert|erledigt|erwischt|getötet|niedergestreckt|erschossen|umgelegt|ausgelöscht)/i;
 const DEATH = /\b(?:tod|tot|gestorben|stirbt|stirbst|getötet|ausgeschieden|draufgegangen)\b/i;
+// Without a subject, "Von hinten erwischt" is the player being caught, not the player's kill;
+// "Gegner von hinten erwischt" stays open.
+const CAUGHT = /(?:^|[.!?:–-]\s*)von\s+hinten\s+erwischt/i;
 // Active voice: "Deadlock schaltet dich aus" is a death, "du schaltest ihn aus" a kill.
 const DEATH_ACTIVE =
   /\b(?:schaltet|erledigt|erwischt|killt|tötet|eliminiert|holt|schlägt|besiegt|erschießt)\b[^.,;!?]{0,30}\b(?:dich|mich)\b/i;
 // Trailing agent: "Ausgeschaltet von GegnerEins", "Erledigt durch einen Sturz".
 const DEATH_PASSIVE =
-  /\b(?:ausgeschaltet|eliminiert|erledigt|erwischt|getötet|besiegt)\s+(?:von|durch)\b/i;
-const KILL_ACTIVE = /\b(?:schaltest|erledigst|erwischst|eliminierst|killst|holst)\b/i;
-// Even as an activity ("Zombies töten") this is a claim that needs an event.
+  /\b(?:ausgeschaltet|eliminiert|erledigt|erwischt|getötet|besiegt|erschossen|umgelegt|ausgelöscht)\s+(?:von|durch)\b/i;
+const KILL_ACTIVE =
+  /\b(?:schaltest|erledigst|erwischst|eliminierst|killst|holst|erschießt|erschießst|löschst)\b|\blegst\s+\S+(?:\s+\S+)?\s+um\b/i;
+// Even as an activity ("Zombies töten") this is a claim that needs an event. Gaming slang counts
+// too: "Team-Wipe", "One-Tap", "zwei Abschüsse", "Frags".
 const KILL =
-  /\b(?:kills?|headshots?|kopfsch(?:uss|üssen?)|ace|multikill|(?:doppel|dreifach|vierfach|mehrfach)-?kills?|abschuss|abgeschossen|abschie(?:ß|ss)en|töten|killen)\b/i;
+  /\b(?:kills?|headshots?|kopfsch(?:uss|üssen?)|ace|multikill|(?:doppel|dreifach|vierfach|mehrfach)-?kills?|abschuss|abschüssen?|abgeschossen|abschie(?:ß|ss)en|töten|killen|umlegen|erschie(?:ß|ss)en|auslöschen|(?:team-?)?wipes?|one-?taps?|onetap\w*|frags|gefraggt|fraggen|fraggt)\b/i;
 // Only checked against replay events: snipes and knocks ("niedergeschlagen" is not a kill).
 const SNIPE = /\b(?:snipes?|gesnip(?:ed|t)|no-?scope\w*)\b/i;
 const KNOCK = /\b(?:knocks?|geknockt|umgeknockt|niedergeschlagen)\b/i;
 // Can mean a kill or a death; allowed as soon as either one is proven.
 const EITHER =
-  /\b(?:ausgeschaltet|ausschalten|eliminiert|eliminieren|eliminierung(?:en)?|erledigt|erledigen|erwischt|besiegt)\b/i;
+  /\b(?:ausgeschaltet|ausschalten|eliminiert|eliminieren|eliminierung(?:en)?|erledigt|erledigen|erwischt|besiegt|umgelegt|erschossen|ausgelöscht)\b/i;
 // "Gegner besiegt" is a kill, not a win.
-const WIN = /(?<!be)sieg|gewonnen|gewinn|victory/i;
+const WIN =
+  /(?<!be)sieg|gewonnen|gewinn|victory|chicken\s*dinner|platz\s*(?:1|eins)(?!\d)|erste[rnms]?\s+platz|\bwin\b/i;
 const LOSS = /niederlage|verloren|verlier/i;
 // Revive and spectating imply a death without claiming one.
 const AFTER_DEATH = /respawn|wiederbeleb|zuschau|ausgeschieden/i;
@@ -68,7 +74,7 @@ export function unsupportedClaims(text: string, events: GameEvent[]) {
   const kill = has(events, KILLS);
   const death = has(events, ['death']);
   const killed = KILL.test(rest) || KILL_ACTIVE.test(rest);
-  if ((deathBy || DEATH.test(rest)) && !death)
+  if ((deathBy || DEATH.test(rest) || CAUGHT.test(text)) && !death)
     problems.push('behauptet deinen Tod, den keine Meldung belegt');
   if (killed && !kill) problems.push('behauptet einen Kill, den keine Meldung belegt');
   // Replay events are counted and measured; only with them can snipes, knocks, streaks and
@@ -76,14 +82,24 @@ export function unsupportedClaims(text: string, events: GameEvent[]) {
   if (events.some((e) => e.source === 'replay'))
     problems.push(...exactClaims(rest, events, killed));
   else {
-    // A streak that was read is counted too: "Vierfach-Kill" with three kills is wrong.
+    // A streak that was read is counted too: "Vierfach-Kill" with three kills is wrong, and so is
+    // "Dreifach-Kill" or "Drei Kills in Folge" when only one kill is proven.
     const counted = Math.max(
-      0,
-      ...events.map((e) => (e.kind === 'multikill' ? (e.count ?? 2) : 0)),
+      events.filter((e) => e.kind === 'kill').length,
+      events.filter((e) => e.kind === 'headshot').length,
+      ...events.map((e) =>
+        e.kind === 'multikill' ? (e.count ?? (seriesIn(e.text) || 2)) : e.kind === 'ace' ? 5 : 0,
+      ),
     );
     const series = seriesIn(rest);
-    if (counted && series > counted)
-      problems.push(`behauptet ${series} Kills in Folge, belegt sind ${counted}`);
+    const claimed = Math.max(series, countIn(rest, KILL_NOUNS));
+    // Without any proven kill the claim itself is already reported.
+    if (claimed > counted && !(killed && !counted))
+      problems.push(
+        series === claimed
+          ? `behauptet ${series} Kills in Folge, belegt sind ${counted}`
+          : `behauptet ${claimed} Kills, belegt sind ${counted}`,
+      );
   }
   // In R6 an operator is called ACE ("KILLED BY xiTango | ACE"); an ace needs its own message.
   if (/\bace\b/i.test(text) && !has(events, ['ace']))
@@ -239,7 +255,7 @@ export function titleProblems(
     main?.kind === 'death' &&
     !problems.length &&
     !has(headlineEvents, KILLS) &&
-    ![DEATH_BY, DEATH_ACTIVE, DEATH, AFTER_DEATH, DEATH_PASSIVE].some((p) => p.test(title))
+    ![DEATH_BY, DEATH_ACTIVE, DEATH, CAUGHT, AFTER_DEATH, DEATH_PASSIVE].some((p) => p.test(title))
   )
     problems.push(
       'lässt offen, wer ausgeschaltet wurde; es war dein eigener Tod (etwa "Von … ausgeschaltet")',
@@ -337,7 +353,9 @@ function mentions(title: string, event: GameEvent) {
   const trade = /abtausch|\btrade\b|gegenseitig/i;
   if (kind === 'knock') return KNOCK.test(title);
   if (kind === 'death')
-    return [DEATH_BY, DEATH_ACTIVE, DEATH, EITHER, AFTER_DEATH, trade].some((p) => p.test(title));
+    return [DEATH_BY, DEATH_ACTIVE, DEATH, CAUGHT, EITHER, AFTER_DEATH, trade].some((p) =>
+      p.test(title),
+    );
   if (KILLS.includes(kind))
     return [KILL, KILL_ACTIVE, EITHER, trade, ...(event.source === 'replay' ? [SNIPE] : [])].some(
       (p) => p.test(title),

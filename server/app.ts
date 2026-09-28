@@ -5,7 +5,7 @@ import fastifyStatic from '@fastify/static';
 import cookie from '@fastify/cookie';
 import { createHash, randomUUID } from 'node:crypto';
 import { createWriteStream, readFileSync } from 'node:fs';
-import { mkdir, rename, rm, stat } from 'node:fs/promises';
+import { mkdir, readdir, rename, rm, stat, statfs } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
@@ -42,6 +42,26 @@ const serverVersion = (() => {
   }
 })();
 const idSchema = z.string().uuid();
+/** Room an upload needs: the largest accepted file plus its web rendition, thumbnail and database. */
+const MIN_FREE_BYTES = 3 * 1024 ** 3;
+/** Bytes available to the server in `directory`. */
+async function diskSpace(directory: string) {
+  const { bavail, bsize } = await statfs(directory);
+  return Number(bavail) * Number(bsize);
+}
+/**
+ * Removes uploads that were cut off by a crash or restart (incoming/*.part). Only old ones: an
+ * upload may still be arriving while a second server process starts, e.g. the admin CLI.
+ */
+async function sweepIncoming(directory: string, olderThanMs = 3600_000) {
+  for (const name of await readdir(directory).catch(() => [] as string[])) {
+    if (!name.endsWith('.part')) continue;
+    const path = join(directory, name);
+    const info = await stat(path).catch(() => undefined);
+    if (info?.isFile() && Date.now() - info.mtimeMs > olderThanMs)
+      await rm(path, { force: true }).catch(() => {});
+  }
+}
 /** The message of the first validation problem, e.g. a too short password. */
 function zodMessage(error: unknown) {
   const issue = error instanceof z.ZodError ? error.issues[0] : undefined;
@@ -51,7 +71,12 @@ function zodMessage(error: unknown) {
 }
 export async function buildServer(
   config: ServerConfig,
-  overrides: { provider?: AnalysisProvider; media?: MediaProcessor } = {},
+  overrides: {
+    provider?: AnalysisProvider;
+    media?: MediaProcessor;
+    /** Free disk space in bytes below a directory (tests simulate a full disk). */
+    freeBytes?: (directory: string) => Promise<number>;
+  } = {},
 ) {
   const app = Fastify({
     logger: config.logLevel ? { level: config.logLevel } : false,
@@ -92,6 +117,8 @@ export async function buildServer(
     worker.hasWork(),
   );
   await mkdir(join(config.dataDir, 'incoming'), { recursive: true });
+  await sweepIncoming(join(config.dataDir, 'incoming'));
+  const freeBytes = overrides.freeBytes ?? diskSpace;
   await app.register(cookie, {
     secret: createHash('sha256')
       .update(config.token || 'local-loopback-only')
@@ -149,7 +176,8 @@ export async function buildServer(
     if (auth.guard(req, reply)) return reply;
   });
   // Accounts, roles, devices and pairing (server/auth-routes.ts).
-  const auth = registerAuth(app, new Accounts(db.db), config);
+  const accounts = new Accounts(db.db);
+  const auth = registerAuth(app, accounts, config);
   app.setErrorHandler((error, req, reply) => {
     const status =
       error instanceof z.ZodError ? 400 : (error as { statusCode?: number }).statusCode || 500;
@@ -208,32 +236,34 @@ export async function buildServer(
     // The file name comes from the stored entry, not from the request.
     return reply.sendFile(entry.info.cover, coverDir);
   });
-  app.get('/api/status', async (req) => ({
-    connected: true,
-    version: serverVersion,
-    provider: config.provider,
-    configured: aiConfigured(config),
-    model: config.model,
-    settings: db.settings(),
-    queue: db
-      .list()
-      .filter(
+  app.get('/api/status', async (req) => {
+    // Read once: the web app polls this every few seconds and the list holds every clip.
+    const clips = db.list();
+    return {
+      connected: true,
+      version: serverVersion,
+      provider: config.provider,
+      configured: aiConfigured(config),
+      model: config.model,
+      settings: db.settings(),
+      queue: clips.filter(
         (c) =>
           !c.deleted &&
           (c.status === 'processing' ||
             ['queued', 'preparing', 'analyzing'].includes(c.analysis?.status || '')),
       ).length,
-    // The folders on the gaming PCs are the admins' business.
-    devices: db.devices().map((d) => {
-      const shown = { ...d, ...(auth.admin(req) ? {} : { folder: '' }) };
-      delete shown.owner;
-      return shown;
-    }),
-    clientDownloadAvailable: (await localInstaller()) || !!config.clientDownloadUrl,
-    gameMetadata: games.status(),
-    playback: playback.status(),
-    supportBanner: config.supportBanner !== false,
-  }));
+      // The folders on the gaming PCs are the admins' business.
+      devices: db.devices().map((d) => {
+        const shown = { ...d, ...(auth.admin(req) ? {} : { folder: '' }) };
+        delete shown.owner;
+        return shown;
+      }),
+      clientDownloadAvailable: (await localInstaller()) || !!config.clientDownloadUrl,
+      gameMetadata: games.status(clips),
+      playback: playback.status(clips),
+      supportBanner: config.supportBanner !== false,
+    };
+  });
   app.get('/api/downloads/windows', async (_req, reply) => {
     if (await localInstaller()) {
       reply.header('Content-Disposition', 'attachment; filename="ReplayHaven-Client-Setup.exe"');
@@ -273,6 +303,14 @@ export async function buildServer(
     return publicClip(clip);
   });
   app.post('/api/clips', async (req, reply) => {
+    // Checked before receiving anything: a full disk would also stop the database.
+    const free = await freeBytes(config.dataDir).catch(() => undefined);
+    if (free !== undefined && free < MIN_FREE_BYTES) {
+      req.log.warn({ free }, 'Upload refused: too little free disk space');
+      return reply.code(507).send({
+        error: 'The server is running out of disk space. Free up space on the server, then retry.',
+      });
+    }
     const file = await req.file();
     if (!file) return reply.code(400).send({ error: 'Choose a video file.' });
     const extension = extname(file.filename).toLowerCase();
@@ -301,14 +339,15 @@ export async function buildServer(
           error: file.file.truncated ? 'The file is larger than 2 GB.' : 'The file is empty.',
         });
       const digest = hash.digest('hex');
-      const duplicate = db.findHash(digest);
-      if (duplicate) {
+      const answerDuplicate = (duplicate: StoredClip) => {
         // Uploading a removed clip again on purpose brings it back; clients skip removed clips
         // before uploading (lookup above), so they stay removed there.
         if (duplicate.deleted) db.patch(duplicate.id, { deleted: false });
         if (duplicate.gameName) games.schedule(duplicate.gameName);
         return reply.code(200).send({ clip: publicClip(db.get(duplicate.id)!), duplicate: true });
-      }
+      };
+      const duplicate = db.findHash(digest);
+      if (duplicate) return answerDuplicate(duplicate);
       const directory = join(config.dataDir, 'clips', id);
       await mkdir(directory, { recursive: true });
       const originalFile = join(directory, `original${extension}`);
@@ -351,7 +390,17 @@ export async function buildServer(
         analysis: { status: 'preparing' },
       };
       clip.expectsClientAnalysis = req.headers['x-client-analysis'] === '1';
-      db.put(clip);
+      const session = req.identity?.kind === 'client' ? req.identity.session : undefined;
+      if (session) clip.uploader = { session: session.id, user: session.userId };
+      try {
+        db.put(clip);
+      } catch (error) {
+        // The same file arrived twice at once: the other upload stored it first (UNIQUE hash).
+        const first = db.findHash(digest);
+        if (!first) throw error;
+        await rm(directory, { recursive: true, force: true }).catch(() => {});
+        return answerDuplicate(first);
+      }
       worker.kick();
       return reply.code(201).send({ clip: publicClip(clip), duplicate: false });
     } finally {
@@ -362,6 +411,18 @@ export async function buildServer(
     const id = idSchema.parse(req.params.id);
     const clip = db.get(id);
     if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
+    // A paired PC only delivers results for its own uploads. After a new pairing its old
+    // session is gone; a PC of the same account then takes over.
+    const caller = req.identity?.kind === 'client' ? req.identity.session : undefined;
+    const uploader = clip.uploader;
+    if (
+      caller &&
+      uploader &&
+      caller.id !== uploader.session &&
+      (caller.userId !== uploader.user ||
+        accounts.sessions(uploader.user).some((s) => s.id === uploader.session))
+    )
+      return reply.code(403).send({ error: 'This clip was uploaded by another PC.' });
     const payload = z
       .object({
         result: analysisSchema,
@@ -443,7 +504,12 @@ export async function buildServer(
     if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
     if (clip.status !== 'error')
       return reply.code(409).send({ error: 'Video processing has not failed.' });
-    db.patch(id, { status: 'processing', analysis: { status: 'preparing' } });
+    // A result the PC already delivered stays (worker.ts keeps it when preparing fails).
+    const delivered = clip.analysis?.provider === 'client' && clip.analysis.status === 'ready';
+    db.patch(id, {
+      status: 'processing',
+      analysis: delivered ? clip.analysis : { status: 'preparing' },
+    });
     worker.kick();
     return reply.code(202).send({ queued: true });
   });

@@ -14,6 +14,7 @@ import { ApiError, api } from '../data/api';
 import { LANGUAGES, setLanguage, t, tx, useLanguage } from '../i18n';
 import { takeSetupKey } from './setup-link';
 import { localizeServerMessage } from '../data/server-messages';
+import { repository } from '../data/repository';
 
 /** What the server says about this browser's sign-in (server/auth-routes.ts). */
 export interface AuthState {
@@ -116,6 +117,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, [refresh]);
   const logout = useCallback(async () => {
     await api('/auth/logout', { method: 'POST' }).catch(() => {});
+    // The library of this account must not stay behind for the next one on this device.
+    repository.forgetServerClips();
     await refresh();
   }, [refresh]);
 
@@ -553,20 +556,78 @@ function AuthScreen({
   );
 }
 
-/** Target of the QR code: signs this device in with the one-time code and opens the library. */
+/**
+ * Target of the QR code: signs this device in with the one-time code and opens the library. A
+ * device that is already signed in asks first, so a link someone else sent cannot silently swap
+ * the account.
+ */
 function ConnectPage() {
   useLanguage();
   const uid = useId();
   const [error, setError] = useState('');
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('code') || '';
+  // Only set on a device that is already signed in: who it is now and whom the code signs in
+  // (empty when unknown, e.g. a server without the preview).
+  const [confirm, setConfirm] = useState<{ current: string; target: string } | null>(null);
+  const [redeeming, setRedeeming] = useState(false);
+  const code = new URLSearchParams(window.location.search).get('code') || '';
+  const fail = useCallback((e: unknown) => {
+    setRedeeming(false);
+    setError(e instanceof Error ? e.message : t('auth.connect.codeFailed'));
+  }, []);
+  const redeem = useCallback(() => {
+    setRedeeming(true);
     api('/auth/qr/redeem', { method: 'POST', body: JSON.stringify({ code }) })
       .then(() => window.location.replace('/'))
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : t('auth.connect.codeFailed')),
-      );
-  }, []);
+      .catch(fail);
+  }, [code, fail]);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const state = await loadState();
+      if (!active) return;
+      if (!state?.loggedIn) return redeem();
+      let target = '';
+      try {
+        const preview = await api<{ user?: { name?: string } }>('/auth/qr/preview', {
+          method: 'POST',
+          body: JSON.stringify({ code }),
+        });
+        target = preview.user?.name ?? '';
+      } catch (e) {
+        // A used-up code or too many attempts: say so right away. Anything else (such as an older
+        // server without the preview) still asks, just without the name.
+        if (e instanceof ApiError && (e.status === 401 || e.status === 429)) {
+          if (active) fail(e);
+          return;
+        }
+      }
+      if (active) setConfirm({ current: state.user?.name ?? '', target });
+    })();
+    return () => {
+      active = false;
+    };
+  }, [code, fail, redeem]);
   const titleId = `${uid}title`;
+  if (!error && confirm && !redeeming)
+    return (
+      <AuthLayout titleId={titleId} help={t('auth.help.connect')}>
+        <h1 id={titleId}>{t('auth.connect.switchTitle')}</h1>
+        <p className="auth-lead">
+          {confirm.current
+            ? t('auth.connect.signedInAs', { name: confirm.current })
+            : t('auth.connect.signedIn')}{' '}
+          {confirm.target
+            ? t('auth.connect.codeFor', { name: confirm.target })
+            : t('auth.connect.codeForCreator')}
+        </p>
+        <button type="button" className="button primary auth-submit" onClick={redeem}>
+          {t('auth.connect.switchConfirm')}
+        </button>
+        <a className="button secondary auth-submit" href="/">
+          {t('auth.connect.switchCancel')}
+        </a>
+      </AuthLayout>
+    );
   if (!error)
     return (
       <AuthLayout titleId={titleId} busy>

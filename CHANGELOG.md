@@ -6,6 +6,49 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The installer backs up the database inside the volume before every update (newest three kept)
+  and updates in place when run inside an existing install directory.
+- The server records a schema version and refuses to start on a database written by a newer
+  release, so pinning an older image cannot damage newer data.
+- Server troubleshooting section in docs/SERVER.md; every documented setting is passed through
+  in `compose.yaml` and the Coolify template.
+- Opening a QR sign-in link while already signed in asks before switching accounts and names both.
+- The web library shows a reload message instead of a blank page when a page fails to load after
+  an update.
+
+### Changed
+
+- Sign-in attempts still being checked count toward the limit, so parallel requests cannot get
+  past it; at most 64 password checks wait at once.
+- `REPLAYHAVEN_TRUST_PROXY=1` now trusts one proxy hop instead of every hop.
+- Only the PC that uploaded a clip (or another PC of the same account) can deliver its AI result.
+- Uploads need 3 GB of free space on the server; leftovers of interrupted uploads are removed at
+  startup. FFmpeg only reads video containers.
+- The web library no longer stores server clips in the browser, skips unchanged poll results and
+  sends bulk changes four at a time with one refresh at the end.
+- The client pauses an upload when a game starts, opens the release page for updates and uses
+  https for domain names without a scheme. Its error messages are translated.
+- Release jobs get only the permissions they need; pre-release tags never become `latest`. Base
+  images are pinned by digest and the image carries an SBOM.
+- AI titles and descriptions: kill and win synonyms, streak counts with a single kill, invented
+  map names in any game and claims added by the English translation are rejected. Events read
+  only once from the screen no longer make an analysis "certain".
+
+### Fixed
+
+- Changing the server address in the client no longer drops clips that were still waiting.
+- A settings file with one bad field keeps all other settings (and a backup) instead of resetting.
+- A database error in the background job no longer crashes the server; two simultaneous uploads
+  of one file no longer fail with an orphaned copy.
+- Shutdown finishes within seconds; a PC result survives a failed video preparation.
+- Archived R6 matches keep their round times; a clip from the first round of a new match no
+  longer archives the previous match.
+- Speech recognition cannot hang on a stalled model download or a cancelled clip, and no longer
+  transcribes a silent or game audio track.
+- A Valorant killfeed that read nothing no longer removes all kills.
+
 ## [1.1.4] - 2026-09-28
 
 ### Added

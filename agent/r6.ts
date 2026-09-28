@@ -5,7 +5,7 @@ import type { EventKind, GameEvent } from './events';
 import { crop, joinRows, TextReader } from './ocr';
 import type { OcrModels, TextLine } from './ocr';
 import { sameGame } from './players';
-import { feedEvents, isValorant, KILLFEED } from './valorant';
+import { feedEvents, isValorant, KILLFEED, sameName } from './valorant';
 import type { FeedFrame } from './valorant';
 import type { MediaProcessor } from '../server/media';
 
@@ -214,7 +214,12 @@ export function r6Findings(frames: FrameText[], game: string): TextFindings {
   // No file name: NVIDIA events are not the business of text recognition.
   const events = collectEvents(seen, 'ocr', game)
     .filter((e) => RESULTS.includes(e.kind) && e.source === 'screen')
-    .map((e): GameEvent => ({ ...e, source: 'ocr' }));
+    .map((e): GameEvent => {
+      const read: GameEvent = { ...e, source: 'ocr' };
+      // Text recognition is certain on its own; the single-frame mark is for the model's reading.
+      delete read.once;
+      return read;
+    });
   return { ...(map ? { map } : {}), events };
 }
 
@@ -231,6 +236,22 @@ export interface TextLookup extends TextFindings {
   /** The killfeed was read; its kills and deaths replace those the model read. */
   feed?: boolean;
   trace: TextTrace;
+}
+
+/**
+ * The player's names as the Valorant killfeed shows them: without the Riot tag ("Player#EUW"
+ * appears as "Player"). Empty names are dropped.
+ */
+export function feedNames(names: readonly string[]) {
+  return names.map((n) => n.replace(/\s*#.*$/, '').trim()).filter(Boolean);
+}
+
+/**
+ * Whether the killfeed was really read: at least one frame, and one of the player's names in
+ * some line. Otherwise the feed proves nothing, and the kills and deaths the model read stay.
+ */
+export function feedRead(frames: readonly FeedFrame[], names: readonly string[]) {
+  return frames.some((f) => f.lines.some((l) => names.some((n) => sameName(l.text, n))));
 }
 
 /**
@@ -296,6 +317,8 @@ export class ClipTexts {
       if (signal?.aborted) break;
       frames.push({ seconds, rows: joinRows(await reader.read(frame)) });
     }
+    // As with Valorant: an aborted read proves nothing.
+    if (signal?.aborted) return undefined;
     const findings = r6Findings(frames, game);
     return {
       ...findings,
@@ -315,8 +338,9 @@ export class ClipTexts {
   private async valorant(
     path: string,
     signal: AbortSignal | undefined,
-    names: readonly string[],
+    riotIds: readonly string[],
   ): Promise<TextLookup | undefined> {
+    const names = feedNames(riotIds);
     if (!names.length) return undefined;
     const started = Date.now();
     const reader = await this.load();
@@ -340,7 +364,7 @@ export class ClipTexts {
     const events = feedEvents(frames, names);
     return {
       events,
-      feed: true,
+      feed: feedRead(frames, names),
       trace: {
         frames: frames.length,
         seconds: Math.round((Date.now() - started) / 100) / 10,

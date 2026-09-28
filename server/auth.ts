@@ -93,9 +93,13 @@ export const SCRYPT_COST = 2 ** 17;
 const LEGACY_COST = 2 ** 14;
 /** At most this many password hashes at once (128 MiB each); others wait their turn. */
 const MAX_HASHING = 4;
+/** Beyond this many waiting, a request is refused at once instead of queueing for minutes. */
+export const MAX_WAITING_FOR_HASH = 64;
 let hashing = 0;
 const waitingForHash: (() => void)[] = [];
 async function scrypt(password: string, salt: string, cost = SCRYPT_COST) {
+  if (hashing >= MAX_HASHING && waitingForHash.length >= MAX_WAITING_FOR_HASH)
+    throw new AccountError('The server is busy. Try again in a moment.', 503);
   while (hashing >= MAX_HASHING) await new Promise<void>((go) => waitingForHash.push(go));
   hashing++;
   try {
@@ -554,6 +558,14 @@ export class Accounts {
       .run(id, JSON.stringify({ userId, expiresAt } satisfies LoginCode));
     return { code, id, expiresAt };
   }
+  /** The account a valid QR code signs in, without using the code up. */
+  loginCodeUser(code: string, now = Date.now()) {
+    const row = this.db.prepare('SELECT data FROM login_codes WHERE key=?').get(sha(code)) as
+      { data: string } | undefined;
+    const data = row && (JSON.parse(row.data) as LoginCode);
+    if (!data || data.usedAt || Date.parse(data.expiresAt) <= now) return undefined;
+    return this.user(data.userId);
+  }
   /** Redeems a QR code exactly once and notes which device used it. */
   redeemLoginCode(code: string, now = Date.now()) {
     const key = sha(code);
@@ -591,6 +603,8 @@ export class Accounts {
  */
 export class Throttle {
   private readonly failures = new Map<string, number[]>();
+  /** Attempts started with begin() and not yet ended, per address. */
+  private readonly running = new Map<string, number>();
   constructor(
     private readonly limit = 20,
     private readonly windowMs = 15 * 60000,
@@ -604,7 +618,24 @@ export class Throttle {
     return list;
   }
   blocked(key: string, now = Date.now()) {
-    return this.recent(key, now).length >= this.limit;
+    return this.recent(key, now).length + (this.running.get(key) ?? 0) >= this.limit;
+  }
+  /**
+   * Starts an attempt whose check is slow (password hashing); false when the address is blocked.
+   * Until end(), the attempt counts as failed: otherwise many requests sent at once would all
+   * pass the check before the first of them failed.
+   */
+  begin(key: string, now = Date.now()) {
+    if (this.blocked(key, now)) return false;
+    this.running.set(key, (this.running.get(key) ?? 0) + 1);
+    return true;
+  }
+  /** Ends an attempt from begin(); a failed one is recorded as a failure. */
+  end(key: string, failed: boolean, now = Date.now()) {
+    const count = (this.running.get(key) ?? 1) - 1;
+    if (count > 0) this.running.set(key, count);
+    else this.running.delete(key);
+    if (failed) this.fail(key, now);
   }
   fail(key: string, now = Date.now()) {
     const list = this.recent(key, now);

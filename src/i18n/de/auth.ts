@@ -64,4 +64,12 @@ export const auth: Translation<typeof source> = {
   'auth.connect.failedLead':
     'Hol dir unter Einstellungen → Geräte auf einem angemeldeten Gerät einen neuen QR-Code oder melde dich mit Name und Passwort an.',
   'auth.connect.toLogin': 'Zur Anmeldung',
+  'auth.connect.switchTitle': 'Mit einem anderen Konto anmelden?',
+  'auth.connect.signedInAs': 'Dieses Gerät ist bereits als {name} angemeldet.',
+  'auth.connect.signedIn': 'Dieses Gerät ist bereits angemeldet.',
+  'auth.connect.codeFor': 'Der Code meldet es stattdessen als {name} an.',
+  'auth.connect.codeForCreator':
+    'Der Code meldet es stattdessen mit dem Konto an, das ihn erstellt hat.',
+  'auth.connect.switchConfirm': 'Konto wechseln',
+  'auth.connect.switchCancel': 'Angemeldet bleiben',
 };

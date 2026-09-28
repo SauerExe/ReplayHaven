@@ -128,7 +128,7 @@ Install Docker Engine with the Compose plugin ([guide](https://docs.docker.com/e
 curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash
 ```
 
-The installer creates `./replayhaven` with `compose.yaml` and a `.env` from the latest release (checked against the release's `SHA256SUMS.txt`, which catches broken downloads; both come from the same release, so it is no signature), generates the access key, asks for the address you open in the browser (your LAN address is suggested), starts the published multi-arch image `ghcr.io/sauerexe/replayhaven` and prints a setup link. Running it again updates to the latest release and keeps your `.env`. Want to read it first? Download [`install.sh`](https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh) and run `bash install.sh`.
+The installer creates `./replayhaven` with `compose.yaml` and a `.env` from the latest release (checked against the release's `SHA256SUMS.txt`, which catches broken downloads; both come from the same release, so it is no signature), generates the access key, asks for the address you open in the browser (your LAN address is suggested), starts the published multi-arch image `ghcr.io/sauerexe/replayhaven` and prints a setup link. Running it again, in the same directory or inside `replayhaven/`, updates to the latest release, keeps your `.env` and backs up the database first. Want to read it first? Download [`install.sh`](https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh) and run `bash install.sh`.
 
 Open the setup link to create your admin account. It carries the access key from `.env` in the part after `#`, which the browser never sends to the server; the page removes it from the address bar right away. The key is needed once, so nobody else can claim a server that is already reachable. Lost the link? `docker compose logs replayhaven` shows it until the first account exists, or open the server address and enter `REPLAYHAVEN_ACCESS_TOKEN` from `.env`. Other devices then sign in with name and password, or scan the QR code under **Settings → Devices → Connect phone**.
 
@@ -196,7 +196,7 @@ Command-line tools show what these sources contribute to your own clips before y
 
 | Component  | Requirement                                                                                                                                                    |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server     | Docker Engine 24+ with Compose v2.24+, linux/amd64 or linux/arm64, disk space for your clips. Without Docker: Node.js 22.13+ and FFmpeg.                       |
+| Server     | Docker Engine 24+ with Compose v2.24.4+, linux/amd64 or linux/arm64, disk space for your clips. Without Docker: Node.js 22.13+ and FFmpeg.                     |
 | Gaming PC  | Windows 10/11 x64. For local AI: [Ollama](https://ollama.com) and a GPU with about 10 GB VRAM for Qwen3.5 9B, or 6 to 8 GB for 4B. CPU-only works, but slowly. |
 | Recordings | MP4, M4V, MOV, WebM or MKV, up to 2 GB, 30 minutes and 8K per file. Light H.264 MP4 plays directly; everything else gets a web version transcoded on the CPU.  |
 | Recorder   | Anything that writes files into a folder: NVIDIA App (Instant Replay), OBS, Xbox Game Bar and others.                                                          |

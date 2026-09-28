@@ -10,7 +10,7 @@ On a host with Docker Engine and the Compose plugin:
 curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash
 ```
 
-The installer creates `./replayhaven` (or `$REPLAYHAVEN_DIR`), downloads `compose.yaml` and `env.example` from the release and checks them against its `SHA256SUMS.txt`, writes `.env` with a new access key and the address you confirm, runs `docker compose pull` and `docker compose up -d`, waits for the server and prints a setup link. It does not install Docker. Without a terminal (for example from a provisioning script) it takes the suggested defaults. Options go in front of `bash` as environment variables: `REPLAYHAVEN_VERSION=1.1.0` pins a release, `REPLAYHAVEN_PUBLIC_ORIGIN` skips the address question, `REPLAYHAVEN_HOST_PORT` changes the port. Running it again updates: it keeps `.env`, replaces `compose.yaml` (a changed one is kept as `compose.yaml.bak`), pulls the new image and restarts.
+The installer creates `./replayhaven` (or `$REPLAYHAVEN_DIR`), downloads `compose.yaml` and `env.example` from the release and checks them against its `SHA256SUMS.txt`, writes `.env` with a new access key and the address you confirm, runs `docker compose pull` and `docker compose up -d`, waits for the server and prints a setup link. It does not install Docker. Without a terminal (for example from a provisioning script) it takes the suggested defaults. Options go in front of `bash` as environment variables: `REPLAYHAVEN_VERSION=1.1.0` pins a release, `REPLAYHAVEN_PUBLIC_ORIGIN` skips the address question, `REPLAYHAVEN_HOST_PORT` changes the port. Running it again updates, either from the directory that holds `replayhaven/` or from inside the install directory (it recognises `compose.yaml` and `.env` there). It keeps `.env`, backs up the database (see [Data and backup](#data-and-backup)), replaces `compose.yaml`, pulls the new image and restarts. When the old `compose.yaml` differs from the release only in its `image:` line, it is kept as `compose.yaml.bak`. When it has other changes of your own, the installer stops without changing anything and saves the release's file as `compose.yaml.new`; move your changes into `compose.override.yaml`, replace `compose.yaml` with `compose.yaml.new` and run it again.
 
 The setup link looks like `http://192.168.1.10:8787/#setup-key=<access key>`. The key sits in the URL fragment, which browsers do not send to the server or through a proxy; the sign-in page fills it in and removes it from the address bar. The link only works while the server has no account; after that the server refuses a second setup. Until then the server also prints the link to its log (`docker compose logs replayhaven`), built from the first `REPLAYHAVEN_PUBLIC_ORIGIN`, which helps in Coolify, Unraid and other panels. That log line contains the access key, so treat the logs like `.env`.
 
@@ -18,13 +18,14 @@ By hand instead: download `compose.yaml` and `env.example` from the [latest rele
 
 ## Files in the server directory
 
-| File              | Purpose                                                                           |
-| ----------------- | --------------------------------------------------------------------------------- |
-| `compose.yaml`    | Starts the image `ghcr.io/sauerexe/replayhaven` with a data volume and port 8787  |
-| `.env`            | Your settings: access key, browser address, optionally image and AI provider      |
-| `.env.example`    | Template listing every variable                                                   |
-| `setup-server.sh` | Source checkouts: creates `.env`, builds the image and starts the server          |
-| `release/`        | Optional: `ReplayHaven-Client-Setup.exe` for downloading straight from the server |
+| File                    | Purpose                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `compose.yaml`          | Starts the image `ghcr.io/sauerexe/replayhaven` with a data volume and port 8787; replaced by every update |
+| `compose.override.yaml` | Optional: your own changes, merged by Docker Compose and never touched by the installer                    |
+| `.env`                  | Your settings: access key, browser address, optionally image and AI provider                               |
+| `env.example`           | Template listing every variable, refreshed by the installer (`.env.example` in a source checkout)          |
+| `setup-server.sh`       | Only in a source checkout: creates `.env`, builds the image and starts the server                          |
+| `release/`              | Optional: `ReplayHaven-Client-Setup.exe` for downloading straight from the server                          |
 
 Compose reads `.env` automatically. Every variable in it also reaches the container.
 
@@ -34,8 +35,8 @@ Compose reads `.env` automatically. Every variable in it also reaches the contai
 # First start, or after changing .env
 docker compose up -d
 
-# Update an installer setup: run the installer again in the parent directory
-# (the compose.yaml of a release is pinned to that release's image)
+# Update an installer setup: run the installer again, in the install directory or its parent
+# (the compose.yaml of a release is pinned to that release's image; it backs up the database first)
 curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash
 
 # Update with the compose.yaml from the repository, which follows major version 1 (image tag :1)
@@ -90,7 +91,9 @@ In Portainer open **Stacks → Add stack → Repository**, enter `https://github
 
 ## Deploy behind Coolify/Traefik
 
-**Quickest way:** in Coolify create a resource from this repository with the build pack **Docker Compose** and the compose file `docker-compose.coolify.yml`. Coolify generates the domain and the access key (shown under **Environment Variables**), routes HTTPS to port 8787 and keeps the archive volume; the server log prints the setup link. Step 4 below (upload timeout) still applies. This file has not been verified on every Coolify version; if it does not deploy, use the manual way.
+**Quickest way:** in Coolify create a resource from this repository with the build pack **Docker Compose** and the compose file `docker-compose.coolify.yml`. Coolify generates the domain and the access key (shown under **Environment Variables**), routes HTTPS to port 8787 and keeps the archive volume; the server log prints the setup link. Step 4 below (upload timeout) still applies. This file has not been verified on every Coolify version; if it does not deploy, use the manual way. Coolify only passes the variables listed in the compose file; every setting from `.env.example` is listed, so set them under **Environment Variables**.
+
+The image tag `:1` follows every 1.x release whenever Coolify redeploys. For controlled updates, pin a release such as `ghcr.io/sauerexe/replayhaven:1.1.4` in the compose file, back up the `archive` volume and then raise the version. Updates only move the database forward: an older release cannot read a database a newer one has upgraded, and from 1.1.5 on the server refuses to start on such a database. Going back therefore needs the backup from before the update.
 
 **By hand:** ReplayHaven runs well as a Docker Compose resource in [Coolify](https://coolify.io), with Coolify's Traefik terminating HTTPS:
 
@@ -104,7 +107,7 @@ In Portainer open **Stacks → Add stack → Repository**, enter `https://github
    REPLAYHAVEN_TRUST_PROXY=true
    ```
 
-   `REPLAYHAVEN_PUBLIC_ORIGIN` may list further origins separated by commas (for example a LAN address `http://192.168.1.10:8787`); the first entry is canonical and is used for the single sign-on redirect URI and QR login links. When it starts with `https://`, session cookies are marked `Secure`. `REPLAYHAVEN_TRUST_PROXY=true` makes the server take protocol and client address from Traefik's `X-Forwarded-*` headers; only use `true` when the container port is not reachable directly, otherwise list the proxy addresses (for example `10.0.0.0/8`).
+   `REPLAYHAVEN_PUBLIC_ORIGIN` may list further origins separated by commas (for example a LAN address `http://192.168.1.10:8787`); the first entry is canonical and is used for the single sign-on redirect URI and QR login links. When it starts with `https://`, session cookies are marked `Secure`. `REPLAYHAVEN_TRUST_PROXY` makes the server take protocol and client address from the proxy's `X-Forwarded-*` headers. Prefer the proxy's address or range (for example `10.0.0.0/8`, comma-separated for several): then only the address the proxy saw counts. With `true` the server trusts every hop and takes the leftmost `X-Forwarded-For` entry, which a client can set itself unless the proxy replaces the header (Traefik does by default); a spoofed address would get around the sign-in throttle. A number trusts that many hops, so `1` fits a single proxy in front of the container. Only use `true` when the container port is not reachable directly.
 
 4. Large uploads: the server accepts clips up to 2 GB and requests up to 30 minutes. Traefik v3 cuts request bodies after 60 seconds by default (`respondingTimeouts.readTimeout`), which breaks big uploads on slow lines. In Coolify open **Servers → Proxy** and add to the Traefik command:
 
@@ -190,7 +193,7 @@ Authelia returns groups and profile claims from the UserInfo endpoint; ReplayHav
 
 **Existing local account.** Sign in with your password, open **Settings → Account** and choose **Link**. After the round trip through the provider, your OIDC identity belongs to that account and you can sign in either way. **Unlink** is refused while the account has no password, so nobody locks themselves out.
 
-**Without auto-create** (the default) only known identities get in. An admin prepares an account under **Users** with the person's provider user name and no password; their first OIDC sign-in with exactly that `preferred_username` (same upper and lower case) claims it. The display name or e-mail never claims an account: users can often change those themselves. Only accounts without a password and without a linked identity can be claimed this way.
+**Without auto-create** (the default) only known identities get in. An admin prepares an account under **Users** with the person's provider user name and no password; their first OIDC sign-in with exactly that `preferred_username` (same upper and lower case) claims it. The display name or e-mail never claims an account: users can often change those themselves. Only accounts without a password and without a linked identity can be claimed this way. Use it only when people cannot pick or change their user name at the provider; otherwise someone could register the prepared name first. Linking under **Settings → Account** does not have this risk.
 
 **Password sign-in off** (`REPLAYHAVEN_PASSWORD_LOGIN=false`): the login screen only shows the single sign-on button. On a fresh server, create the first admin with the setup link from the server log (the setup form stays available until then) and link single sign-on under **Settings → Account**, or let a member of `REPLAYHAVEN_OIDC_ADMIN_GROUP` sign in directly. Paired PCs and QR logins keep working.
 
@@ -207,23 +210,34 @@ incoming/                      Uploads in progress
 covers/                        Game covers from Steam, stored locally
 ```
 
+Compose names the volume after the project, usually the directory name: `replayhaven_archive` for an installer setup. Coolify and Portainer use other prefixes. Look it up and keep it in a variable:
+
+```bash
+docker volume ls | grep archive
+VOLUME=replayhaven_archive   # the name from the list above
+```
+
 For a consistent backup, stop the container, back up the **entire volume**, then start it again:
 
 ```bash
 docker compose stop
-docker run --rm -v replayhaven_archive:/data -v "$PWD":/backup alpine tar -czf /backup/replayhaven-backup.tar.gz -C /data .
+docker run --rm -v "$VOLUME":/data -v "$PWD":/backup alpine tar -czf /backup/replayhaven-backup.tar.gz -C /data .
 docker compose start
 ```
 
 Keep `.env` somewhere safe as well. `docker compose down` keeps the volume; `down -v` deletes it and is not a normal update step. Library entries you remove keep their originals, and uploading the same content again restores the entry; `admin.mjs purge-removed` deletes them for good (see above).
 
-**Before an update**, take a backup as above: updates only move the database forward, so going back to an older release needs the backup from before. **To restore**, stop the server, unpack the archive into the empty volume and start again:
+**Before an update**, take a backup as above: updates only move the database forward, so going back to an older release needs the backup from before (from 1.1.5 on, the server refuses to start on a database from a newer release). The installer also copies the database to `backups/vault-<time>.sqlite` inside the volume before each update and keeps the last three; that covers the metadata, not the clips. `docker compose cp replayhaven:/app/vault-data/backups/<file> .` copies one out.
+
+**To restore**, stop the server, empty the volume, unpack the archive into it and start again:
 
 ```bash
 docker compose stop
-docker run --rm -v replayhaven_archive:/data -v "$PWD":/backup alpine sh -c 'rm -rf /data/* && tar -xzf /backup/replayhaven-backup.tar.gz -C /data'
+docker run --rm -v "$VOLUME":/data -v "$PWD":/backup alpine sh -c 'find /data -mindepth 1 -delete && tar -xzf /backup/replayhaven-backup.tar.gz -C /data'
 docker compose start
 ```
+
+To go back to an older release, restore the backup taken before the update and pin that release's image (`REPLAYHAVEN_VERSION=<version>` for the installer, or the `image:` line) before starting.
 
 **Changes of your own go into `compose.override.yaml`**, next to `compose.yaml`; Docker Compose merges it automatically, and the installer replaces `compose.yaml` with every update (it refuses to when `compose.yaml` itself was edited). For example, to keep the data in a folder instead of the named volume, or to publish the port only on this machine:
 
@@ -236,6 +250,15 @@ services:
     ports: !override
       - '127.0.0.1:8787:8787'
 ```
+
+## Server troubleshooting
+
+- **The container keeps restarting.** `docker compose logs replayhaven` shows why. The server stops on invalid settings, most often an access key shorter than 24 characters (`Set REPLAYHAVEN_ACCESS_TOKEN to at least 24 characters …`), a `REPLAYHAVEN_PUBLIC_ORIGIN` that is not an `http(s)://` origin, or an unknown value for `REPLAYHAVEN_PLAYBACK`, `REPLAYHAVEN_LOG_LEVEL` or `REPLAYHAVEN_CONTENT_LANGUAGE`. Fix `.env` and run `docker compose up -d`.
+- **Permission errors with a folder instead of the volume** (`EACCES` in the log). The server runs as the user `node` with UID 1000 and must be able to write the data folder: `chown -R 1000:1000 data`. On a NAS, give that UID write access in the share settings.
+- **403 on every request after signing in.** The browser address does not match `REPLAYHAVEN_PUBLIC_ORIGIN` exactly (scheme, host and port). Add the address you use, comma-separated.
+- **Single sign-on fails with a redirect error at the provider.** The redirect URI registered there must be exactly `<first REPLAYHAVEN_PUBLIC_ORIGIN>/api/auth/oidc/callback`, including `https://` and without an extra port or slash. `REPLAYHAVEN_OIDC_ISSUER` must match the `issuer` in the provider's `/.well-known/openid-configuration`, including a trailing slash if it has one.
+- **Uploads end with 413 or break off after a minute behind a proxy.** The proxy limits the body size or the request time. Allow 2 GB and 30 minutes: for nginx `client_max_body_size 2g; proxy_read_timeout 1800s; proxy_send_timeout 1800s; proxy_request_buffering off;`, for Traefik the `readTimeout` from [Deploy behind Coolify/Traefik](#deploy-behind-coolifytraefik). Proxies with a fixed upload limit, such as Cloudflare's free plan at 100 MB, cannot take large clips; upload through the LAN or a VPN instead.
+- **Every sign-in comes from the same address** in the log, and one person's failed attempts pause sign-in for everyone. Set `REPLAYHAVEN_TRUST_PROXY`, see [Deploy behind Coolify/Traefik](#deploy-behind-coolifytraefik).
 
 ## Windows client download
 

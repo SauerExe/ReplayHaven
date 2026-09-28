@@ -81,7 +81,10 @@ export function parseSummary(raw: string, duration: number): SummaryResult {
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '');
-  const data = JSON.parse(clean) as Record<string, unknown>;
+  const data: unknown = JSON.parse(clean);
+  // "null" or a bare string is valid JSON but no summary; it must count as unusable, not crash.
+  if (!isRecord(data))
+    throw new z.ZodError([{ code: 'custom', path: [], message: 'No JSON object.' }]);
   const text = (value: unknown, max: number) =>
     typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : '';
   const title = text(data.title, 80);
@@ -91,16 +94,22 @@ export function parseSummary(raw: string, duration: number): SummaryResult {
     description: text(data.description, 700),
     uncertainty: text(data.uncertainty, 300),
     highlights: (Array.isArray(data.highlights) ? data.highlights : [])
-      .map((h: Record<string, unknown>) => ({
-        seconds: Number(h?.seconds),
-        title: text(h?.title, 60),
-        description: text(h?.description, 200),
+      .filter(isRecord)
+      .map((h) => ({
+        seconds: Number(h.seconds),
+        title: text(h.title, 60),
+        description: text(h.description, 200),
       }))
       .filter(
         (h) => Number.isFinite(h.seconds) && h.seconds >= 0 && h.seconds <= duration && h.title,
       )
       .slice(0, 6),
   };
+}
+
+/** A parsed JSON object, as opposed to null, an array or a bare value. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

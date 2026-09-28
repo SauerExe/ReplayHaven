@@ -193,3 +193,65 @@ test('automatic collections follow the tags and can be saved', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Edit collection' })).toBeVisible();
   await expect(tiles(page)).toHaveCount(3);
 });
+
+test('bulk favorite sends a few PATCHes at a time, refreshes once and stores no server clips', async ({
+  page,
+}) => {
+  const clips = Array.from({ length: 9 }, (_, i) => serverClip(`bulk-${i}`, `Bulk ${i}`, i + 1));
+  let running = 0;
+  let peak = 0;
+  const patched: string[] = [];
+  let listed = 0;
+  await page.route('**/api/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/status')
+      return route.fulfill({
+        json: {
+          connected: true,
+          provider: 'none',
+          configured: false,
+          model: '',
+          settings: { autoAnalyze: true, autoTitle: true, includeAudio: false },
+          queue: 0,
+          devices: [],
+        },
+      });
+    if (path === '/api/clips') {
+      listed++;
+      return route.fulfill({ json: clips });
+    }
+    if (request.method() === 'PATCH') {
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const id = decodeURIComponent(path.split('/').pop()!);
+      patched.push(id);
+      const clip = clips.find((c) => c.id === id)!;
+      Object.assign(clip, request.postDataJSON());
+      running--;
+      return route.fulfill({ json: clip });
+    }
+    return route.fulfill({ status: 404, json: { error: 'Not part of the test.' } });
+  });
+
+  await page.goto('/library');
+  await expect(tiles(page)).toHaveCount(9);
+  // Previews outside the view skip rendering but keep their 16:9 size, so nothing jumps.
+  const ratios = await page
+    .locator('.stream-grid .stream-tile-media')
+    .evaluateAll((items) => items.map((el) => el.clientWidth / el.clientHeight));
+  for (const ratio of ratios) expect(ratio).toBeCloseTo(16 / 9, 1);
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  await page.getByRole('button', { name: 'Select all' }).click();
+  const before = listed;
+  await page.getByRole('button', { name: 'Favorite selection' }).click();
+  await expect.poll(() => patched.length).toBe(9);
+  expect(peak).toBeLessThanOrEqual(4);
+  await expect.poll(() => listed).toBeGreaterThan(before);
+  // One refresh at the end (a poll may add one more), not one per clip.
+  expect(listed - before).toBeLessThanOrEqual(2);
+  expect(clips.every((c) => c.favorite)).toBe(true);
+  const stored = await page.evaluate(() => localStorage.getItem('replayhaven.v1') || '');
+  expect(stored).not.toContain('Bulk 0');
+});

@@ -10,8 +10,8 @@ import {
   fraction,
   gameName,
   gameShort,
-  localizeMessage,
   megabytes,
+  statusMessage,
 } from './format';
 import { t } from './i18n';
 import { state } from './state';
@@ -57,7 +57,7 @@ export function renderOverview(s: Status) {
         ? s.queue.length
           ? t('hero.gamingQueue', { game: gameName(s.gaming), count: s.queue.length })
           : t('hero.gamingNone', { game: gameName(s.gaming) })
-        : localizeMessage(s.message);
+        : statusMessage(s);
   const action = $<HTMLButtonElement>('primary-action');
   action.textContent = text.action;
   action.className = ['running', 'working', 'gaming'].includes(m)

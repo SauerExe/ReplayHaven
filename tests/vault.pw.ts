@@ -237,3 +237,18 @@ test('the clip page player shows the loaded part and a spinner while playback st
   await video.dispatchEvent('playing');
   await expect(spinner).toHaveCount(0);
 });
+
+test('a page chunk that fails to load shows a reload message instead of a white screen', async ({
+  page,
+}) => {
+  await page.route('**/src/streaming/LibraryPage.tsx*', (route) => route.abort());
+  await page.goto('/');
+  await expect(page).toHaveTitle('ReplayHaven · Your best moments');
+  await page.goto('/library');
+  await expect(page.getByRole('heading', { name: 'This page could not be loaded' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reload page' })).toBeVisible();
+  // The rest of the app still works: another page renders again.
+  await page.getByRole('link', { name: 'Collections', exact: true }).first().click();
+  await expect(page).toHaveTitle('Collections · ReplayHaven');
+  await expect(page.getByRole('heading', { name: 'This page could not be loaded' })).toBeHidden();
+});

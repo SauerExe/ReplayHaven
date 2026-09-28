@@ -1,10 +1,9 @@
 # ReplayHaven archive server: web UI + upload API + SQLite + FFmpeg in one image.
-ARG NODE_IMAGE=node:24-bookworm-slim
-ARG RUNTIME_IMAGE=node:24-alpine
+# Base images are pinned by digest in the FROM lines themselves, where Dependabot updates them.
 
 # The build stage always runs on the host architecture. Its output is plain
 # JavaScript, so multi-arch images only have to install runtime dependencies.
-FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS build
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
@@ -12,7 +11,7 @@ COPY . .
 RUN npm run build && npm run server:bundle
 
 # Alpine keeps the runtime small: FFmpeg with its libraries is far lighter than on Debian.
-FROM ${RUNTIME_IMAGE}
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
 ARG REPLAYHAVEN_VERSION=dev
 # Baked in by the release workflow so the "Download Windows client" button works
 # out of the box. Override at runtime with the same variable.
@@ -25,7 +24,10 @@ LABEL org.opencontainers.image.title="ReplayHaven" \
 RUN apk add --no-cache ffmpeg tini ca-certificates
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+# The npm FFmpeg packages are only a fallback when REPLAYHAVEN_FFMPEG/FFPROBE are unset
+# (server/media.ts requires them lazily). The image sets both to Alpine's ffmpeg, so drop them.
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force \
+ && rm -rf node_modules/ffmpeg-static node_modules/@ffprobe-installer
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server-bundle ./server-bundle
 RUN mkdir -p /app/vault-data /app/release && chown -R node:node /app/vault-data /app/release
