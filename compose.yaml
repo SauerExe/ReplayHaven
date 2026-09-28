@@ -12,7 +12,7 @@
 # See docs/SERVER.md, "Deploy behind Coolify/Traefik".
 services:
   replayhaven:
-    image: ${REPLAYHAVEN_IMAGE:-ghcr.io/sauerexe/replayhaven:latest}
+    image: ${REPLAYHAVEN_IMAGE:-ghcr.io/sauerexe/replayhaven:1}
     container_name: replayhaven
     restart: unless-stopped
     ports:
@@ -28,6 +28,7 @@ services:
       REPLAYHAVEN_TRUST_PROXY: ${REPLAYHAVEN_TRUST_PROXY:-}
       REPLAYHAVEN_PLAYBACK: ${REPLAYHAVEN_PLAYBACK:-web}
       REPLAYHAVEN_CONTENT_LANGUAGE: ${REPLAYHAVEN_CONTENT_LANGUAGE:-}
+      REPLAYHAVEN_SUPPORT_BANNER: ${REPLAYHAVEN_SUPPORT_BANNER:-}
       REPLAYHAVEN_OIDC_ISSUER: ${REPLAYHAVEN_OIDC_ISSUER:-}
       REPLAYHAVEN_OIDC_CLIENT_ID: ${REPLAYHAVEN_OIDC_CLIENT_ID:-}
       REPLAYHAVEN_OIDC_CLIENT_SECRET: ${REPLAYHAVEN_OIDC_CLIENT_SECRET:-}

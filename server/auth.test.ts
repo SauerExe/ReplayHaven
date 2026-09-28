@@ -208,25 +208,30 @@ it('pairs a recording PC by link: only admins create tickets, each works once', 
   await app.close();
 });
 
-it('throttles failed sign-ins per address, so one attacker cannot lock everyone out', async () => {
-  const app = await start();
-  await app.inject({
-    method: 'POST',
-    url: '/api/auth/setup',
-    payload: { name: 'timo', password: 'geheimes-passwort', key },
-  });
-  const login = (password: string, remoteAddress: string) =>
-    app.inject({
+// Twenty password checks at the full scrypt cost take a few seconds.
+it(
+  'throttles failed sign-ins per address, so one attacker cannot lock everyone out',
+  { timeout: 60_000 },
+  async () => {
+    const app = await start();
+    await app.inject({
       method: 'POST',
-      url: '/api/auth/login',
-      remoteAddress,
-      payload: { name: 'timo', password },
+      url: '/api/auth/setup',
+      payload: { name: 'timo', password: 'geheimes-passwort', key },
     });
-  for (let i = 0; i < 20; i++) await login('falsch', '203.0.113.9');
-  expect((await login('geheimes-passwort', '203.0.113.9')).statusCode).toBe(429);
-  expect((await login('geheimes-passwort', '192.168.1.20')).statusCode).toBe(200);
-  await app.close();
-});
+    const login = (password: string, remoteAddress: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        remoteAddress,
+        payload: { name: 'timo', password },
+      });
+    for (let i = 0; i < 20; i++) await login('falsch', '203.0.113.9');
+    expect((await login('geheimes-passwort', '203.0.113.9')).statusCode).toBe(429);
+    expect((await login('geheimes-passwort', '192.168.1.20')).statusCode).toBe(200);
+    await app.close();
+  },
+);
 
 it('limits open pairing requests per address', async () => {
   const { DatabaseSync } = await import('node:sqlite');
@@ -238,6 +243,64 @@ it('limits open pairing requests per address', async () => {
   expect(accounts.requestPairing('DESKTOP', randomUUID(), 0, '192.168.1.20').code).toMatch(
     /^\d{6}$/,
   );
+});
+
+it('never stores a paired PC token in plain text, not even before pickup', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const { Accounts } = await import('./auth');
+  const db = new DatabaseSync(':memory:');
+  const accounts = new Accounts(db);
+  const admin = await accounts.createUser('timo', null, 'admin');
+  const request = accounts.requestPairing('PC', randomUUID(), 0, '192.168.1.20');
+  expect(accounts.approvePairing(request.id, admin.id, 0)).toBe(true);
+  const rows = () =>
+    (db.prepare('SELECT data FROM pairings').all() as { data: string }[]).map((r) => r.data);
+  expect(rows().join()).not.toMatch(/rhd_/);
+  const picked = accounts.pairingStatus(request.id, request.secret, 0);
+  expect(picked).toMatchObject({ status: 'approved', token: expect.stringMatching(/^rhd_/) });
+  expect(rows().join()).not.toMatch(/rhd_/);
+  expect(accounts.pairingStatus(request.id, request.secret, 0)).toEqual({ status: 'expired' });
+});
+
+it('upgrades a password hash with the former scrypt cost on sign-in', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const { scryptSync } = await import('node:crypto');
+  const { Accounts, SCRYPT_COST } = await import('./auth');
+  const db = new DatabaseSync(':memory:');
+  const accounts = new Accounts(db);
+  const salt = 'legacy-salt';
+  const legacy = {
+    id: randomUUID(),
+    name: 'old',
+    salt,
+    hash: scryptSync('altes-passwort', salt, 64, { N: 16384, r: 8, p: 1 }).toString('hex'),
+    createdAt: new Date(0).toISOString(),
+    role: 'admin',
+  };
+  db.prepare('INSERT INTO users(id,name,data) VALUES(?,?,?)').run(
+    legacy.id,
+    legacy.name,
+    JSON.stringify(legacy),
+  );
+  expect(await accounts.verify('old', 'falsch')).toBeUndefined();
+  expect(accounts.user(legacy.id)?.cost).toBeUndefined();
+  expect(await accounts.verify('old', 'altes-passwort')).toMatchObject({ cost: SCRYPT_COST });
+  expect(accounts.user(legacy.id)).toMatchObject({ cost: SCRYPT_COST });
+  expect(accounts.user(legacy.id)?.hash).not.toBe(legacy.hash);
+  expect(await accounts.verify('old', 'altes-passwort')).toBeTruthy();
+});
+
+it('creates only one admin when two setups race', async () => {
+  const app = await start();
+  const setup = (name: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/auth/setup',
+      payload: { name, password: 'geheimes-passwort', key },
+    });
+  const results = await Promise.all([setup('first'), setup('second')]);
+  expect(results.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+  await app.close();
 });
 
 it('lets a pairing ticket expire', async () => {

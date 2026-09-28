@@ -50,6 +50,8 @@ export function cookieOf(response: { headers: Record<string, unknown> }, name = 
 export interface FakeUser {
   sub: string;
   preferred_username?: string;
+  /** Display name, which users can often change themselves. */
+  name?: string;
   email?: string;
   groups?: string[];
 }

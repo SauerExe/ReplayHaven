@@ -23,6 +23,8 @@ export interface OidcProfile {
   sub: string;
   /** Preferred account name: preferred_username, name or the local part of the e-mail. */
   username: string;
+  /** preferred_username only, empty when the provider sends none. */
+  loginName: string;
   groups: string[];
 }
 
@@ -163,6 +165,11 @@ export class OidcClient {
     return {
       issuer: String(idClaims.iss),
       sub: idClaims.sub,
+      /**
+       * The provider's login name only: unlike the display name or an unverified e-mail, the user
+       * cannot pick it freely, so only this may claim an account an admin prepared.
+       */
+      loginName: claimString(claims.preferred_username),
       username:
         claimString(claims.preferred_username) ||
         claimString(claims.name) ||

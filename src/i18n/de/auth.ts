@@ -48,13 +48,16 @@ export const auth: Translation<typeof source> = {
     'Dein PC beobachtet den Aufnahmeordner, benennt jeden Clip mit lokaler KI und gibt das Original an deinen eigenen Server.',
   'auth.aside.ai.title': 'Benannt auf deinem PC',
   'auth.aside.ai.text':
-    'Kills, Karte und Moment, gelesen von einem lokalen Modell. Nichts verlässt dein Zuhause.',
+    'Kills, Karte und Moment liest ein Modell auf deinem Gaming-PC. Kein Bild geht an einen Cloud-Dienst.',
   'auth.aside.server.title': 'Originale auf deinem Server',
   'auth.aside.server.text': 'Volle Qualität, dazu eine flüssige Fassung für unterwegs.',
   'auth.aside.devices.title': 'Auf jedem Gerät',
   'auth.aside.devices.text':
     'Browser, Handy oder Fernseher. Einmal anmelden, 30 Tage angemeldet bleiben.',
   'auth.aside.sampleTag': 'KI-Titel',
+  'auth.aside.trust':
+    'Selbst gehostet · Quellcode einsehbar · Deine Clips bleiben auf deiner Hardware',
+  'auth.aside.sampleTitle': 'Ace auf Inferno',
   'auth.connect.codeFailed': 'Der Code ließ sich nicht einlösen.',
   'auth.connect.signingIn': 'Gerät wird angemeldet …',
   'auth.connect.failedTitle': 'Dieser Code hat nicht geklappt',

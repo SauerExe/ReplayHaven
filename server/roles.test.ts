@@ -309,25 +309,29 @@ it('keeps a device ID with the PC that reported it and pairs no PC for a demoted
   await app.close();
 });
 
-it('signs out other browsers on a password change and throttles wrong current passwords', async () => {
-  const { app, createUser, login } = await withAdmin();
-  const alice = await createUser('alice');
-  const other = { cookie: cookieOf(await login('alice', 'alice-password')) };
-  const change = (current: string, next: string) =>
-    app.inject({
-      method: 'POST',
-      url: '/api/auth/password',
-      headers: alice.headers,
-      remoteAddress: '203.0.113.7',
-      payload: { current, next },
-    });
-  expect((await change('alice-password', 'alice-new-password')).statusCode).toBe(200);
-  expect((await app.inject({ url: '/api/clips', headers: alice.headers })).statusCode).toBe(200);
-  expect((await app.inject({ url: '/api/clips', headers: other })).statusCode).toBe(401);
-  for (let i = 0; i < 20; i++) await change('wrong-password', 'whatever-password');
-  expect((await change('alice-new-password', 'another-password')).statusCode).toBe(429);
-  await app.close();
-});
+it(
+  'signs out other browsers on a password change and throttles wrong current passwords',
+  { timeout: 60_000 },
+  async () => {
+    const { app, createUser, login } = await withAdmin();
+    const alice = await createUser('alice');
+    const other = { cookie: cookieOf(await login('alice', 'alice-password')) };
+    const change = (current: string, next: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/auth/password',
+        headers: alice.headers,
+        remoteAddress: '203.0.113.7',
+        payload: { current, next },
+      });
+    expect((await change('alice-password', 'alice-new-password')).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/clips', headers: alice.headers })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/api/clips', headers: other })).statusCode).toBe(401);
+    for (let i = 0; i < 20; i++) await change('wrong-password', 'whatever-password');
+    expect((await change('alice-new-password', 'another-password')).statusCode).toBe(429);
+    await app.close();
+  },
+);
 
 it('stays open without setup only for requests addressed to this machine', async () => {
   const { app } = await startServer({ token: '' });

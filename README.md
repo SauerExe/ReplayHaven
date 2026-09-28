@@ -128,7 +128,7 @@ Install Docker Engine with the Compose plugin ([guide](https://docs.docker.com/e
 curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash
 ```
 
-The installer creates `./replayhaven` with `compose.yaml` and a `.env` from the latest release (checked against the release's `SHA256SUMS.txt`), generates the access key, asks for the address you open in the browser (your LAN address is suggested), starts the published multi-arch image `ghcr.io/sauerexe/replayhaven` and prints a setup link. Running it again updates to the latest release and keeps your `.env`. Want to read it first? Download [`install.sh`](https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh) and run `bash install.sh`.
+The installer creates `./replayhaven` with `compose.yaml` and a `.env` from the latest release (checked against the release's `SHA256SUMS.txt`, which catches broken downloads; both come from the same release, so it is no signature), generates the access key, asks for the address you open in the browser (your LAN address is suggested), starts the published multi-arch image `ghcr.io/sauerexe/replayhaven` and prints a setup link. Running it again updates to the latest release and keeps your `.env`. Want to read it first? Download [`install.sh`](https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh) and run `bash install.sh`.
 
 Open the setup link to create your admin account. It carries the access key from `.env` in the part after `#`, which the browser never sends to the server; the page removes it from the address bar right away. The key is needed once, so nobody else can claim a server that is already reachable. Lost the link? `docker compose logs replayhaven` shows it until the first account exists, or open the server address and enter `REPLAYHAVEN_ACCESS_TOKEN` from `.env`. Other devices then sign in with name and password, or scan the QR code under **Settings → Devices → Connect phone**.
 
@@ -186,7 +186,7 @@ Command-line tools show what these sources contribute to your own clips before y
 ## Privacy
 
 - **The AI runs on your PC.** With the Windows client, frames go to Ollama on the same machine. Nothing is sent to an AI service.
-- **Clips go to your server only.** Apart from Ollama on the same PC, the client talks to the server address you entered. Models are downloaded once when you ask for them: Qwen3.5 through Ollama, the speech models for the voice chat transcript from Hugging Face and GitHub.
+- **Clips go to your server only.** Apart from Ollama on the same PC, the client talks to the server address you entered. It also learns about client updates from that server, not from GitHub. Models are downloaded once when you ask for them: Qwen3.5 through Ollama, the speech models for the voice chat transcript from Hugging Face and GitHub.
 - **Your server, your accounts.** Passwords are stored as scrypt hashes, sessions and paired PCs can be revoked one by one, and single sign-on only talks to the provider you configure.
 - **Game info by name.** The server looks up game names on Steam (and on IGDB if you add a key) to show covers and descriptions. Only the game name is sent. Without internet access the library simply shows no cover.
 - **Server-side AI is opt-in.** If you configure Gemini as the server's AI provider, clips or frames from them are sent to Google for analysis. It is off unless you set it.
@@ -196,7 +196,7 @@ Command-line tools show what these sources contribute to your own clips before y
 
 | Component  | Requirement                                                                                                                                                    |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server     | Docker Engine 24+ with Compose v2.24+, linux/amd64 or linux/arm64, disk space for your clips. Without Docker: Node.js 24+ and FFmpeg.                          |
+| Server     | Docker Engine 24+ with Compose v2.24+, linux/amd64 or linux/arm64, disk space for your clips. Without Docker: Node.js 22.13+ and FFmpeg.                       |
 | Gaming PC  | Windows 10/11 x64. For local AI: [Ollama](https://ollama.com) and a GPU with about 10 GB VRAM for Qwen3.5 9B, or 6 to 8 GB for 4B. CPU-only works, but slowly. |
 | Recordings | MP4, M4V, MOV, WebM or MKV, up to 2 GB, 30 minutes and 8K per file. Light H.264 MP4 plays directly; everything else gets a web version transcoded on the CPU.  |
 | Recorder   | Anything that writes files into a folder: NVIDIA App (Instant Replay), OBS, Xbox Game Bar and others.                                                          |
@@ -294,7 +294,7 @@ Not yet. The server and the web library run anywhere; the client that watches th
 
 ## Development
 
-Node.js 24 or newer is required (SQLite is built in). `node:sqlite` is not yet marked stable by Node.js; the server uses only its basic synchronous API, keeps it behind `server/database.ts`, and the Docker image pins the Node.js major version, so a Node.js update cannot change it unnoticed. The web UI and server run on Windows, macOS and Linux; the client installer is built on Windows.
+Node.js 22.13 or newer is required (SQLite is built in); CI and the Docker image use Node.js 24. `node:sqlite` is not yet marked stable by Node.js; the server uses only its basic synchronous API, keeps it behind `server/database.ts`, and the Docker image pins the Node.js major version, so a Node.js update cannot change it unnoticed. The web UI and server run on Windows, macOS and Linux; the client installer is built on Windows.
 
 ```bash
 npm ci
@@ -336,11 +336,15 @@ The demo artwork belongs to the game publishers and is not part of the repositor
 
 The product and design brief is [docs/DESIGN.md](docs/DESIGN.md), and every settings screen follows [docs/SETTINGS-DESIGN.md](docs/SETTINGS-DESIGN.md). Read them before changing anything user-facing.
 
-**Releasing:** tag a commit as `vX.Y.Z` and push the tag. The release workflow builds the Windows installer, publishes the multi-arch server image to `ghcr.io/sauerexe/replayhaven` and creates a GitHub release with installer, pinned `compose.yaml`, env template, setup script and checksums.
+**Releasing:** work lands in `develop` through pull requests; for a release, merge `develop` into `main` by pull request, then tag that commit as `vX.Y.Z` and push the tag (the workflow refuses tags that are not on `main`). The release workflow builds the Windows installer, publishes the multi-arch server image to `ghcr.io/sauerexe/replayhaven` and creates a GitHub release with installer, pinned `compose.yaml`, env template, setup script and checksums.
 
 ## Contributing
 
 Bug reports, ideas and pull requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). Please report security issues privately as described in [SECURITY.md](SECURITY.md).
+
+## Support
+
+ReplayHaven is free for personal use and built in spare time. If it is useful to you, a tip via [PayPal](https://paypal.me/vvashed) (the maintainer's account) helps. Admins see a small reminder in the web library at most every four days; **Later** or **I already donated** hide it, and `REPLAYHAVEN_SUPPORT_BANNER=false` switches it off for the whole server. Family and friends on your server never see it.
 
 ## License
 

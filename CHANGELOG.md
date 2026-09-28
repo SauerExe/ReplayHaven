@@ -6,6 +6,48 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-09-28
+
+### Added
+
+- The Windows client shows **Download update** when its server runs a newer release; the
+  installer comes from that server, and nothing is asked of GitHub.
+- Admin commands in the container for when nobody can sign in: `node server-bundle/admin.mjs
+users` and `reset-password <name>`, which sets a new random password and signs out the
+  account's browsers.
+- The server image is attested like the installer and gets a major-version tag (`:1`), which
+  `compose.yaml` and the Coolify template now follow instead of `:latest`.
+
+### Changed
+
+- The support banner only shows to admins of a connected server; family and friends on it are
+  never asked. `REPLAYHAVEN_SUPPORT_BANNER=false` switches it off. The README has a Support
+  section.
+- The sign-in page is calmer and fuller: a clip preview with AI title, time marks and tags next to
+  the pitch on wide screens, the sample title in the interface language, and wording that also
+  holds for servers outside the home.
+- Development happens on `develop`; releases are merged into `main` and tagged there. Both are
+  protected, and the release workflow refuses tags that are not on `main`.
+- Node.js 22.13 is enough to develop; CI and the image keep using 24. Lockfile changes show in
+  diffs again.
+- The whole web page declares a dark colour scheme, so browser widgets such as password-manager
+  keys are drawn light.
+
+### Fixed
+
+- Error messages from the server, such as a wrong password, appear in the interface language
+  instead of always in English.
+
+### Security
+
+- A paired PC's token is created when the PC picks it up; it is no longer kept in plain text
+  between approval and pickup.
+- Single sign-on no longer creates accounts for unknown identities unless
+  `REPLAYHAVEN_OIDC_AUTO_CREATE=true`, and a prepared account is claimed only by the exact
+  `preferred_username`, never by a display name or e-mail.
+- Passwords are hashed with scrypt N = 2^17; older hashes are upgraded at the next sign-in.
+- Two setup requests at the same time can no longer create two admins.
+
 ## [1.1.2] - 2026-09-28
 
 ### Added
@@ -165,7 +207,8 @@ The first public release.
 - PolyForm Noncommercial 1.0.0: free for personal and other non-commercial use, not for sale
   or commercial use.
 
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.3...HEAD
+[1.1.3]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...v1.1.0

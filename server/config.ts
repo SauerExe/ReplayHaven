@@ -51,6 +51,8 @@ export interface ServerConfig {
    * original file whenever a browser can.
    */
   playback?: 'web' | 'original';
+  /** Whether admins see the request to tip the developer in the web library (default on). */
+  supportBanner?: boolean;
   /** Language of content the server writes or fetches: AI titles and Steam game descriptions. */
   contentLanguage?: 'en' | 'de';
 }
@@ -122,7 +124,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
       name: (env.REPLAYHAVEN_OIDC_NAME || '').trim() || 'Single sign-on',
       scopes: (env.REPLAYHAVEN_OIDC_SCOPES || '').trim() || 'openid profile email groups',
       adminGroup: (env.REPLAYHAVEN_OIDC_ADMIN_GROUP || '').trim(),
-      autoCreate: flag(env.REPLAYHAVEN_OIDC_AUTO_CREATE, true),
+      // Off unless enabled: with open registration at the provider anyone could get an account.
+      autoCreate: flag(env.REPLAYHAVEN_OIDC_AUTO_CREATE, false),
     };
   }
   const playback = (env.REPLAYHAVEN_PLAYBACK || 'web').trim().toLowerCase();
@@ -166,6 +169,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     passwordLogin: oidc ? flag(env.REPLAYHAVEN_PASSWORD_LOGIN, true) : true,
     playback: playback as 'web' | 'original',
     contentLanguage: contentLanguage as 'en' | 'de',
+    supportBanner: flag(env.REPLAYHAVEN_SUPPORT_BANNER, true),
   };
 }
 export function aiConfigured(config: ServerConfig) {

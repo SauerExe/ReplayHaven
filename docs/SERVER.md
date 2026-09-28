@@ -38,11 +38,15 @@ docker compose up -d
 # (the compose.yaml of a release is pinned to that release's image)
 curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash
 
-# Update with a compose.yaml that uses the :latest image
+# Update with the compose.yaml from the repository, which follows major version 1 (image tag :1)
 docker compose pull && docker compose up -d
 
 # Update from source (run git pull first)
 bash setup-server.sh
+
+# Forgot your password? List the accounts and set a new random password for one
+docker exec -it replayhaven node server-bundle/admin.mjs users
+docker exec -it replayhaven node server-bundle/admin.mjs reset-password <name>
 
 # Status and logs
 docker compose ps
@@ -125,16 +129,16 @@ Recordings from the NVIDIA App are often H.264 at 1080p120 and around 50 Mbit/s,
 
 ReplayHaven supports single sign-on through any OpenID Connect provider (Authelia, Authentik, Keycloak, Pocket ID …) with the authorization code flow and PKCE. The login screen then shows **Sign in with &lt;name&gt;**.
 
-| Variable                         | Meaning                                                                                                                                                                                                                                                 |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `REPLAYHAVEN_OIDC_ISSUER`        | Issuer URL exactly as in the provider's `/.well-known/openid-configuration`, e.g. `https://auth.example.com`                                                                                                                                            |
-| `REPLAYHAVEN_OIDC_CLIENT_ID`     | Client ID registered at the provider                                                                                                                                                                                                                    |
-| `REPLAYHAVEN_OIDC_CLIENT_SECRET` | Client secret in plain text (sent with `client_secret_basic`); leave empty for a public client                                                                                                                                                          |
-| `REPLAYHAVEN_OIDC_NAME`          | Button label, default `Single sign-on`                                                                                                                                                                                                                  |
-| `REPLAYHAVEN_OIDC_SCOPES`        | Default `openid profile email groups`                                                                                                                                                                                                                   |
-| `REPLAYHAVEN_OIDC_ADMIN_GROUP`   | Members of this group (claim `groups`) become admins when they sign in. Leaving the group does not demote anyone; change the role by hand                                                                                                               |
-| `REPLAYHAVEN_OIDC_AUTO_CREATE`   | Default `true`: the first sign-in of an unknown person creates an account with role `user` (`admin` when in the admin group; on a server without accounts only admin-group members get in, everyone else uses the setup link first). `false`: see below |
-| `REPLAYHAVEN_PASSWORD_LOGIN`     | Default `true`. `false` hides and refuses name + password sign-in; only honoured while OIDC is configured                                                                                                                                               |
+| Variable                         | Meaning                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `REPLAYHAVEN_OIDC_ISSUER`        | Issuer URL exactly as in the provider's `/.well-known/openid-configuration`, e.g. `https://auth.example.com`                                                                                                                                                                                                                                                           |
+| `REPLAYHAVEN_OIDC_CLIENT_ID`     | Client ID registered at the provider                                                                                                                                                                                                                                                                                                                                   |
+| `REPLAYHAVEN_OIDC_CLIENT_SECRET` | Client secret in plain text (sent with `client_secret_basic`); leave empty for a public client                                                                                                                                                                                                                                                                         |
+| `REPLAYHAVEN_OIDC_NAME`          | Button label, default `Single sign-on`                                                                                                                                                                                                                                                                                                                                 |
+| `REPLAYHAVEN_OIDC_SCOPES`        | Default `openid profile email groups`                                                                                                                                                                                                                                                                                                                                  |
+| `REPLAYHAVEN_OIDC_ADMIN_GROUP`   | Members of this group (claim `groups`) become admins when they sign in. Leaving the group does not demote anyone; change the role by hand                                                                                                                                                                                                                              |
+| `REPLAYHAVEN_OIDC_AUTO_CREATE`   | Default `false` since 1.1.3: only accounts an admin created or linked get in. `true`: the first sign-in of an unknown person creates an account with role `user` (`admin` when in the admin group; on a server without accounts only admin-group members get in, everyone else uses the setup link first). Turn it on only when your provider decides who may register |
+| `REPLAYHAVEN_PASSWORD_LOGIN`     | Default `true`. `false` hides and refuses name + password sign-in; only honoured while OIDC is configured                                                                                                                                                                                                                                                              |
 
 The redirect URI is `<first REPLAYHAVEN_PUBLIC_ORIGIN>/api/auth/oidc/callback`, for example `https://clips.example.com/api/auth/oidc/callback`. State, nonce and PKCE verifier travel in a signed, HttpOnly cookie that is valid for 10 minutes. Identities are linked to accounts by issuer and subject (`sub`), so renaming someone at the provider does not create a new account. After a successful sign-in the normal session cookie is set; failures return to the login screen with a readable message.
 
@@ -182,7 +186,7 @@ Authelia returns groups and profile claims from the UserInfo endpoint; ReplayHav
 
 **Existing local account.** Sign in with your password, open **Settings → Account** and choose **Link**. After the round trip through the provider, your OIDC identity belongs to that account and you can sign in either way. **Unlink** is refused while the account has no password, so nobody locks themselves out.
 
-**Without auto-create** (`REPLAYHAVEN_OIDC_AUTO_CREATE=false`) only known identities get in. An admin prepares an account under **Users** with the person's provider user name and no password; their first OIDC sign-in with exactly that `preferred_username` (same upper and lower case) claims it. Only accounts without a password and without a linked identity can be claimed this way.
+**Without auto-create** (the default) only known identities get in. An admin prepares an account under **Users** with the person's provider user name and no password; their first OIDC sign-in with exactly that `preferred_username` (same upper and lower case) claims it. The display name or e-mail never claims an account: users can often change those themselves. Only accounts without a password and without a linked identity can be claimed this way.
 
 **Password sign-in off** (`REPLAYHAVEN_PASSWORD_LOGIN=false`): the login screen only shows the single sign-on button. On a fresh server, create the first admin with the setup link from the server log (the setup form stays available until then) and link single sign-on under **Settings → Account**, or let a member of `REPLAYHAVEN_OIDC_ADMIN_GROUP` sign in directly. Paired PCs and QR logins keep working.
 
@@ -253,13 +257,14 @@ Set FFmpeg and FFprobe with `REPLAYHAVEN_FFMPEG` and `REPLAYHAVEN_FFPROBE`; with
 
 **Not needed** when you use the Windows client. These interfaces are prepared but have not been tested against a real provider. Add to `.env`:
 
-| Variable                       | Meaning                                                                                        |
-| ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `REPLAYHAVEN_AI_PROVIDER`      | `none` (default), `local` or `gemini`                                                          |
-| `REPLAYHAVEN_AI_MODEL`         | Exact model identifier                                                                         |
-| `REPLAYHAVEN_LOCAL_AI_URL`     | Reachable vision chat completions API, e.g. `http://modelhost:8000/v1`                         |
-| `REPLAYHAVEN_LOCAL_AI_KEY`     | Optional API key                                                                               |
-| `GEMINI_API_KEY`               | Key for Gemini analysis, used only when explicitly enabled                                     |
-| `REPLAYHAVEN_CONTENT_LANGUAGE` | `en` (default) or `de`: language of titles the server AI writes and of Steam game descriptions |
+| Variable                       | Meaning                                                                                            |
+| ------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `REPLAYHAVEN_AI_PROVIDER`      | `none` (default), `local` or `gemini`                                                              |
+| `REPLAYHAVEN_AI_MODEL`         | Exact model identifier                                                                             |
+| `REPLAYHAVEN_LOCAL_AI_URL`     | Reachable vision chat completions API, e.g. `http://modelhost:8000/v1`                             |
+| `REPLAYHAVEN_LOCAL_AI_KEY`     | Optional API key                                                                                   |
+| `GEMINI_API_KEY`               | Key for Gemini analysis, used only when explicitly enabled                                         |
+| `REPLAYHAVEN_SUPPORT_BANNER`   | `true` (default) or `false`: whether admins see the tip request in the web library every four days |
+| `REPLAYHAVEN_CONTENT_LANGUAGE` | `en` (default) or `de`: language of titles the server AI writes and of Steam game descriptions     |
 
 `local` sends sample frames to a model server you run yourself. `gemini` uploads a downscaled copy of the video to Google and may incur costs. Audio is off at first. Server analysis can then be controlled in the web UI. Uploads that announce a client result keep using the client path.

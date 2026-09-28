@@ -1476,3 +1476,11 @@ select:disabled {
   background: var(--surface);
   color: var(--text);
 }
+
+/* Update notice in the overview (desktop/update.ts). */
+.banner.update {
+  margin-bottom: 16px;
+  border-color: rgb(167 139 250 / 35%);
+  background: rgb(167 139 250 / 9%);
+  color: var(--text);
+}

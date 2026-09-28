@@ -12,7 +12,7 @@
 # docs/SERVER.md, "Deploy behind Coolify/Traefik".
 services:
   replayhaven:
-    image: ghcr.io/sauerexe/replayhaven:latest
+    image: ghcr.io/sauerexe/replayhaven:1
     restart: unless-stopped
     environment:
       - SERVICE_URL_REPLAYHAVEN_8787

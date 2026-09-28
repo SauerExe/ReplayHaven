@@ -78,6 +78,8 @@ export interface ServerInfo {
   settings: { autoAnalyze: boolean; autoTitle: boolean; includeAudio: boolean };
   queue: number;
   clientDownloadAvailable?: boolean;
+  /** Whether admins see the tip request (REPLAYHAVEN_SUPPORT_BANNER); missing on older servers. */
+  supportBanner?: boolean;
   gameMetadata?: GameMetadataStatus;
   /** Background creation of web playback copies (server/playback.ts); missing on older servers. */
   playback?: { mode: string; pending: number; current?: string; done: number };

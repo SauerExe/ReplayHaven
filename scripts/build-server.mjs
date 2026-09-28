@@ -10,4 +10,14 @@ await build({
   format: 'esm',
   packages: 'external',
 });
+// Admin commands inside the container, e.g. resetting a forgotten password (server/admin-cli.ts).
+await build({
+  entryPoints: ['server/admin-cli.ts'],
+  outfile: 'server-bundle/admin.mjs',
+  bundle: true,
+  platform: 'node',
+  target: 'node24',
+  format: 'esm',
+  packages: 'external',
+});
 console.log('Server bundle created.');

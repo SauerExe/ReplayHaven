@@ -41,6 +41,8 @@ Enable **Include existing recordings** before starting for the first time if you
 
 Under **Your player names**, enter what you are called in-game. If your name differs per game, give each name its game; the game folders of your recordings are suggested so that entry and folder match. A name without a game applies everywhere. The AI only learns the names that match the clip's game and uses them to tell which side of the killfeed is yours.
 
+When your server runs a newer release than the client, the overview offers **Download update**; the installer comes from your server.
+
 The installer is currently not signed with a publisher certificate. Windows SmartScreen will therefore ask once.
 
 ## 3. Record as before
