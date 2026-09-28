@@ -141,6 +141,45 @@ test('a failed QR code explains what to do next', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Go to sign-in' })).toHaveAttribute('href', '/');
 });
 
+test('a QR link asks before switching a signed-in device to another account', async ({ page }) => {
+  const posts = await mockAuth(page, {
+    loggedIn: true,
+    kind: 'browser',
+    role: 'admin',
+    user: { name: 'Timo', role: 'admin' },
+  });
+  const previews: unknown[] = [];
+  await page.route('**/api/auth/qr/preview', (route) => {
+    previews.push(route.request().postDataJSON());
+    return route.fulfill({ json: { user: { name: 'Guest' } } });
+  });
+  await page.goto('/connect?code=foreign-code-0123456789');
+  await expect(page.getByRole('heading', { name: 'Sign in as another account?' })).toBeVisible();
+  await expect(page.getByText('already signed in as Timo')).toBeVisible();
+  await expect(page.getByText('The code signs it in as Guest instead.')).toBeVisible();
+  expect(previews).toEqual([{ code: 'foreign-code-0123456789' }]);
+  expect(posts.some((p) => p.path === '/api/auth/qr/redeem')).toBe(false);
+  await expect(page.getByRole('link', { name: 'Stay signed in' })).toHaveAttribute('href', '/');
+  await page.getByRole('button', { name: 'Switch account' }).click();
+  await expect(page.getByRole('heading', { name: 'This code didn’t work' })).toBeVisible();
+  expect(posts.filter((p) => p.path === '/api/auth/qr/redeem')).toEqual([
+    { path: '/api/auth/qr/redeem', body: { code: 'foreign-code-0123456789' } },
+  ]);
+});
+
+test('a used-up QR code on a signed-in device fails without redeeming', async ({ page }) => {
+  const posts = await mockAuth(page, { loggedIn: true, kind: 'browser', user: { name: 'Timo' } });
+  await page.route('**/api/auth/qr/preview', (route) =>
+    route.fulfill({
+      status: 401,
+      json: { error: 'The code has expired or was already used. Show a new one.' },
+    }),
+  );
+  await page.goto('/connect?code=used-code-0123456789');
+  await expect(page.getByRole('heading', { name: 'This code didn’t work' })).toBeVisible();
+  expect(posts.some((p) => p.path === '/api/auth/qr/redeem')).toBe(false);
+});
+
 test('the QR dialog confirms when the phone has signed in', async ({ page }) => {
   const id = 'a'.repeat(64);
   let checks = 0;

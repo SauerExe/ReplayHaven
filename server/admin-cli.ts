@@ -4,6 +4,7 @@
  *   docker exec -it replayhaven node server-bundle/admin.mjs users
  *   docker exec -it replayhaven node server-bundle/admin.mjs reset-password <name>
  *   docker exec -it replayhaven node server-bundle/admin.mjs purge-removed --yes
+ *   docker exec -it replayhaven node server-bundle/admin.mjs assign-uploader <name> --yes
  *
  * From a source checkout: npm run admin -- users. Whoever can run this already controls the data
  * directory, so it needs no further key.
@@ -17,7 +18,7 @@ import { loadConfig } from './config';
 import { VaultDatabase } from './database';
 
 const USAGE =
-  'Usage: admin.mjs users | admin.mjs reset-password <name> | admin.mjs purge-removed [--yes]';
+  'Usage: admin.mjs users | admin.mjs reset-password <name> | admin.mjs purge-removed [--yes] | admin.mjs assign-uploader <name> [--yes]';
 
 async function folderSize(folder: string): Promise<number> {
   let total = 0;
@@ -53,6 +54,28 @@ async function purgeRemoved(archive: { db: VaultDatabase; dataDir: string }, con
     : `${removed.length} removed clip(s), ${size}. Run again with --yes to delete them for good.`;
 }
 
+/**
+ * Clips from before 1.1.5 and browser uploads name no uploader, so the library cannot filter
+ * them by person. This gives all of them to one account. The session stays empty: any paired PC
+ * of that account may then deliver their AI results. Without --yes it only reports the count.
+ */
+function assignUploader(
+  accounts: Accounts,
+  archive: { db: VaultDatabase },
+  name: string,
+  confirmed: boolean,
+) {
+  const account = accounts.byName(name);
+  if (!account) throw new Error(`No account named ${JSON.stringify(name)}. See: admin.mjs users`);
+  const unassigned = archive.db.list().filter((c) => !c.uploader);
+  if (!unassigned.length) return 'Every clip already has an uploader.';
+  if (!confirmed)
+    return `${unassigned.length} clip(s) without an uploader. Run again with --yes to assign them to ${account.name}.`;
+  for (const clip of unassigned)
+    archive.db.patch(clip.id, { uploader: { session: '', user: account.id } });
+  return `Assigned ${unassigned.length} clip(s) to ${account.name}.`;
+}
+
 /** Runs one command and returns what to print; throws a message for the user on bad input. */
 export async function runAdminCommand(
   args: string[],
@@ -63,6 +86,10 @@ export async function runAdminCommand(
   if (command === 'purge-removed') {
     if (!archive) throw new Error(USAGE);
     return purgeRemoved(archive, args.includes('--yes'));
+  }
+  if (command === 'assign-uploader') {
+    if (!archive || !name || name.startsWith('--')) throw new Error(USAGE);
+    return assignUploader(accounts, archive, name, args.includes('--yes'));
   }
   if (command === 'users') {
     const users = accounts.users();

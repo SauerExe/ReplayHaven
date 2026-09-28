@@ -64,6 +64,32 @@ export interface GameEvent {
    * event lies between this frame and `seconds`; a message only appears after the kill.
    */
   from?: number;
+  /**
+   * Only for messages that were read: seen in a single frame. The model may have misread or
+   * invented it, so on its own it does not make the result certain.
+   */
+  once?: boolean;
+}
+
+/**
+ * Whether an event is certain: exact from a replay, read by text recognition, or a message the
+ * model read in two frames, that the NVIDIA file name names too (collectEvents) or that a replay
+ * or text recognition backs up (±5 s, same kind).
+ */
+export function certain(event: GameEvent, events: GameEvent[]) {
+  if (event.source === 'replay' || event.source === 'ocr') return true;
+  if (event.source !== 'screen') return false;
+  return (
+    !event.once ||
+    events.some(
+      (e) =>
+        (e.source === 'replay' || e.source === 'ocr') &&
+        e.kind === event.kind &&
+        e.seconds !== null &&
+        event.seconds !== null &&
+        Math.abs(e.seconds - event.seconds) <= 5,
+    )
+  );
 }
 
 export type SeenFrame = Pick<FrameObservation, 'kind' | 'visibleText'> & { seconds: number };
@@ -337,6 +363,7 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
               normalize(tellingPart(text)) === normalize(previous.text))))
       ) {
         previous.other ??= other;
+        delete previous.once;
         lastSeen.set(previous, frame.seconds);
         lastText.set(previous, text);
         continue;
@@ -350,6 +377,7 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
         text: tellingPart(text),
         source: 'screen',
         ...(other ? { other } : {}),
+        once: true,
       };
       found.push(event);
       lastSeen.set(event, frame.seconds);
@@ -373,9 +401,12 @@ export function collectEvents(frames: SeenFrame[], path: string, game = ''): Gam
   const series = found.some((e) => e.kind === 'multikill') ? undefined : seriesOf(found, 'screen');
   if (series) found.push(series);
   const file = eventsFromFileName(path);
-  for (const kind of file.kinds)
-    if (!found.some((e) => e.kind === kind))
-      found.push({ kind, seconds: null, text: file.label, source: 'nvidia' });
+  for (const kind of file.kinds) {
+    const read = found.filter((e) => e.kind === kind);
+    // The file name backs up a message read in a single frame.
+    for (const e of read) delete e.once;
+    if (!read.length) found.push({ kind, seconds: null, text: file.label, source: 'nvidia' });
+  }
   return found.sort((a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity));
 }
 

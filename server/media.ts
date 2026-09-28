@@ -11,6 +11,17 @@ export const TAIL_SECONDS = 30;
 export const MAX_EVEN_FRAMES = 80;
 /** Width of analysis frames. 640 and 1280 cost the same context tokens in Qwen-VL. */
 const FRAME_WIDTH = 1280;
+/**
+ * In front of every input: only local files, and only the demuxers of the accepted containers
+ * (MP4/MOV, Matroska/WebM). FFmpeg otherwise guesses the format from the content, so an upload
+ * named .mp4 could reach any of its many other demuxers.
+ */
+const INPUT_GUARD = [
+  '-protocol_whitelist',
+  'file,pipe',
+  '-format_whitelist',
+  'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm',
+];
 export function runFile(
   executable: string,
   args: string[],
@@ -193,8 +204,7 @@ export function playbackArgs(
     '-v',
     'error',
     '-y',
-    '-protocol_whitelist',
-    'file,pipe',
+    ...INPUT_GUARD,
     '-i',
     input,
     '-map',
@@ -248,22 +258,15 @@ export class MediaProcessor {
     this.ffprobe =
       config.ffprobe || (moduleRequire('@ffprobe-installer/ffprobe') as { path: string }).path;
   }
-  async probe(path: string): Promise<MediaInfo> {
+  /** `signal` stops FFprobe early. */
+  async probe(path: string, signal?: AbortSignal): Promise<MediaInfo> {
     const data = JSON.parse(
       await runFile(
         this.ffprobe,
-        [
-          '-v',
-          'error',
-          '-protocol_whitelist',
-          'file,pipe',
-          '-show_format',
-          '-show_streams',
-          '-of',
-          'json',
-          path,
-        ],
+        ['-v', 'error', ...INPUT_GUARD, '-show_format', '-show_streams', '-of', 'json', path],
         30000,
+        'stdout',
+        { signal },
       ),
     );
     type Stream = {
@@ -334,8 +337,7 @@ export class MediaProcessor {
       '-v',
       'error',
       '-y',
-      '-protocol_whitelist',
-      'file,pipe',
+      ...INPUT_GUARD,
       '-ss',
       String(Math.min(2, meta.duration / 3)),
       '-i',
@@ -412,8 +414,7 @@ export class MediaProcessor {
           '-v',
           'error',
           '-y',
-          '-protocol_whitelist',
-          'file,pipe',
+          ...INPUT_GUARD,
           '-i',
           original,
           '-map',
@@ -467,8 +468,7 @@ export class MediaProcessor {
         '-v',
         'error',
         '-y',
-        '-protocol_whitelist',
-        'file,pipe',
+        ...INPUT_GUARD,
         ...(section.start ? ['-ss', Math.max(0, section.start).toFixed(3)] : []),
         '-i',
         original,
@@ -491,15 +491,14 @@ export class MediaProcessor {
    * Levels of an audio track in dBFS: mean and peak. A track peaking below about −70 dB is
    * silent — for example a microphone that was off although the track exists.
    */
-  async audioLevels(original: string, track: number) {
+  async audioLevels(original: string, track: number, signal?: AbortSignal) {
     const log = await runFile(
       this.ffmpeg,
       [
         '-nostdin',
         '-v',
         'info',
-        '-protocol_whitelist',
-        'file,pipe',
+        ...INPUT_GUARD,
         '-i',
         original,
         '-map',
@@ -512,6 +511,7 @@ export class MediaProcessor {
       ],
       120000,
       'stderr',
+      { signal },
     );
     const level = (name: string) => {
       const match = new RegExp(`${name}:\\s*(-?[\\d.]+|-inf) dB`).exec(log);
@@ -524,16 +524,25 @@ export class MediaProcessor {
    * often sits on only one channel of a stereo track; with separate channels the loud one can
    * be used instead of averaging both and losing 6 dB.
    */
-  async pcm(original: string, track: number, channels: number): Promise<Float32Array[]> {
+  async pcm(
+    original: string,
+    track: number,
+    channels: number,
+    /**
+     * signal: stops FFmpeg; duration (seconds, e.g. from probe()) sets the time limit to two
+     * seconds per second of audio, at least a minute. Without it the limit is 30 minutes.
+     */
+    options: { signal?: AbortSignal; duration?: number } = {},
+  ): Promise<Float32Array[]> {
     const count = Math.min(2, Math.max(1, channels));
+    options.signal?.throwIfAborted();
     const child = spawn(
       this.ffmpeg,
       [
         '-nostdin',
         '-v',
         'error',
-        '-protocol_whitelist',
-        'file,pipe',
+        ...INPUT_GUARD,
         '-i',
         original,
         '-map',
@@ -553,9 +562,30 @@ export class MediaProcessor {
     const closed = new Promise<number | null>((done) => child.once('close', done));
     let log = '';
     child.stderr?.on('data', (text: Buffer) => (log = (log + text.toString()).slice(-2000)));
+    let timedOut = false;
+    const timer = setTimeout(
+      () => {
+        timedOut = true;
+        child.kill();
+      },
+      options.duration && options.duration > 0
+        ? Math.max(60000, options.duration * 2000)
+        : 30 * 60000,
+    );
+    const stop = () => child.kill();
+    options.signal?.addEventListener('abort', stop);
     const parts: Buffer[] = [];
-    for await (const chunk of child.stdout as AsyncIterable<Buffer>) parts.push(chunk);
-    const code = await closed;
+    let code: number | null;
+    try {
+      for await (const chunk of child.stdout as AsyncIterable<Buffer>) parts.push(chunk);
+      code = await closed;
+    } finally {
+      clearTimeout(timer);
+      options.signal?.removeEventListener('abort', stop);
+      if (child.exitCode === null) child.kill();
+    }
+    options.signal?.throwIfAborted();
+    if (timedOut) throw new Error('Media processing exceeded its time limit.');
     if (failure) throw failure;
     if (code !== 0) throw new Error(`FFmpeg stopped while reading audio: ${log.trim() || code}`);
     // Copy into its own memory block: Float32Array needs an offset divisible by four.
@@ -592,8 +622,7 @@ export class MediaProcessor {
         '-nostdin',
         '-v',
         'error',
-        '-protocol_whitelist',
-        'file,pipe',
+        ...INPUT_GUARD,
         ...(start > 0 ? ['-ss', start.toFixed(3)] : []),
         '-i',
         original,
@@ -664,8 +693,7 @@ export class MediaProcessor {
         '-v',
         'error',
         '-y',
-        '-protocol_whitelist',
-        'file,pipe',
+        ...INPUT_GUARD,
         ...(start > 0 ? ['-ss', start.toFixed(3)] : []),
         '-i',
         original,
@@ -706,8 +734,7 @@ export class MediaProcessor {
       '-v',
       'error',
       '-y',
-      '-protocol_whitelist',
-      'file,pipe',
+      ...INPUT_GUARD,
       '-ss',
       Math.max(0, seconds).toFixed(3),
       '-i',

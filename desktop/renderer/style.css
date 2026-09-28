@@ -1027,6 +1027,61 @@ input[readonly] {
 .check-line[data-tone='bad'] .dot {
   background: var(--danger);
 }
+.check-line[data-tone='busy'] .dot {
+  background: var(--accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+/* AI or not: two cards, one choice */
+.choice span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.choice small {
+  font-size: 12px;
+  line-height: 1.45;
+}
+.choice input[type='radio'] {
+  appearance: none;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  background: var(--bg);
+  cursor: pointer;
+}
+.choice input[type='radio']:checked {
+  border-color: var(--accent-strong);
+  background: radial-gradient(circle, var(--accent) 0 4px, var(--bg) 5px);
+}
+.choice input[type='radio']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.choice .choice-gpu {
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.choice .choice-gpu[data-tone='ok'] {
+  color: var(--success);
+}
+/* A progress bar without a known share: a band that sweeps across */
+.progress.indeterminate span {
+  width: 35%;
+  animation: slide 1.6s ease-in-out infinite;
+}
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
 .game-chips {
   display: flex;
   flex-wrap: wrap;

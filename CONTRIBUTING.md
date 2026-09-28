@@ -48,7 +48,18 @@ Open pull requests against `develop`, the default branch. `main` holds what was 
 
 ## Releases
 
-Maintainers release by tagging: `git tag v1.0.1 && git push origin v1.0.1`. The release workflow builds the installer, pushes the server image to GHCR and publishes the GitHub release. Update `CHANGELOG.md` in the same commit as the version bump in `package.json`.
+Maintainers release in three steps:
+
+1. On `develop` (by pull request), bump the version in `package.json` and add its section to `CHANGELOG.md` in the same commit.
+2. Open a pull request from `develop` to `main` and merge it once CI passes.
+3. Tag the merge commit on `main` and push the tag:
+
+   ```bash
+   git switch main && git pull
+   git tag v1.0.1 && git push origin v1.0.1
+   ```
+
+The release workflow checks that the tag is on `main`, builds the installer, pushes the server image to GHCR and publishes the GitHub release. A tag with a hyphen (`v1.1.0-rc.1`) becomes a pre-release: the image gets only its exact version tag, not `:latest`, `:1` or `:1.1`, and the installer's "latest" skips it. "Run workflow" in the Actions tab does a dry run that publishes nothing.
 
 ## License of contributions
 

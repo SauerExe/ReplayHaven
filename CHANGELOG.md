@@ -6,6 +6,67 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-09-28
+
+### Added
+
+- The client setup asks "Without AI" or "With AI on this PC" up front and recommends one from the
+  detected NVIDIA graphics card; setting up AI installs Ollama and the model with calm progress,
+  and a failure offers to retry or continue without AI.
+- Resumable uploads: the Windows client sends clips in 50 MiB pieces and continues where it
+  stopped after a dropped connection or restart, so servers behind Cloudflare Tunnel (100 MB per
+  request) accept large clips. Older servers still get the single upload. docs/SERVER.md explains
+  the forward-auth (Authelia) exception the client needs for `/api/`.
+- The web library can filter clips by who recorded them ("Recorded by"), and the clip details
+  name the person. Clips uploaded from a paired PC belong to that PC's account;
+  `admin.mjs assign-uploader <name> --yes` assigns older clips to one account.
+- The installer backs up the database inside the volume before every update (newest three kept)
+  and updates in place when run inside an existing install directory.
+- The server records a schema version and refuses to start on a database written by a newer
+  release, so pinning an older image cannot damage newer data.
+- Server troubleshooting section in docs/SERVER.md; every documented setting is passed through
+  in `compose.yaml` and the Coolify template.
+- Opening a QR sign-in link while already signed in asks before switching accounts and names both.
+- The web library shows a reload message instead of a blank page when a page fails to load after
+  an update.
+
+### Changed
+
+- Sign-in attempts still being checked count toward the limit, so parallel requests cannot get
+  past it; at most 64 password checks wait at once.
+- `REPLAYHAVEN_TRUST_PROXY=1` now trusts one proxy hop instead of every hop.
+- Only the PC that uploaded a clip (or another PC of the same account) can deliver its AI result.
+- Uploads need 3 GB of free space on the server; leftovers of interrupted uploads are removed at
+  startup. FFmpeg only reads video containers.
+- The web library no longer stores server clips in the browser, skips unchanged poll results and
+  sends bulk changes four at a time with one refresh at the end.
+- The client pauses an upload when a game starts, opens the release page for updates and uses
+  https for domain names without a scheme. Its error messages are translated.
+- Release jobs get only the permissions they need; pre-release tags never become `latest`. Base
+  images are pinned by digest and the image carries an SBOM.
+- AI titles and descriptions: kill and win synonyms, streak counts with a single kill, invented
+  map names in any game and claims added by the English translation are rejected. Events read
+  only once from the screen no longer make an analysis "certain".
+
+### Fixed
+
+- The client explains when an address answers but is not ReplayHaven, such as the sign-in page of
+  Authelia in front of the public address, instead of reporting "HTTP 200" as an error, and
+  points to the address in the home network.
+- The "Download Windows client" button keeps working when `.env` has an empty
+  `REPLAYHAVEN_CLIENT_DOWNLOAD_URL=` line: release images keep their download address under
+  `REPLAYHAVEN_RELEASE_DOWNLOAD_URL`, and only a set value overrides it.
+- Changing the server address in the client no longer drops clips that were still waiting.
+- A settings file with one bad field keeps all other settings (and a backup) instead of resetting.
+- A database error in the background job no longer crashes the server; two simultaneous uploads
+  of one file no longer fail with an orphaned copy.
+- Shutdown finishes within seconds; a PC result survives a failed video preparation.
+- Archived R6 matches keep their round times; a clip from the first round of a new match no
+  longer archives the previous match.
+- Speech recognition cannot hang on a stalled model download or a cancelled clip, and no longer
+  transcribes a silent or game audio track.
+- A Valorant killfeed that read nothing no longer removes all kills.
+
 ## [1.1.4] - 2026-09-28
 
 ### Added
@@ -250,7 +311,8 @@ The first public release.
 - PolyForm Noncommercial 1.0.0: free for personal and other non-commercial use, not for sale
   or commercial use.
 
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.4...HEAD
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.5...HEAD
+[1.1.5]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.1...v1.1.2

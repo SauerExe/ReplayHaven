@@ -9,6 +9,7 @@ import {
   readFilters,
   summarizeCollection,
   tagOptions,
+  uploaderOptions,
 } from './library';
 import { toStreamLibrary } from './model';
 import { buildRows, gameTiles } from './rows';
@@ -165,6 +166,40 @@ describe('filterLibrary', () => {
     expect(ids('q=taktik')).toEqual(['demo']);
     expect(ids('q=INFERNO')).toEqual(['demo']);
     expect(ids('q=gibt+es+nicht')).toEqual([]);
+  });
+
+  it('filtert nach der Person, deren PC den Clip hochgeladen hat', () => {
+    const timo = { id: 'u-timo', name: 'Timo' };
+    const bruder = { id: 'u-bruder', name: 'Bruder' };
+    const { clips, library } = setup([
+      server('a', { uploadedBy: timo, recordedAt: at(0, 9) }),
+      server('b', { uploadedBy: bruder }),
+      server('alt', { recordedAt: at(3, 9) }),
+    ]);
+    const ids = (query: string) => filterLibrary(clips, library, filters(query)).map((c) => c.id);
+    expect(filters('by=u-timo').uploader).toBe('u-timo');
+    expect(ids('')).toEqual(['a', 'b', 'alt']);
+    expect(ids('by=u-timo')).toEqual(['a']);
+    expect(ids('by=u-bruder')).toEqual(['b']);
+    expect(ids('by=unknown')).toEqual(['alt']);
+    expect(ids('by=u-geloescht')).toEqual([]);
+    expect(library.clips.find((c) => c.id === 'b')?.uploadedBy).toBe('Bruder');
+  });
+
+  it('bietet den Personenfilter nur an, wenn er etwas eingrenzt', () => {
+    const timo = { id: 'u-timo', name: 'Timo' };
+    const bruder = { id: 'u-bruder', name: 'Bruder' };
+    expect(uploaderOptions([clip('a'), clip('b')])).toBeNull();
+    expect(
+      uploaderOptions([clip('a', { uploadedBy: timo }), clip('b', { uploadedBy: timo })]),
+    ).toBeNull();
+    expect(
+      uploaderOptions([clip('a', { uploadedBy: timo }), clip('b', { uploadedBy: bruder })]),
+    ).toEqual({ people: [bruder, timo], unknown: false });
+    expect(uploaderOptions([clip('a', { uploadedBy: timo }), clip('b')])).toEqual({
+      people: [timo],
+      unknown: true,
+    });
   });
 
   it('bietet die Tags am Clip zum Filtern an, alphabetisch', () => {

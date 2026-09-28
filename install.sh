@@ -4,13 +4,17 @@
 #   curl -fsSL https://github.com/SauerExe/ReplayHaven/releases/latest/download/install.sh | bash
 #
 # Creates ./replayhaven with compose.yaml and .env from the latest release, starts the server and
-# prints a one-time setup link for the first account. Running it again updates to the latest
-# release and keeps .env. Optional environment variables:
+# prints a one-time setup link for the first account. Running it again (in the directory that
+# holds ./replayhaven, or inside the install directory itself) updates to the latest release and
+# keeps .env; before that it backs up the database inside the data volume (the last three are
+# kept). Optional environment variables:
 #
-#   REPLAYHAVEN_DIR            install directory (default: ./replayhaven)
+#   REPLAYHAVEN_DIR            install directory (default: the current directory when it holds
+#                              an install, otherwise ./replayhaven)
 #   REPLAYHAVEN_VERSION        release to install, e.g. 1.1.0 (default: latest)
 #   REPLAYHAVEN_PUBLIC_ORIGIN  address people open in the browser (default: detected LAN address)
 #   REPLAYHAVEN_HOST_PORT      host port (default: 8787)
+#   REPLAYHAVEN_SKIP_BACKUP    1 updates without backing up the database first
 #
 # setup-server.sh (source checkouts) reuses the functions below: it sources this file with
 # REPLAYHAVEN_INSTALL_LIB=1, which skips main.
@@ -191,9 +195,48 @@ report_ready() {
   say 'Pair your gaming PC under Settings → Recording PCs.'
 }
 
+# Copies vault.sqlite to backups/vault-<time>.sqlite inside the data volume with SQLite's
+# VACUUM INTO (consistent even while the server runs) and keeps the three newest copies. Runs
+# node in the current image: in the running container, or in a one-off container otherwise.
+# Prints the path of the copy inside the container, or nothing when there is no database yet.
+backup_database() {
+  local script
+  script='
+const { DatabaseSync } = require("node:sqlite");
+const fs = require("node:fs");
+const path = require("node:path");
+const dir = process.env.REPLAYHAVEN_DATA_DIR || "/app/vault-data";
+const source = path.join(dir, "vault.sqlite");
+if (!fs.existsSync(source)) process.exit(0);
+const folder = path.join(dir, "backups");
+fs.mkdirSync(folder, { recursive: true });
+const file = path.join(folder, "vault-" + new Date().toISOString().replace(/[:.]/g, "-") + ".sqlite");
+const db = new DatabaseSync(source);
+db.exec("PRAGMA busy_timeout=10000");
+db.prepare("VACUUM INTO ?").run(file);
+db.close();
+const copies = fs.readdirSync(folder).filter((name) => /^vault-.+\.sqlite$/.test(name)).sort();
+for (const name of copies.slice(0, -3)) fs.rmSync(path.join(folder, name));
+console.log(file);
+'
+  if docker compose ps --status running --services 2>/dev/null | grep -qx replayhaven; then
+    docker compose exec -T replayhaven node -e "$script" </dev/null
+  else
+    docker compose run --rm --no-deps -T replayhaven node -e "$script" </dev/null
+  fi
+}
+
 main() {
-  local version="${REPLAYHAVEN_VERSION:-latest}" dir="${REPLAYHAVEN_DIR:-$PWD/replayhaven}"
-  local base tmp file
+  local version="${REPLAYHAVEN_VERSION:-latest}" dir="${REPLAYHAVEN_DIR:-}"
+  local base tmp file backup keep_bak=0
+  # Run from inside an existing install (not a source checkout): update it in place.
+  if [[ -z "$dir" ]]; then
+    if [[ -f compose.yaml && -f .env && ! -f Dockerfile ]] && grep -q replayhaven compose.yaml; then
+      dir="$PWD"
+    else
+      dir="$PWD/replayhaven"
+    fi
+  fi
   if [[ "$version" == latest ]]; then
     base="https://github.com/$RH_REPO/releases/latest/download"
   else
@@ -230,6 +273,31 @@ main() {
   compose.override.yaml (Docker Compose merges it automatically), then take the new
   compose.yaml.new as compose.yaml and run the installer again. See docs/SERVER.md."
     fi
+    keep_bak=1
+  fi
+
+  # An update only moves the database forward; back it up first, with the image it runs on now.
+  if [[ -f compose.yaml && -f .env ]]; then
+    if [[ "${REPLAYHAVEN_SKIP_BACKUP:-0}" == 1 ]]; then
+      say 'Skipping the database backup (REPLAYHAVEN_SKIP_BACKUP=1).'
+    else
+      say 'Backing up the database …'
+      if ! backup="$(backup_database)"; then
+        fail "Could not back up the database, so nothing was updated. Check that the server
+  starts (docker compose up -d, then docker compose logs replayhaven) and run the installer
+  again. To update without a backup, put REPLAYHAVEN_SKIP_BACKUP=1 in front of bash."
+      fi
+      backup="$(printf '%s' "$backup" | tr -d '\r' | tail -n 1)"
+      if [[ -n "$backup" ]]; then
+        say "Database backup: $backup in the data volume (the last 3 are kept)."
+        say "  Copy it out with: docker compose cp replayhaven:$backup ."
+      else
+        say 'No database yet, nothing to back up.'
+      fi
+    fi
+  fi
+
+  if [[ "$keep_bak" == 1 ]]; then
     cp compose.yaml compose.yaml.bak
     say 'Updated compose.yaml to this release (the previous one is in compose.yaml.bak).'
   fi

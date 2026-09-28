@@ -1,11 +1,11 @@
 import Fastify from 'fastify';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import cookie from '@fastify/cookie';
 import { createHash, randomUUID } from 'node:crypto';
 import { createWriteStream, readFileSync } from 'node:fs';
-import { mkdir, rename, rm, stat } from 'node:fs/promises';
+import { mkdir, readdir, rename, rm, stat, statfs } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
@@ -24,6 +24,15 @@ import type { AnalysisProvider } from './providers';
 import { AnalysisWorker } from './worker';
 import { PlaybackBackfill } from './playback';
 import { analysisSchema, parseAnalysis, clipPatchSchema, settingsSchema } from './schema';
+import type { Session } from './auth';
+import {
+  CHUNK_BYTES,
+  MAX_UPLOAD_BYTES,
+  VIDEO_EXTENSIONS,
+  registerUploads,
+  uploadMeta,
+} from './uploads';
+import type { ReceivedFile, StoredUpload, UploadOwner } from './uploads';
 
 /**
  * The release this server runs: the version the image was built for (REPLAYHAVEN_VERSION, from the
@@ -42,6 +51,29 @@ const serverVersion = (() => {
   }
 })();
 const idSchema = z.string().uuid();
+/** Room an upload needs: the largest accepted file plus its web rendition, thumbnail and database. */
+const MIN_FREE_BYTES = 3 * 1024 ** 3;
+/** Bytes available to the server in `directory`. */
+async function diskSpace(directory: string) {
+  const { bavail, bsize } = await statfs(directory);
+  return Number(bavail) * Number(bsize);
+}
+/**
+ * Removes uploads that were cut off by a crash or restart (incoming/*.part). Only old ones: an
+ * upload may still be arriving while a second server process starts, e.g. the admin CLI.
+ * Resumable uploads (server/uploads.ts, a .json next to the .part) wait to be continued; they
+ * are only given up after a day without progress.
+ */
+async function sweepIncoming(directory: string, olderThanMs = 3600_000) {
+  const names = await readdir(directory).catch(() => [] as string[]);
+  for (const name of names) {
+    if (!name.endsWith('.part') || names.includes(name.replace(/\.part$/, '.json'))) continue;
+    const path = join(directory, name);
+    const info = await stat(path).catch(() => undefined);
+    if (info?.isFile() && Date.now() - info.mtimeMs > olderThanMs)
+      await rm(path, { force: true }).catch(() => {});
+  }
+}
 /** The message of the first validation problem, e.g. a too short password. */
 function zodMessage(error: unknown) {
   const issue = error instanceof z.ZodError ? error.issues[0] : undefined;
@@ -51,7 +83,14 @@ function zodMessage(error: unknown) {
 }
 export async function buildServer(
   config: ServerConfig,
-  overrides: { provider?: AnalysisProvider; media?: MediaProcessor } = {},
+  overrides: {
+    provider?: AnalysisProvider;
+    media?: MediaProcessor;
+    /** Free disk space in bytes below a directory (tests simulate a full disk). */
+    freeBytes?: (directory: string) => Promise<number>;
+    /** Largest piece of a resumable upload (tests use small ones). */
+    chunkSize?: number;
+  } = {},
 ) {
   const app = Fastify({
     logger: config.logLevel ? { level: config.logLevel } : false,
@@ -92,12 +131,14 @@ export async function buildServer(
     worker.hasWork(),
   );
   await mkdir(join(config.dataDir, 'incoming'), { recursive: true });
+  await sweepIncoming(join(config.dataDir, 'incoming'));
+  const freeBytes = overrides.freeBytes ?? diskSpace;
   await app.register(cookie, {
     secret: createHash('sha256')
       .update(config.token || 'local-loopback-only')
       .digest('hex'),
   });
-  await app.register(multipart, { limits: { fileSize: 2 * 1024 ** 3, files: 1, fields: 5 } });
+  await app.register(multipart, { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1, fields: 5 } });
   await app.register(fastifyStatic, { root: resolve('dist'), serve: false });
   const origins = new Set([
     config.publicOrigin,
@@ -149,7 +190,9 @@ export async function buildServer(
     if (auth.guard(req, reply)) return reply;
   });
   // Accounts, roles, devices and pairing (server/auth-routes.ts).
-  const auth = registerAuth(app, new Accounts(db.db), config);
+  const accounts = new Accounts(db.db);
+  const auth = registerAuth(app, accounts, config);
+  const toPublic = (clip: StoredClip) => publicClip(clip, (id) => accounts.user(id)?.name);
   app.setErrorHandler((error, req, reply) => {
     const status =
       error instanceof z.ZodError ? 400 : (error as { statusCode?: number }).statusCode || 500;
@@ -208,32 +251,36 @@ export async function buildServer(
     // The file name comes from the stored entry, not from the request.
     return reply.sendFile(entry.info.cover, coverDir);
   });
-  app.get('/api/status', async (req) => ({
-    connected: true,
-    version: serverVersion,
-    provider: config.provider,
-    configured: aiConfigured(config),
-    model: config.model,
-    settings: db.settings(),
-    queue: db
-      .list()
-      .filter(
+  app.get('/api/status', async (req) => {
+    // Read once: the web app polls this every few seconds and the list holds every clip.
+    const clips = db.list();
+    return {
+      connected: true,
+      version: serverVersion,
+      provider: config.provider,
+      configured: aiConfigured(config),
+      model: config.model,
+      settings: db.settings(),
+      queue: clips.filter(
         (c) =>
           !c.deleted &&
           (c.status === 'processing' ||
             ['queued', 'preparing', 'analyzing'].includes(c.analysis?.status || '')),
       ).length,
-    // The folders on the gaming PCs are the admins' business.
-    devices: db.devices().map((d) => {
-      const shown = { ...d, ...(auth.admin(req) ? {} : { folder: '' }) };
-      delete shown.owner;
-      return shown;
-    }),
-    clientDownloadAvailable: (await localInstaller()) || !!config.clientDownloadUrl,
-    gameMetadata: games.status(),
-    playback: playback.status(),
-    supportBanner: config.supportBanner !== false,
-  }));
+      // The folders on the gaming PCs are the admins' business.
+      devices: db.devices().map((d) => {
+        const shown = { ...d, ...(auth.admin(req) ? {} : { folder: '' }) };
+        delete shown.owner;
+        return shown;
+      }),
+      clientDownloadAvailable: (await localInstaller()) || !!config.clientDownloadUrl,
+      gameMetadata: games.status(clips),
+      playback: playback.status(clips),
+      supportBanner: config.supportBanner !== false,
+      // Clients that know it upload in pieces (server/uploads.ts); older ones send one request.
+      uploads: uploads.status(),
+    };
+  });
   app.get('/api/downloads/windows', async (_req, reply) => {
     if (await localInstaller()) {
       reply.header('Content-Disposition', 'attachment; filename="ReplayHaven-Client-Setup.exe"');
@@ -261,29 +308,115 @@ export async function buildServer(
     const clip = db.findHash(hash);
     return { clip: clip ? { id: clip.id, removed: !!clip.deleted } : null };
   });
-  app.get('/api/clips', async () =>
-    db
+  app.get('/api/clips', async () => {
+    // All account names in one query instead of one per clip.
+    const names = new Map(accounts.users().map((u) => [u.id, u.name]));
+    return db
       .list()
       .filter((c) => !c.deleted)
-      .map(publicClip),
-  );
+      .map((c) => publicClip(c, (id) => names.get(id)));
+  });
   app.get<{ Params: { id: string } }>('/api/clips/:id', async (req, reply) => {
     const clip = db.get(idSchema.parse(req.params.id));
     if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
-    return publicClip(clip);
+    return toPublic(clip);
   });
+  /** Answers 507 before anything is received: a full disk would also stop the database. */
+  const refuseWhenFull = async (req: FastifyRequest, reply: FastifyReply) => {
+    const free = await freeBytes(config.dataDir).catch(() => undefined);
+    if (free === undefined || free >= MIN_FREE_BYTES) return false;
+    req.log.warn({ free }, 'Upload refused: too little free disk space');
+    void reply.code(507).send({
+      error: 'The server is running out of disk space. Free up space on the server, then retry.',
+    });
+    return true;
+  };
+  /**
+   * Whether a paired PC or browser speaks for work of `owner`: its own session, or after a new
+   * pairing another session of the same account, once the old one is gone. The same holds for
+   * clips the admin command assign-uploader gave an account: their session is empty and matches
+   * none.
+   */
+  const ownedBy = (caller: Session, owner: UploadOwner) =>
+    caller.id === owner.session ||
+    (caller.userId === owner.user &&
+      !accounts.sessions(owner.user).some((s) => s.id === owner.session));
+  /**
+   * Turns a completely received file (incoming/*.part with its SHA-256) into a clip: the same
+   * content answers with the clip already there, anything new moves into clips/<id>/ and goes to
+   * the worker. Both the multipart upload and resumable uploads (server/uploads.ts) end here; the
+   * caller removes the temporary file when it is still there, then sends the answer.
+   */
+  const storeUpload = async (req: FastifyRequest, file: ReceivedFile): Promise<StoredUpload> => {
+    const answerDuplicate = (duplicate: StoredClip) => {
+      // Uploading a removed clip again on purpose brings it back; clients skip removed clips
+      // before uploading (lookup above), so they stay removed there.
+      if (duplicate.deleted) db.patch(duplicate.id, { deleted: false });
+      if (duplicate.gameName) games.schedule(duplicate.gameName);
+      return { status: 200, body: { clip: toPublic(db.get(duplicate.id)!), duplicate: true } };
+    };
+    const duplicate = db.findHash(file.digest);
+    if (duplicate) return answerDuplicate(duplicate);
+    const id = randomUUID();
+    const directory = join(config.dataDir, 'clips', id);
+    await mkdir(directory, { recursive: true });
+    const originalFile = join(directory, `original${extname(file.name).toLowerCase()}`);
+    await rename(file.temporary, originalFile);
+    const { recordedAt: recorded, gameName } = file.meta;
+    // Fetch game info in the background; the upload does not wait for it.
+    if (gameName) games.schedule(gameName);
+    const clip: StoredClip = {
+      id,
+      title: file.name.replace(/\.[^.]+$/, '').slice(0, 120) || 'New recording',
+      gameId: 'recording',
+      gameName,
+      thumbnail: '',
+      duration: 0,
+      recordedAt:
+        recorded && Number.isFinite(Date.parse(recorded))
+          ? new Date(recorded).toISOString()
+          : new Date().toISOString(),
+      size: file.size,
+      // Set once the video has been probed; the interface shows nothing until then.
+      resolution: '',
+      tags: [],
+      favorite: false,
+      status: 'processing',
+      note: '',
+      server: true,
+      originalName: file.name.slice(0, 240),
+      originalFile,
+      hash: file.digest,
+      deviceName: file.meta.deviceName || 'Browser upload',
+      analysis: { status: 'preparing' },
+    };
+    clip.expectsClientAnalysis = file.meta.clientAnalysis;
+    const session = req.identity?.kind === 'client' ? req.identity.session : undefined;
+    if (session) clip.uploader = { session: session.id, user: session.userId };
+    try {
+      db.put(clip);
+    } catch (error) {
+      // The same file arrived twice at once: the other upload stored it first (UNIQUE hash).
+      const first = db.findHash(file.digest);
+      if (!first) throw error;
+      await rm(directory, { recursive: true, force: true }).catch(() => {});
+      return answerDuplicate(first);
+    }
+    worker.kick();
+    return { status: 201, body: { clip: toPublic(clip), duplicate: false } };
+  };
   app.post('/api/clips', async (req, reply) => {
+    if (await refuseWhenFull(req, reply)) return reply;
     const file = await req.file();
     if (!file) return reply.code(400).send({ error: 'Choose a video file.' });
-    const extension = extname(file.filename).toLowerCase();
-    if (!['.mp4', '.m4v', '.mov', '.webm', '.mkv'].includes(extension)) {
+    if (!VIDEO_EXTENSIONS.includes(extname(file.filename).toLowerCase())) {
       file.file.resume();
       return reply.code(400).send({ error: 'Supported formats are MP4, WebM, MOV, M4V and MKV.' });
     }
-    const id = randomUUID();
-    const temporary = join(config.dataDir, 'incoming', `${id}.part`);
+    const temporary = join(config.dataDir, 'incoming', `${randomUUID()}.part`);
     const hash = createHash('sha256');
     let size = 0;
+    let stored: StoredUpload;
     try {
       await pipeline(
         file.file,
@@ -300,68 +433,56 @@ export async function buildServer(
         return reply.code(file.file.truncated ? 413 : 400).send({
           error: file.file.truncated ? 'The file is larger than 2 GB.' : 'The file is empty.',
         });
-      const digest = hash.digest('hex');
-      const duplicate = db.findHash(digest);
-      if (duplicate) {
-        // Uploading a removed clip again on purpose brings it back; clients skip removed clips
-        // before uploading (lookup above), so they stay removed there.
-        if (duplicate.deleted) db.patch(duplicate.id, { deleted: false });
-        if (duplicate.gameName) games.schedule(duplicate.gameName);
-        return reply.code(200).send({ clip: publicClip(db.get(duplicate.id)!), duplicate: true });
-      }
-      const directory = join(config.dataDir, 'clips', id);
-      await mkdir(directory, { recursive: true });
-      const originalFile = join(directory, `original${extension}`);
-      await rename(temporary, originalFile);
       const header = (name: string) => {
         const value = req.headers[name];
         try {
-          return decodeURIComponent(typeof value === 'string' ? value : '').slice(0, 160);
+          return decodeURIComponent(typeof value === 'string' ? value : '');
         } catch {
           return '';
         }
       };
-      const recorded = header('x-recorded-at');
-      const gameNameHeader = header('x-game-name');
-      // Fetch game info in the background; the upload does not wait for it.
-      if (gameNameHeader) games.schedule(gameNameHeader);
-      const clip: StoredClip = {
-        id,
-        title: file.filename.replace(/\.[^.]+$/, '').slice(0, 120) || 'New recording',
-        gameId: 'recording',
-        gameName: gameNameHeader,
-        thumbnail: '',
-        duration: 0,
-        recordedAt:
-          recorded && Number.isFinite(Date.parse(recorded))
-            ? new Date(recorded).toISOString()
-            : new Date().toISOString(),
+      stored = await storeUpload(req, {
+        temporary,
+        name: file.filename,
         size,
-        // Set once the video has been probed; the interface shows nothing until then.
-        resolution: '',
-        tags: [],
-        favorite: false,
-        status: 'processing',
-        note: '',
-        server: true,
-        originalName: file.filename.slice(0, 240),
-        originalFile,
-        hash: digest,
-        deviceName: header('x-device-name') || 'Browser upload',
-        analysis: { status: 'preparing' },
-      };
-      clip.expectsClientAnalysis = req.headers['x-client-analysis'] === '1';
-      db.put(clip);
-      worker.kick();
-      return reply.code(201).send({ clip: publicClip(clip), duplicate: false });
+        digest: hash.digest('hex'),
+        meta: uploadMeta({
+          recordedAt: header('x-recorded-at'),
+          gameName: header('x-game-name'),
+          deviceName: header('x-device-name'),
+          clientAnalysis: req.headers['x-client-analysis'] === '1',
+        }),
+      });
     } finally {
       await rm(temporary, { force: true }).catch(() => {});
     }
+    return reply.code(stored.status).send(stored.body);
   });
+  // The same upload in pieces that can be continued (server/uploads.ts).
+  const uploads = registerUploads(app, {
+    directory: join(config.dataDir, 'incoming'),
+    chunkSize: overrides.chunkSize ?? CHUNK_BYTES,
+    refuseWhenFull,
+    ownerOf: (req) => ({
+      session: req.identity?.session?.id ?? '',
+      user: req.identity?.session?.userId ?? '',
+    }),
+    owns: (req, owner) => {
+      const caller = req.identity?.session;
+      // The access key and local access without an account share their uploads.
+      return caller ? ownedBy(caller, owner) : !owner.session && !owner.user;
+    },
+    store: storeUpload,
+  });
+  await uploads.sweep();
   app.post<{ Params: { id: string } }>('/api/clips/:id/client-analysis', async (req, reply) => {
     const id = idSchema.parse(req.params.id);
     const clip = db.get(id);
     if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
+    // A paired PC only delivers results for its own uploads (see ownedBy).
+    const caller = req.identity?.kind === 'client' ? req.identity.session : undefined;
+    if (caller && clip.uploader && !ownedBy(caller, clip.uploader))
+      return reply.code(403).send({ error: 'This clip was uploaded by another PC.' });
     const payload = z
       .object({
         result: analysisSchema,
@@ -382,10 +503,10 @@ export async function buildServer(
         : undefined;
     // Sending the same result again changes nothing. A new analysis replaces the old one:
     // otherwise the archive would keep titles and tags of earlier versions forever.
-    if (previous && JSON.stringify(previous) === JSON.stringify(result)) return publicClip(latest);
+    if (previous && JSON.stringify(previous) === JSON.stringify(result)) return toPublic(latest);
     // Tags of the previous analysis go, the user's own tags stay.
     const stale = new Set(previous?.tags ?? []);
-    return publicClip(
+    return toPublic(
       db.patch(id, {
         expectsClientAnalysis: true,
         ...(db.settings().autoTitle && !latest.userEditedTitle ? { title: result.title } : {}),
@@ -411,9 +532,7 @@ export async function buildServer(
     if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
     const patch = clipPatchSchema.parse(req.body);
     if (patch.gameName) games.schedule(patch.gameName);
-    return publicClip(
-      db.patch(id, { ...patch, ...(patch.title ? { userEditedTitle: true } : {}) })!,
-    );
+    return toPublic(db.patch(id, { ...patch, ...(patch.title ? { userEditedTitle: true } : {}) })!);
   });
   app.delete<{ Params: { id: string } }>('/api/clips/:id', async (req, reply) => {
     const id = idSchema.parse(req.params.id);
@@ -435,7 +554,7 @@ export async function buildServer(
       analysis: { ...clip.analysis, status: 'queued', error: undefined },
     })!;
     worker.kick();
-    return reply.code(202).send(publicClip(queued));
+    return reply.code(202).send(toPublic(queued));
   });
   app.post<{ Params: { id: string } }>('/api/clips/:id/retry-media', async (req, reply) => {
     const id = idSchema.parse(req.params.id);
@@ -443,7 +562,12 @@ export async function buildServer(
     if (!clip || clip.deleted) return reply.code(404).send({ error: 'Clip not found.' });
     if (clip.status !== 'error')
       return reply.code(409).send({ error: 'Video processing has not failed.' });
-    db.patch(id, { status: 'processing', analysis: { status: 'preparing' } });
+    // A result the PC already delivered stays (worker.ts keeps it when preparing fails).
+    const delivered = clip.analysis?.provider === 'client' && clip.analysis.status === 'ready';
+    db.patch(id, {
+      status: 'processing',
+      analysis: delivered ? clip.analysis : { status: 'preparing' },
+    });
     worker.kick();
     return reply.code(202).send({ queued: true });
   });
@@ -512,6 +636,7 @@ export async function buildServer(
   metadataTimer?.unref();
   app.addHook('onClose', async () => {
     clearInterval(metadataTimer);
+    uploads.stop();
     await playback.stop();
     await worker.stop();
     await games.stop();

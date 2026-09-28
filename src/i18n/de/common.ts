@@ -17,4 +17,8 @@ export const common: Translation<typeof source> = {
   'notFound.title': 'Hier ist kein Clip gelandet.',
   'notFound.text': 'Diese Seite gibt es nicht. Dein Archiv findest du gleich nebenan.',
   'notFound.home': 'Zur Startseite',
+  'error.title': 'Diese Seite ließ sich nicht laden',
+  'error.text':
+    'Vielleicht wurde ReplayHaven gerade aktualisiert. Neu laden hilft meist; deine Clips sind sicher.',
+  'error.reload': 'Seite neu laden',
 };

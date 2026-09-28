@@ -73,13 +73,66 @@ it('rejects a translation that loses the kill count, a highlight or the title', 
     { ...english, title: '  ' },
     'not json',
   ];
+  expectRejected(german, attempts);
+});
+
+it('rejects a translation that adds claims or leaves a text empty', () => {
+  const kill: AnalysisResult = {
+    ...german,
+    title: 'Kill im Keller',
+    description: 'Du schaltest einen Gegner aus.',
+    highlights: [{ seconds: 4, title: 'Kill', description: 'Durch die Wand' }],
+  };
+  const fine = {
+    title: 'Kill in the Basement',
+    description: 'You take out an enemy.',
+    uncertainty: '',
+    highlights: [{ title: 'Kill', description: 'Through the wall' }],
+  };
+  expect(applyTranslation(kill, answer(fine)).title).toBe('Kill in the Basement');
+  expectRejected(kill, [
+    // More kills than the German title counted.
+    { ...fine, title: 'Triple Kill in the Basement' },
+    { ...fine, title: 'Ace in the Basement' },
+    { ...fine, description: 'You take out 5 enemies.' },
+    { ...fine, description: 'You take out three enemies.' },
+    // A win nobody checked.
+    { ...fine, description: 'You take out an enemy and win the round.' },
+    { ...fine, highlights: [{ title: 'Victory', description: 'Through the wall' }] },
+    // Empty texts would mix English with German.
+    { ...fine, description: '' },
+    { ...fine, highlights: [{ title: '', description: 'Through the wall' }] },
+  ]);
+  const quiet: AnalysisResult = {
+    ...german,
+    title: 'Sprung vom Dach',
+    description: 'Du springst vom Dach.',
+    highlights: [],
+  };
+  expectRejected(quiet, [
+    {
+      title: 'Double Kill after the Jump',
+      description: 'You jump off the roof.',
+      uncertainty: '',
+      highlights: [],
+    },
+    {
+      title: 'Jump off the Roof',
+      description: 'You jump off the roof and take down two enemies.',
+      uncertainty: '',
+      highlights: [],
+    },
+  ]);
+});
+
+function expectRejected(source: AnalysisResult, attempts: unknown[]) {
   for (const attempt of attempts) {
     let error: unknown;
     try {
-      applyTranslation(german, typeof attempt === 'string' ? attempt : answer(attempt));
+      applyTranslation(source, typeof attempt === 'string' ? attempt : answer(attempt));
     } catch (caught) {
       error = caught;
     }
     expect(isParseError(error), JSON.stringify(attempt)).toBe(true);
   }
-});
+}

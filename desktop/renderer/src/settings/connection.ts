@@ -1,6 +1,7 @@
 import { call, errorText, run } from '../api';
 import type { Pairing } from '../api';
 import { $ } from '../dom';
+import { pairingMessage } from '../format';
 import { t } from '../i18n';
 import { state } from '../state';
 import { fillTokenPlaceholder, FORMS, refreshForm } from './forms';
@@ -31,7 +32,7 @@ export function renderConnection() {
     (pairing && {
       text: waiting
         ? t('pair.settings', { code: `${pairing.code.slice(0, 3)} ${pairing.code.slice(3)}` })
-        : pairing.message,
+        : pairingMessage(pairing),
       tone: pairing.state === 'approved' ? 'ok' : waiting ? '' : 'bad',
     });
   const result = $('server-result');

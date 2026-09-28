@@ -8,6 +8,7 @@ import {
   summaryJsonSchema,
   parseAnalysis,
   isParseError,
+  isRecord,
   parseFrameBatch,
   parseSummary,
   salvageFrameBatch,
@@ -17,6 +18,7 @@ import type { AnalysisResult, FrameObservation, SummaryResult } from '../server/
 import { TAIL_SECONDS } from '../server/media';
 import type { MediaProcessor } from '../server/media';
 import {
+  certain,
   collectEvents,
   describeFacts,
   eventWeight,
@@ -41,6 +43,7 @@ import {
   titleProblems,
   uncertaintyFor,
 } from './wording';
+import type { MapContext } from './wording';
 import { namesFor } from './players';
 import { applyTranslation, translationJsonSchema, translationPrompt } from './translate';
 import type { TitleLanguage } from './translate';
@@ -284,7 +287,9 @@ export class LocalAnalyzer {
         topicJsonSchema,
         BATCH_KEEP_ALIVE_SECONDS,
       );
-      return usableTopic((JSON.parse(raw) as { topic?: unknown }).topic, said);
+      // "null" is valid JSON, but no answer.
+      const data: unknown = JSON.parse(raw);
+      return isRecord(data) ? usableTopic(data.topic, said) : '';
     } catch (error) {
       if (error instanceof SyntaxError) return '';
       throw error;
@@ -334,8 +339,11 @@ export class LocalAnalyzer {
       ),
     };
     let modelMayBeLoaded = false;
-    // If the analysis ends early, text recognition ends too.
+    // If the analysis ends early, text and speech recognition end too.
     const stopReading = new AbortController();
+    const stopListening = new AbortController();
+    // Generous, since both run on the CPU next to the frame review; it only catches a hang.
+    const sideDeadline = Math.max(120, 3 * duration) * 1000;
     try {
       // Replay first: if the clip waits for its match to end, that costs no GPU time.
       // An error here only costs the replay events, never the analysis.
@@ -377,7 +385,7 @@ export class LocalAnalyzer {
         .speech?.(
           path,
           AbortSignal.any([
-            stopReading.signal,
+            stopListening.signal,
             ...(this.options.signal ? [this.options.signal] : []),
           ]),
         )
@@ -425,12 +433,34 @@ export class LocalAnalyzer {
       }
       if (reading && !read)
         this.options.onProgress?.('Text recognition is reading map, round and killfeed …');
-      const texts = await reading;
-      if (texts) trace.texts = texts.trace;
+      // A recognition that hangs must not hold the clip forever; without it only its facts are missing.
+      const readOutcome = reading
+        ? await withDeadline(reading, sideDeadline, stopReading)
+        : undefined;
+      const texts = readOutcome === TIMED_OUT ? undefined : readOutcome;
+      if (readOutcome === TIMED_OUT)
+        trace.texts = {
+          frames: 0,
+          seconds: sideDeadline / 1000,
+          events: 0,
+          error: 'Text recognition timed out.',
+        };
+      else if (texts) trace.texts = texts.trace;
       if (listening)
         this.options.onProgress?.('Speech recognition is transcribing the voice chat …');
-      const transcript = await listening;
-      if (transcript) trace.speech = transcript.trace;
+      const heard = listening
+        ? await withDeadline(listening, sideDeadline, stopListening)
+        : undefined;
+      const transcript = heard === TIMED_OUT ? undefined : heard;
+      if (heard === TIMED_OUT)
+        trace.speech = {
+          engine: 'unknown',
+          seconds: sideDeadline / 1000,
+          words: 0,
+          laughs: 0,
+          error: 'Speech recognition timed out.',
+        };
+      else if (transcript) trace.speech = transcript.trace;
       const laughs = transcript ? splitTranscript(transcript.segments).laughs : [];
       const map = texts?.map;
       // The model reads the messages; they are interpreted here (agent/events.ts). Kills and
@@ -492,11 +522,13 @@ export class LocalAnalyzer {
       } Folgt die Ansicht nach seinem Tod einem Mitspieler oder zeigt sie eine Zuschauerperspektive, ist unklar, wessen Sicht zu sehen ist — dann bleibe unpersönlich.`;
       const heads = headline(events, momentStart);
       // Only text recognition knows the map; if it ran, the title must not name another one.
-      // Without text recognition the check stays as before.
-      const place =
-        texts && !texts.trace.error && isR6(game)
+      // R6 without text recognition stays unchecked, since its real map names are all known.
+      // Other games know no maps at all, so any place the model names ("auf Dantzig") is made up.
+      const place: MapContext | undefined = isR6(game)
+        ? texts && !texts.trace.error
           ? { maps: R6_MAPS, ...(map ? { map } : {}) }
-          : undefined;
+          : undefined
+        : { maps: [] };
       const mapRule = map
         ? heads.length
           ? ` Die Karte ist ${map} (Texterkennung, verlässlich); der Titel endet mit "auf ${map}".`
@@ -602,6 +634,7 @@ export class LocalAnalyzer {
       return { result, duration, model: this.options.model };
     } finally {
       stopReading.abort();
+      stopListening.abort();
       this.options.onTrace?.(trace);
       if (modelMayBeLoaded) await this.unload();
       // work is a generated UUID strictly beneath this client's dedicated cache directory.
@@ -640,9 +673,10 @@ export class LocalAnalyzer {
       description: description.slice(0, 1800),
       game: context.game.slice(0, 100),
       tags: tagsFor(events, seen, CLIP_TAGS),
-      confidence: heads.some((e) => ['screen', 'replay', 'ocr'].includes(e.source))
+      // A message the model read in a single frame may be its own invention: medium at most.
+      confidence: heads.some((e) => certain(e, events))
         ? 'high'
-        : playing
+        : playing || heads.some((e) => e.source === 'screen')
           ? 'medium'
           : 'low',
       // The model's field absorbs caveats so they do not end up in the description; the caveat
@@ -650,6 +684,28 @@ export class LocalAnalyzer {
       uncertainty: uncertaintyFor(heads, context.lostFrames),
       highlights: tidyHighlights(summary.highlights, events, duration, context.laughs),
     });
+  }
+}
+export const TIMED_OUT = Symbol('timed out');
+/**
+ * Waits for a side job such as text or speech recognition for at most `ms` milliseconds. On
+ * timeout it stops the job through `stop` and returns TIMED_OUT, so the analysis goes on without it.
+ */
+export async function withDeadline<T>(
+  work: Promise<T>,
+  ms: number,
+  stop: AbortController,
+): Promise<T | typeof TIMED_OUT> {
+  let timer: NodeJS.Timeout | undefined;
+  const expired = new Promise<typeof TIMED_OUT>(
+    (done) => (timer = setTimeout(() => done(TIMED_OUT), ms)),
+  );
+  try {
+    const outcome = await Promise.race([work, expired]);
+    if (outcome === TIMED_OUT) stop.abort();
+    return outcome;
+  } finally {
+    clearTimeout(timer);
   }
 }
 function dirnameIsRoot(path: string, root: string) {

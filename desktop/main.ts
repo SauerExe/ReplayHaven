@@ -18,7 +18,7 @@ import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { FolderUploader, gameLabel, listVideos, recordedGames } from '../agent/watcher';
-import type { ActiveClip, ArchivedClip, QueueEntry } from '../agent/watcher';
+import type { ActiveClip, ArchivedClip, QueueEntry, UploadSupport } from '../agent/watcher';
 import {
   LocalAnalyzer,
   checkOllama,
@@ -38,12 +38,16 @@ import { keepMatchForClip } from '../agent/r6-replays';
 import { installOllama, OLLAMA_SETUP } from './ollama-setup';
 import { linkIn, PAIRING_SCHEME, parsePairingLink } from './pairing-link';
 import { discoverServers } from './discovery';
-import { isNewer } from './update';
+import { detectAi } from './gpu';
+import type { AiAdvice } from './gpu';
+import { isNewer, releasePage } from './update';
 import {
+  backupFile,
+  CodedError,
   configSchema,
   DEFAULT_CONFIG,
-  fromSaved,
   normalizeConfig,
+  parseSaved,
   serverAddress,
   validateServer,
 } from './config';
@@ -88,14 +92,30 @@ let status = {
   pairing: null as Pairing | null,
   /** A newer release the server runs, for the update notice (desktop/update.ts); empty otherwise. */
   update: '',
+  /**
+   * The message as text code for the window's language (CodedError in desktop/config.ts), or
+   * empty: then the window shows `message` as it is. Reset with every new message.
+   */
+  code: '',
+  params: {} as Params,
 };
+type Params = Record<string, string | number>;
 /** State of a pairing: the PC waits until someone approves it in the web interface. */
 type Pairing = {
   state: 'waiting' | 'approved' | 'denied' | 'expired' | 'error';
   server: string;
   code: string;
   message: string;
+  /** The message as text code for the window, see status.code. */
+  text?: string;
+  params?: Params;
 };
+/** Code and parameters of an error for the window; empty for errors without one. */
+function coded(error: unknown): { code: string; params: Params } {
+  return error instanceof CodedError
+    ? { code: error.code, params: error.params }
+    : { code: '', params: {} };
+}
 /** The recording in progress with step, progress and thumbnail for the window. */
 type Activity = ActiveClip & {
   step: 'prepare' | 'view' | 'summary' | 'upload';
@@ -107,6 +127,8 @@ const root = () => app.getPath('userData');
 function emit(patch: Partial<typeof status> = {}) {
   status = {
     ...status,
+    // A new message without a code of its own is shown as it is.
+    ...('message' in patch ? { code: '', params: {} } : {}),
     ...patch,
     paused,
     uploaded: agent?.state.uploaded || patch.uploaded || status.uploaded,
@@ -127,7 +149,9 @@ function updateShell() {
         ? 0.05 + 0.8 * (a.total ? a.current / a.total : 0)
         : a.step === 'summary'
           ? 0.9
-          : 0.97;
+          : a.sent !== undefined && a.size
+            ? 0.9 + 0.1 * (a.sent / a.size)
+            : 0.97;
   window.setProgressBar(fraction, { mode: waiting() && status.running ? 'paused' : 'normal' });
   if (!tray) return;
   const state = !status.running ? 'off' : gaming ? 'gaming' : paused ? 'paused' : 'running';
@@ -154,7 +178,8 @@ function updateShell() {
         : {
             label: status.running ? 'Resume' : 'Start',
             enabled: config.onboarded,
-            click: () => void start().catch((e: Error) => emit({ message: e.message })),
+            click: () =>
+              void start().catch((e: Error) => emit({ message: e.message, ...coded(e) })),
           },
       { label: 'Open archive in browser', click: () => void openArchive() },
       { type: 'separator' },
@@ -268,10 +293,18 @@ async function saveConfig(value: unknown) {
     await persist();
     return publicConfig();
   }
-  if (working) throw new Error('Pause the client and wait until the current step has finished.');
-  if (status.running && !paused) throw new Error('Pause the client before changing settings.');
+  if (working)
+    throw new CodedError(
+      'save.working',
+      'Pause the client and wait until the current step has finished.',
+    );
+  if (status.running && !paused)
+    throw new CodedError('save.running', 'Pause the client before changing settings.');
   if (input.token && !safeStorage.isEncryptionAvailable())
-    throw new Error('Windows cannot store the access key encrypted right now.');
+    throw new CodedError(
+      'save.encryption',
+      'Windows cannot store the access key encrypted right now.',
+    );
   config = input;
   if (app.isPackaged && !PREVIEW)
     app.setLoginItemSettings({ openAtLogin: config.openAtLogin, args: ['--hidden'] });
@@ -283,9 +316,18 @@ async function saveConfig(value: unknown) {
   emit({ message: 'Settings saved. Ready to start.' });
   return publicConfig();
 }
+/**
+ * Set when preferences.json could not be read completely (a broken field, an access key another
+ * Windows account encrypted): before it is first overwritten, it is kept as preferences.json.bak.
+ */
+let backupBeforeSave = false;
 async function persist() {
   if (PREVIEW) return;
   await mkdir(root(), { recursive: true });
+  if (backupBeforeSave) {
+    await backupFile(join(root(), 'preferences.json'));
+    backupBeforeSave = false;
+  }
   const encryptedToken = config.token
     ? safeStorage.encryptString(config.token).toString('base64')
     : '';
@@ -295,16 +337,60 @@ async function persist() {
   );
 }
 /**
+ * Reads preferences.json. Whatever cannot be read falls back on its own: a broken field to its
+ * default, an access key this Windows account cannot decrypt to none (pair again), a damaged file
+ * to the defaults. The file is then kept as a backup before the first save overwrites it.
+ */
+async function loadConfig() {
+  let text: string;
+  try {
+    text = await readFile(join(root(), 'preferences.json'), 'utf8');
+  } catch {
+    return; // First start.
+  }
+  const loaded = parseSaved(text, (encrypted) =>
+    safeStorage.decryptString(Buffer.from(encrypted, 'base64')),
+  );
+  config = loaded.config;
+  if (loaded.repaired.length) {
+    backupBeforeSave = true;
+    console.error(
+      `preferences.json only partly readable (${loaded.repaired.join(', ')}); defaults used, a backup follows on the next save.`,
+    );
+  }
+}
+/**
  * Pairs this PC with a server: it sends a request, shows the code and waits until someone
  * approves it in the web interface; then it stores its own access (server/auth-routes.ts).
  */
 let pairingAbort: AbortController | undefined;
+/** Refused while the client works: pairing changes the server and key it works with. */
+const pairBusy = () => new CodedError('pair.busy', 'Pause the client before pairing it again.');
+/**
+ * A page that answers without being ReplayHaven, typically the sign-in page of a proxy such as
+ * Authelia in front of the public address: it says 200 but never lets the client through.
+ */
+const notReplayHaven = () =>
+  new CodedError(
+    'server.notReplayHaven',
+    'This address answers, but not as ReplayHaven: probably a sign-in page (such as Authelia) in front of it. Use the server address in your home network, e.g. http://192.168.1.10:8787.',
+  );
+const answersJson = (response: Response) =>
+  (response.headers.get('content-type') ?? '').includes('application/json');
+/** An error answer of the server: its own message if it sent one, otherwise the status code. */
+const serverRefused = (response: Response, message?: string) =>
+  message
+    ? new Error(message)
+    : response.ok || !answersJson(response)
+      ? notReplayHaven()
+      : new CodedError('server.http', `The server responds with HTTP ${response.status}.`, {
+          status: response.status,
+        });
 async function startPairing(address: string) {
   // A copied pairing link pasted as the address pairs right away.
   if (address.startsWith(`${PAIRING_SCHEME}:`)) return pairByLink(address);
   const server = serverAddress(address);
-  if (working || (status.running && !paused))
-    throw new Error('Pause the client before pairing it again.');
+  if (working || (status.running && !paused)) throw pairBusy();
   pairingAbort?.abort();
   const abort = new AbortController();
   pairingAbort = abort;
@@ -321,10 +407,14 @@ async function startPairing(address: string) {
       signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10000)]),
     });
   } catch {
-    throw new Error('No response. Check the address and whether the server is running.');
+    throw new CodedError(
+      'pair.noResponse',
+      'No response. Check the address and whether the server is running.',
+    );
   }
   if (response.status === 404)
-    throw new Error(
+    throw new CodedError(
+      'pair.unsupported',
       'This server does not support pairing yet. Update it or connect with the access key.',
     );
   const body = (await response.json().catch(() => ({}))) as {
@@ -334,10 +424,21 @@ async function startPairing(address: string) {
     error?: string;
   };
   if (!response.ok || !body.id || !body.secret || !body.code)
-    throw new Error(body.error || `The server responds with HTTP ${response.status}.`);
-  const show = (state: Pairing['state'], message: string) =>
-    emit({ pairing: { state, server, code: body.code!, message } });
-  show('waiting', 'Waiting for approval in the web interface …');
+    throw serverRefused(response, body.error);
+  const show = (state: Pairing['state'], error: CodedError) =>
+    emit({
+      pairing: {
+        state,
+        server,
+        code: body.code!,
+        message: error.message,
+        text: error.code,
+        params: error.params,
+      },
+    });
+  const expired = () =>
+    new CodedError('pair.expired', 'The request has expired. Start pairing again.');
+  show('waiting', new CodedError('pair.waiting', 'Waiting for approval in the web interface …'));
   void (async () => {
     const until = Date.now() + 10 * 60000;
     while (!abort.signal.aborted && Date.now() < until) {
@@ -354,18 +455,33 @@ async function startPairing(address: string) {
         if (result.status === 'approved' && result.token) {
           config = { ...config, server, token: result.token };
           await persist();
-          return show('approved', `Paired with ${new URL(server).host}.`);
+          const host = new URL(server).host;
+          show('approved', new CodedError('pair.approved', `Paired with ${host}.`, { host }));
+          // Resumed while the approval was pending: the uploader still has the old access.
+          void restartWithNewAccess();
+          return;
         }
-        if (result.status === 'denied') return show('denied', 'The pairing was denied.');
-        if (result.status === 'expired')
-          return show('expired', 'The request has expired. Start pairing again.');
+        if (result.status === 'denied')
+          return show('denied', new CodedError('pair.denied', 'The pairing was denied.'));
+        if (result.status === 'expired') return show('expired', expired());
       } catch {
         // Briefly unreachable: keep asking until the request expires.
       }
     }
-    if (!abort.signal.aborted) show('expired', 'The request has expired. Start pairing again.');
+    if (!abort.signal.aborted) show('expired', expired());
   })();
   return { code: body.code, server };
+}
+/**
+ * After a new pairing: a running client restarts its uploader so it uses the new server and
+ * access key. A paused one picks them up when it resumes.
+ */
+async function restartWithNewAccess() {
+  if (!status.running || paused || PREVIEW) return;
+  pause();
+  // Let the step in progress see the pause and finish first.
+  for (let i = 0; working && i < 600; i++) await new Promise((done) => setTimeout(done, 100));
+  await start().catch((error: Error) => emit({ message: error.message, ...coded(error) }));
 }
 /**
  * Pairs with the server a link names. A link that Windows hands over came from some web page,
@@ -376,11 +492,20 @@ async function pairByLink(link: string, { confirm = false } = {}) {
   const parsed = parsePairingLink(link);
   const server = validateServer(parsed.server);
   const { ticket } = parsed;
-  const show = (state: Pairing['state'], message: string) =>
-    emit({ pairing: { state, server, code: '', message } });
+  const show = (state: Pairing['state'], error: Error) =>
+    emit({
+      pairing: {
+        state,
+        server,
+        code: '',
+        message: error.message,
+        ...(error instanceof CodedError ? { text: error.code, params: error.params } : {}),
+      },
+    });
   if (working || (status.running && !paused)) {
-    show('error', 'Pause the client before pairing it again.');
-    throw new Error('Pause the client before pairing it again.');
+    const error = pairBusy();
+    show('error', error);
+    throw error;
   }
   if (confirm) {
     const host = new URL(server).host;
@@ -408,18 +533,23 @@ async function pairByLink(link: string, { confirm = false } = {}) {
       signal: AbortSignal.timeout(10000),
     });
   } catch {
-    show('error', 'The server does not respond. Is it running and reachable from this PC?');
-    throw new Error('The server does not respond. Is it running and reachable from this PC?');
+    const error = new CodedError(
+      'pair.serverDown',
+      'The server does not respond. Is it running and reachable from this PC?',
+    );
+    show('error', error);
+    throw error;
   }
   const body = (await response.json().catch(() => ({}))) as { token?: string; error?: string };
   if (!response.ok || !body.token) {
-    const message = body.error || `The server responds with HTTP ${response.status}.`;
-    show(response.status === 410 ? 'expired' : 'error', message);
-    throw new Error(message);
+    const error = serverRefused(response, body.error);
+    show(response.status === 410 ? 'expired' : 'error', error);
+    throw error;
   }
   config = { ...config, server, token: body.token };
   await persist();
-  show('approved', `Paired with ${new URL(server).host}.`);
+  const host = new URL(server).host;
+  show('approved', new CodedError('pair.approved', `Paired with ${host}.`, { host }));
   // A PC that was already set up resumes its work with the new server.
   if (config.onboarded && config.autoStart) void autoStart();
   return { code: '', server };
@@ -469,10 +599,16 @@ function closeTexts() {
 async function textsProblem() {
   const error = await textsWorker().problem();
   if (!error) return undefined;
-  const message = error.message.trim() || 'unknown';
+  const detail = error.message.trim() || 'unknown';
   return missingLibrary(error)
-    ? `R6 text recognition needs a current version of the "Microsoft Visual C++ Redistributable" (x64). Install it from Microsoft or turn the option off. (${message})`
-    : `R6 text recognition cannot be loaded: ${message}`;
+    ? new CodedError(
+        'launch.vcRedist',
+        `R6 text recognition needs a current version of the "Microsoft Visual C++ Redistributable" (x64). Install it from Microsoft or turn the option off. (${detail})`,
+        { detail },
+      )
+    : new CodedError('launch.texts', `R6 text recognition cannot be loaded: ${detail}`, {
+        detail,
+      });
 }
 /** Speech recognition runs in its own process and keeps its models across starts. */
 let speech: SpeechProcess | undefined;
@@ -563,7 +699,7 @@ async function start() {
     return emit({ running: true, message: 'Preview: running.' });
   }
   // The checks before starting take a while; a second click would otherwise start a second run.
-  if (starting) throw new Error('Already starting.');
+  if (starting) throw new CodedError('launch.starting', 'Already starting.');
   starting = true;
   try {
     await launch();
@@ -583,39 +719,60 @@ async function autoStart() {
   try {
     await start();
   } catch (error) {
+    const reason = (error as Error).message;
+    const { code, params } = coded(error);
+    // The window puts the reason, in its language, into its own sentence (err.autoStart).
     emit({
-      message: `Automatic start not possible yet: ${(error as Error).message} Retrying in 30 seconds.`,
+      message: `Automatic start not possible yet: ${reason} Retrying in 30 seconds.`,
+      code: 'autoStart',
+      params: { ...params, cause: code, reason },
     });
     autoStartTimer = setTimeout(() => void autoStart(), 30_000);
   }
 }
 async function launch() {
   clearTimeout(autoStartTimer);
-  if (!config.folder) throw new Error('Choose your NVIDIA recording folder first.');
-  if (working) throw new Error('The current step is still finishing.');
+  if (!config.folder)
+    throw new CodedError('launch.noFolder', 'Choose your NVIDIA recording folder first.');
+  if (working) throw new CodedError('launch.working', 'The current step is still finishing.');
   const response = await fetch(`${config.server}/api/status`, {
     headers: config.token ? { Authorization: `Bearer ${config.token}` } : {},
     signal: AbortSignal.timeout(10000),
   }).catch(() => {
-    throw new Error(`The archive server at ${new URL(config.server).host} is not reachable.`);
+    const host = new URL(config.server).host;
+    throw new CodedError('launch.unreachable', `The archive server at ${host} is not reachable.`, {
+      host,
+    });
   });
-  if (!response.ok)
-    throw new Error(
-      response.status === 401 || response.status === 403
-        ? 'The server rejected this PC. Pair it again under Settings.'
-        : `The archive server answered with HTTP ${response.status}.`,
+  if (response.status === 401 || response.status === 403)
+    throw new CodedError(
+      'launch.rejected',
+      'The server rejected this PC. Pair it again under Settings.',
     );
-  await checkServerVersion((await response.json().catch(() => ({}))) as { version?: string });
+  if (!response.ok)
+    throw new CodedError(
+      'server.http',
+      `The archive server answered with HTTP ${response.status}.`,
+      { status: response.status },
+    );
+  const serverInfo = (await response.json().catch(() => ({}))) as {
+    version?: string;
+    uploads?: UploadSupport;
+  };
+  await checkServerVersion(serverInfo);
   if (config.analyze) {
     const ai = await checkOllama(OLLAMA_URL, config.model);
     if (!ai.supported)
-      throw new Error(
+      throw new CodedError(
+        'launch.ollamaBroken',
         `Ollama ${ai.version} gives unusable answers. Click Install Ollama under Settings → Local AI to install ${OLLAMA_SETUP.version}.`,
+        { version: String(ai.version), pinned: OLLAMA_SETUP.version },
       );
-    if (!ai.installed) throw new Error('Install Ollama and download the local model first.');
+    if (!ai.installed)
+      throw new CodedError('launch.noModel', 'Install Ollama and download the local model first.');
     // Otherwise the option would silently do nothing: every clip would come back without a map.
     const problem = config.r6Texts ? await textsProblem() : undefined;
-    if (problem) throw new Error(problem);
+    if (problem) throw problem;
     // The first time, this downloads the speech models; without them the option would do nothing.
     if (config.speech)
       await speechProcess()
@@ -625,9 +782,10 @@ async function launch() {
           }),
         )
         .catch((error: unknown) => {
-          throw new Error(
-            `Speech recognition cannot be loaded: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          const detail = error instanceof Error ? error.message : String(error);
+          throw new CodedError('launch.speech', `Speech recognition cannot be loaded: ${detail}`, {
+            detail,
+          });
         });
   }
   aborter = new AbortController();
@@ -691,6 +849,8 @@ async function launch() {
       ? { analyze: (path: string, game: string) => analyzer.analyze(path, game) }
       : {}),
     isPaused: waiting,
+    // Servers that announce it take uploads in pieces (through Cloudflare Tunnel, resumable).
+    serverUploads: serverInfo.uploads ?? {},
     signal: aborter.signal,
     onStatus: (message) => emit({ message }),
     onQueued: (queued) => emit({ queued }),
@@ -894,17 +1054,7 @@ else {
   app
     .whenReady()
     .then(async () => {
-      try {
-        const saved = JSON.parse(await readFile(join(root(), 'preferences.json'), 'utf8'));
-        config = fromSaved(
-          saved,
-          saved.encryptedToken
-            ? safeStorage.decryptString(Buffer.from(saved.encryptedToken, 'base64'))
-            : '',
-        );
-      } catch {
-        /* First start, or a configuration belonging to another Windows account. */
-      }
+      await loadConfig();
       const handle = (name: string, fn: (value: unknown) => unknown) =>
         ipcMain.handle(name, async (event, value) => {
           if (event.sender !== window.webContents) throw new Error('Invalid caller.');
@@ -914,12 +1064,14 @@ else {
             return {
               ok: false,
               error: error instanceof Error ? error.message : 'Action failed.',
+              // The window translates coded errors and falls back to the message.
+              ...(error instanceof CodedError ? { code: error.code, params: error.params } : {}),
             };
           }
         });
       // The smoke test checks whether ONNX Runtime and the models load in the built client.
       const texts = process.env.REPLAYHAVEN_SMOKE
-        ? textsProblem().then((problem) => problem ?? 'ready')
+        ? textsProblem().then((problem) => problem?.message ?? 'ready')
         : undefined;
       handle('vault:load', async () => ({
         config: publicConfig(),
@@ -982,6 +1134,9 @@ else {
         }
       });
       handle('vault:cancel-download', () => downloadAbort?.abort());
+      // The graphics card does not change while the client runs, so it is asked only once.
+      let gpu: Promise<AiAdvice> | undefined;
+      handle('vault:gpu', () => (gpu ??= detectAi()));
       handle('vault:ollama-install', async () => {
         if (status.downloading) throw new Error('A download is already running.');
         downloadAbort = new AbortController();
@@ -1021,11 +1176,19 @@ else {
             signal: AbortSignal.timeout(8000),
           });
         } catch {
-          throw new Error('No response. Check address and port and whether the server is running.');
+          throw new CodedError(
+            'test.noResponse',
+            'No response. Check address and port and whether the server is running.',
+          );
         }
+        // ReplayHaven always answers /api/status with JSON, a proxy's sign-in page does not.
+        if (!answersJson(response)) throw notReplayHaven();
         if (response.status === 401 || response.status === 403)
-          throw new Error('The server responds but rejects the access key.');
-        if (!response.ok) throw new Error(`The server responds with HTTP ${response.status}.`);
+          throw new CodedError('test.rejected', 'The server responds but rejects the access key.');
+        if (!response.ok)
+          throw new CodedError('server.http', `The server responds with HTTP ${response.status}.`, {
+            status: response.status,
+          });
         const clips = await fetch(`${url}/api/clips`, {
           headers,
           signal: AbortSignal.timeout(8000),
@@ -1053,18 +1216,18 @@ else {
       });
       handle('vault:pair-start', (value) => {
         if (typeof value !== 'string' || !value.trim())
-          throw new Error('Enter the server address.');
+          throw new CodedError('pair.noAddress', 'Enter the server address.');
         return startPairing(value.trim());
       });
       handle('vault:pair-cancel', () => {
         pairingAbort?.abort();
         emit({ pairing: null });
       });
+      // The update comes from the project's release page for the version the server runs, never
+      // from an address the server names: a compromised server could otherwise hand out any
+      // program (desktop/update.ts). The page lists SHA256SUMS.txt and the build attestation.
+      handle('vault:download-update', () => shell.openExternal(releasePage(status.update)));
       // Opens the devices page of the server where the approval is waiting.
-      // The installer comes from the server, which serves it or points to the matching release.
-      handle('vault:download-update', () =>
-        shell.openExternal(`${validateServer(config.server)}/api/downloads/windows`),
-      );
       handle('vault:open-devices', () => {
         const server = status.pairing?.server ?? config.server;
         return shell.openExternal(`${validateServer(server)}/settings/pcs`);

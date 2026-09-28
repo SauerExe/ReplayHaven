@@ -1,11 +1,11 @@
-import { call, MODELS, run } from '../api';
+import { call, errorText, MODELS, run } from '../api';
 import type { Model } from '../api';
 import { el } from '../dom';
 import { gameName, localizeMessage } from '../format';
 import { t } from '../i18n';
 import { nameRows, suggestGames } from '../names';
 import { state } from '../state';
-import { checkLine, draft, wizard } from './state';
+import { checkLine, draft, field, recommendedChip, syncNext, wizard } from './state';
 import type { Step } from './state';
 
 /* ---------- Setup wizard: recordings, local AI and player names ---------- */
@@ -81,99 +81,76 @@ export const recordingsStep: Step = {
   },
 };
 
+/** Ollama answers and has the chosen model. */
+const aiReady = () => !!wizard.ai?.running && !!wizard.ai.installed;
+
 export const aiStep: Step = {
   key: 'ai',
   render: () => {
     const box = el('div', { className: 'wizard-content' });
-    const paint = () => {
-      const s = state.status!;
-      const ai = wizard.ai;
-      const lines: HTMLElement[] = [];
-      if (!ai) lines.push(checkLine('', t('w.ai.checking')));
-      else {
-        lines.push(
-          checkLine(
-            ai.running ? 'ok' : 'bad',
-            ai.running ? t('w.ai.running') : t('w.ai.notRunning'),
-          ),
-        );
-        if (ai.running)
-          lines.push(
-            checkLine(
-              ai.installed ? 'ok' : s.downloading ? '' : 'warn',
-              ai.installed
-                ? t('w.ai.ready')
-                : s.downloading
-                  ? localizeMessage(s.message)
-                  : t('w.ai.missing'),
-            ),
-          );
-      }
-      const buttons: HTMLElement[] = [];
-      if (ai && !ai.running && !s.downloading) {
-        const install = el('button', {
-          type: 'button',
-          className: 'primary',
-          textContent: t('w.ai.downloadOllama'),
-        });
-        // One click: install Ollama, then download the chosen model right away.
-        install.onclick = () =>
-          run(async () => {
-            await call('ollama-install');
-            await recheck();
-            if (wizard.ai?.running && !wizard.ai.installed) {
-              await call('download', draft.model);
-              await recheck();
-            }
-          });
-        buttons.push(install);
-      }
-      if (ai && ai.running && !ai.installed && !s.downloading) {
-        const download = el('button', {
-          type: 'button',
-          className: 'primary',
-          textContent: t('btn.downloadModel'),
-        });
-        download.onclick = () =>
-          run(async () => {
-            await call('download', draft.model);
-            await recheck();
-          });
-        buttons.push(download);
-      }
-      if (s.downloading) {
-        const cancel = el('button', {
-          type: 'button',
-          className: 'secondary',
-          textContent: t('btn.cancel'),
-        });
-        cancel.onclick = () => run(() => call('cancel-download'));
-        buttons.push(cancel);
-      }
-      const again = el('button', {
-        type: 'button',
-        className: 'ghost',
-        textContent: t('w.ai.again'),
-      });
-      again.onclick = () => recheck();
-      buttons.push(again);
-      const percent = s.downloading ? /(\d+)\s*%/.exec(s.message)?.[1] : undefined;
-      const bar = el('div', { className: 'progress' }, el('span'));
-      if (percent) (bar.firstElementChild as HTMLElement).style.width = `${percent}%`;
-      box.replaceChildren(
-        ...lines,
-        ...(s.downloading ? [bar] : []),
-        el('div', { className: 'row' }, ...buttons),
-      );
-    };
     const recheck = async () => {
       wizard.ai = await call('check', draft.model).catch(() => ({
         running: false,
         installed: false,
       }));
-      paint();
+      aiStep.paint?.();
     };
-    // Built once, outside the repainted part, so the choice keeps its focus.
+    let cancelled = false;
+    // One click: install Ollama if needed, then download the chosen model.
+    const setUp = async () => {
+      cancelled = false;
+      wizard.aiFailed = '';
+      try {
+        if (!wizard.ai?.running) {
+          wizard.aiBusy = 'ollama';
+          aiStep.paint?.();
+          await call('ollama-install');
+          await recheck();
+          if (!wizard.ai?.running && !cancelled) throw new Error(t('w.ai.noStart'));
+        }
+        if (!wizard.ai?.installed && !cancelled) {
+          wizard.aiBusy = 'model';
+          aiStep.paint?.();
+          await call('download', draft.model);
+        }
+      } catch (e) {
+        if (!cancelled) wizard.aiFailed = errorText(e);
+      } finally {
+        // "Checking" until the answer is in, never a stale "not set up yet".
+        wizard.aiBusy = undefined;
+        wizard.ai = null;
+        await recheck();
+      }
+    };
+    const choose = (choice: 'none' | 'local') => {
+      wizard.aiChoice = choice;
+      if (choice === 'local' && !wizard.ai) void recheck();
+      aiStep.paint?.();
+    };
+
+    // The two choices are built once, so the keyboard focus stays on them while the rest repaints.
+    const card = (choice: 'none' | 'local', title: string, text: string, extra?: HTMLElement) => {
+      const input = el('input', { type: 'radio', name: 'ai-choice', value: choice });
+      input.onchange = () => input.checked && choose(choice);
+      const chip = recommendedChip();
+      const label = el(
+        'label',
+        { className: 'option choice' },
+        input,
+        el('span', {}, el('b', {}, title, chip), el('small', { textContent: text }), extra),
+      );
+      return { label, input, chip };
+    };
+    const gpuLine = el('small', { className: 'choice-gpu' });
+    const none = card('none', t('w.ai.none'), t('w.ai.noneText'));
+    const local = card('local', t('w.ai.local'), t('w.ai.localText'), gpuLine);
+    const choices = el(
+      'div',
+      { className: 'option-grid', role: 'radiogroup', ariaLabel: t('w.ai.name') },
+      none.label,
+      local.label,
+    );
+
     const model = el(
       'select',
       {},
@@ -181,21 +158,139 @@ export const aiStep: Step = {
         el('option', { value: id, textContent: t(id.endsWith('4b') ? 'model.4b' : 'model.9b') }),
       ),
     );
-    model.value = draft.model;
     model.onchange = () => {
       draft.model = model.value as Model;
+      wizard.ai = null;
       void recheck();
     };
+    const localPart = el(
+      'div',
+      { className: 'wizard-content' },
+      field(t('field.model'), model),
+      box,
+    );
+
+    const paintChoices = () => {
+      const advice = wizard.advice;
+      const suggested = advice ? (advice.model ? 'local' : 'none') : undefined;
+      none.chip.hidden = suggested !== 'none';
+      local.chip.hidden = suggested !== 'local';
+      none.input.checked = wizard.aiChoice === 'none';
+      local.input.checked = wizard.aiChoice === 'local';
+      const gpu = advice?.gpu;
+      gpuLine.textContent = !advice
+        ? t('w.ai.detecting')
+        : !gpu
+          ? t('w.ai.noGpu')
+          : t(advice.model ? 'w.ai.gpu' : 'w.ai.gpuSmall', {
+              name: gpu.name,
+              memory: gpu.memoryGb,
+            });
+      gpuLine.dataset.tone = advice?.model ? 'ok' : '';
+      model.value = draft.model;
+      model.disabled = !!wizard.aiBusy || !!state.status?.downloading;
+      localPart.hidden = wizard.aiChoice !== 'local';
+    };
+
+    const paint = () => {
+      paintChoices();
+      syncNext(aiStep);
+      if (wizard.aiChoice !== 'local') return box.replaceChildren();
+      const s = state.status!;
+      const button = (className: string, text: string, onclick: () => unknown) => {
+        const b = el('button', { type: 'button', className, textContent: text });
+        b.onclick = () => void onclick();
+        return b;
+      };
+      if (wizard.aiBusy || s.downloading) {
+        // Neutral while it works: what happens now, and how far it got.
+        const percent = s.downloading ? /(\d+)\s*%/.exec(s.message)?.[1] : undefined;
+        const known = s.downloading ? localizeMessage(s.message) : '';
+        const text =
+          known && known !== s.message
+            ? known
+            : t(wizard.aiBusy === 'ollama' ? 'w.ai.busyOllama' : 'w.ai.busyModel');
+        const bar = el('div', {
+          className: `progress${percent ? '' : ' indeterminate'}`,
+          role: 'progressbar',
+          ariaLabel: text,
+          ...(percent ? { ariaValueNow: percent, ariaValueMin: '0', ariaValueMax: '100' } : {}),
+        });
+        const fill = el('span');
+        if (percent) fill.style.width = `${percent}%`;
+        bar.append(fill);
+        return box.replaceChildren(
+          checkLine('busy', text),
+          bar,
+          el('small', { textContent: t('w.ai.busyNote') }),
+          el(
+            'div',
+            { className: 'row' },
+            button('secondary', t('btn.cancel'), () => {
+              cancelled = true;
+              return run(() => call('cancel-download'));
+            }),
+          ),
+        );
+      }
+      if (wizard.aiFailed)
+        return box.replaceChildren(
+          checkLine('bad', t('w.ai.failed')),
+          el('small', { textContent: t('w.ai.failedNote', { detail: wizard.aiFailed }) }),
+          el(
+            'div',
+            { className: 'row' },
+            button('primary', t('w.ai.retry'), setUp),
+            button('secondary', t('w.ai.withoutAi'), () => {
+              wizard.aiFailed = '';
+              choose('none');
+            }),
+          ),
+        );
+      if (!wizard.ai) return box.replaceChildren(checkLine('busy', t('w.ai.checking')));
+      if (aiReady()) return box.replaceChildren(checkLine('ok', t('w.ai.ready')));
+      return box.replaceChildren(
+        el('small', {
+          textContent: t(wizard.ai.running ? 'w.ai.onlyModel' : 'w.ai.whatHappens'),
+        }),
+        el(
+          'div',
+          { className: 'row' },
+          button('primary', t('w.ai.setUp'), setUp),
+          button('ghost', t('w.ai.again'), () => {
+            wizard.ai = null;
+            aiStep.paint?.();
+            return recheck();
+          }),
+        ),
+        el('small', { textContent: t('w.ai.hint') }),
+      );
+    };
     aiStep.paint = paint;
+
+    if (!wizard.advice)
+      void call('gpu')
+        .catch(() => ({ gpu: null, model: null }))
+        .then((advice) => {
+          wizard.advice = advice;
+          // Suggest only on the first setup and only until the user chose personally.
+          if (!wizard.aiChoice) {
+            wizard.aiChoice = advice.model ? 'local' : 'none';
+            if (advice.model) draft.model = advice.model;
+          }
+          if (wizard.aiChoice === 'local' && !wizard.ai) void recheck();
+          aiStep.paint?.();
+        });
+    else if (!wizard.aiChoice) wizard.aiChoice = wizard.advice.model ? 'local' : 'none';
+    if (wizard.aiChoice === 'local') void recheck();
     paint();
-    void recheck();
-    return el('div', {}, el('label', { className: 'field' }, t('field.model'), model), box);
+    return el('div', { className: 'wizard-content' }, choices, localPart);
   },
-  skip: true,
-  onSkip: () => (draft.analyze = false),
+  blocked: () =>
+    !wizard.aiChoice || (wizard.aiChoice === 'local' && (!aiReady() || !!wizard.aiBusy)),
   validate: () => {
-    if (!wizard.ai?.installed) throw new Error(t('w.ai.error'));
-    draft.analyze = true;
+    if (wizard.aiChoice === 'local' && !aiReady()) throw new Error(t('w.ai.hint'));
+    draft.analyze = wizard.aiChoice === 'local';
   },
 };
 

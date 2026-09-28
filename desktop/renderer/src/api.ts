@@ -1,4 +1,5 @@
 import { $ } from './dom';
+import { coded } from './i18n';
 
 /*
  * The bridge from desktop/preload.ts and the data behind it. The shapes mirror configSchema, the
@@ -62,6 +63,8 @@ export interface QueueEntry {
 export interface Activity extends Omit<QueueEntry, 'state' | 'note'> {
   stage: 'analyzing' | 'uploading';
   since: number;
+  /** Bytes the server has confirmed, while uploading in pieces. */
+  sent?: number;
   step: 'prepare' | 'view' | 'summary' | 'upload';
   current: number;
   total: number;
@@ -77,11 +80,15 @@ export interface ArchivedClip {
   /** Time spent on analysis and upload. */
   seconds: number;
 }
+export type Params = Record<string, string | number>;
 export interface Pairing {
   state: 'waiting' | 'approved' | 'denied' | 'expired' | 'error';
   server: string;
   code: string;
   message: string;
+  /** The message as text code (err.<text> in i18n); without one, message is shown. */
+  text?: string;
+  params?: Params;
 }
 export interface Status {
   running: boolean;
@@ -100,6 +107,9 @@ export interface Status {
   pairing: Pairing | null;
   /** A newer release the server runs (desktop/update.ts); empty otherwise. */
   update: string;
+  /** The message as text code (err.<code> in i18n); empty: message is shown as it is. */
+  code?: string;
+  params?: Params;
 }
 export interface FolderInfo {
   clips: number;
@@ -109,6 +119,11 @@ export interface OllamaCheck {
   running: boolean;
   installed: boolean;
   models?: string[];
+}
+/** The graphics card and what the wizard suggests for it (desktop/gpu.ts); model null: no AI. */
+export interface AiAdvice {
+  gpu: { name: string; memoryGb: number } | null;
+  model: Model | null;
 }
 
 /** Every action of the bridge: what it takes and what it answers. */
@@ -124,6 +139,8 @@ interface Actions {
   download: [Model | undefined, unknown];
   'cancel-download': [undefined, unknown];
   'ollama-install': [undefined, unknown];
+  /** The graphics card and the AI choice suggested for it. */
+  gpu: [undefined, AiAdvice];
   archive: [undefined, unknown];
   'open-clip': [string, unknown];
   reveal: [string | undefined, unknown];
@@ -139,7 +156,8 @@ interface Actions {
 }
 export type Action = keyof Actions;
 type Input<A extends Action> = Actions[A][0] extends undefined ? [] : [Actions[A][0]];
-type Response = { ok: true; value: unknown } | { ok: false; error: string };
+type Response =
+  { ok: true; value: unknown } | { ok: false; error: string; code?: string; params?: Params };
 
 declare global {
   interface Window {
@@ -155,7 +173,8 @@ export async function call<A extends Action>(
   ...value: Input<A>
 ): Promise<Actions[A][1]> {
   const response = await window.vault.call(action, value[0]);
-  if (!response.ok) throw new Error(response.error);
+  // Coded errors of the main process appear in the window language.
+  if (!response.ok) throw new Error(coded(response.code, response.params, response.error));
   return response.value as Actions[A][1];
 }
 

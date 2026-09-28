@@ -1,6 +1,6 @@
-import type { Activity, ArchivedClip } from './api';
+import type { Activity, ArchivedClip, Pairing, Status } from './api';
 import { el } from './dom';
-import { locale, t } from './i18n';
+import { coded, locale, t } from './i18n';
 
 /* ---------- Progress messages ---------- */
 
@@ -33,6 +33,15 @@ export function localizeMessage(message: string) {
         : t(key);
   }
   return message;
+}
+
+/** The status message in the window language: by its code if it has one, else as above. */
+export function statusMessage(s: Pick<Status, 'message' | 'code' | 'params'>) {
+  return s.code ? coded(s.code, s.params, s.message) : localizeMessage(s.message);
+}
+/** The message of a pairing state in the window language. */
+export function pairingMessage(p: Pairing) {
+  return coded(p.text, p.params, p.message);
 }
 
 /* ---------- Display helpers ---------- */
@@ -117,5 +126,6 @@ export function fraction(active: Activity | null) {
   if (active.step === 'view')
     return 0.05 + 0.8 * (active.total ? active.current / active.total : 0);
   if (active.step === 'summary') return 0.9;
+  if (active.sent !== undefined && active.size) return 0.9 + 0.1 * (active.sent / active.size);
   return 0.97;
 }

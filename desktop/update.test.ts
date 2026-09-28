@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { isNewer } from './update';
+import { isNewer, releasePage } from './update';
 
 it('offers an update only when the server runs a newer release', () => {
   expect(isNewer('1.1.3', '1.1.2')).toBe(true);
@@ -12,4 +12,13 @@ it('offers an update only when the server runs a newer release', () => {
   expect(isNewer('dev', '1.1.2')).toBe(false);
   expect(isNewer(undefined, '1.1.2')).toBe(false);
   expect(isNewer('', '1.1.2')).toBe(false);
+});
+
+it('sends updates to the project release page, never to an address the server names', () => {
+  expect(releasePage('1.2.0')).toBe('https://github.com/SauerExe/ReplayHaven/releases/tag/v1.2.0');
+  expect(releasePage('v1.2.0')).toBe('https://github.com/SauerExe/ReplayHaven/releases/tag/v1.2.0');
+  expect(releasePage('1.2.0/../../evil')).toBe(
+    'https://github.com/SauerExe/ReplayHaven/releases/latest',
+  );
+  expect(releasePage('')).toBe('https://github.com/SauerExe/ReplayHaven/releases/latest');
 });

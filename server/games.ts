@@ -3,7 +3,7 @@ import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { gameKey, lookupGame } from './metadata';
 import type { ContentLanguage, Igdb } from './metadata';
-import type { VaultDatabase, StoredGame } from './database';
+import type { VaultDatabase, StoredClip, StoredGame } from './database';
 import type { GameMetadataStatus } from '../src/domain/models';
 
 const HOUR = 3600000;
@@ -42,15 +42,13 @@ export class GameLibrary {
     return this.db.games();
   }
 
-  labels() {
-    return this.db
-      .list()
-      .filter((clip) => !clip.deleted)
-      .map((clip) => clip.gameName || '');
+  /** `clips`: the clip list when the caller already has it. */
+  labels(clips: StoredClip[] = this.db.list()) {
+    return clips.filter((clip) => !clip.deleted).map((clip) => clip.gameName || '');
   }
 
-  status(): GameMetadataStatus {
-    const keys = new Set(this.labels().map(gameKey).filter(Boolean));
+  status(clips?: StoredClip[]): GameMetadataStatus {
+    const keys = new Set(this.labels(clips).map(gameKey).filter(Boolean));
     const entries = this.list().filter((game) => keys.has(game.key));
     return {
       enabled: this.enabled,

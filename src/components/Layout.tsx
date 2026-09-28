@@ -8,6 +8,7 @@ import {
   useNavigationType,
 } from 'react-router-dom';
 import * as Menu from '@radix-ui/react-dropdown-menu';
+import { ErrorBoundary } from './ErrorBoundary';
 import {
   ArrowUpRight,
   BookOpen,
@@ -223,7 +224,10 @@ export function Layout() {
         </div>
       )}
       <main id="main">
-        <Outlet />
+        {/* A failing page keeps the navigation around it. */}
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       <footer className="footer">
         <Brand />

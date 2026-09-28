@@ -46,3 +46,20 @@ export function micTrack(
     };
   return { basis: `${audible.length} tracks with sound, none marked as microphone` };
 }
+
+/**
+ * The track for speech recognition: the microphone track; with a single track that one (game
+ * audio and microphone mixed); otherwise the only audible track. With several audible tracks and
+ * no clear microphone, none: transcribing game audio or a silent track would mislead the analysis.
+ */
+export function speechTrack(
+  tracks: readonly AudioTrack[],
+  levels?: ReadonlyMap<number, { max: number }>,
+): number | undefined {
+  if (tracks.length === 1) return tracks[0].index;
+  const mic = micTrack(tracks, levels).track;
+  if (mic !== undefined) return mic;
+  if (!levels) return undefined;
+  const audible = tracks.filter((t) => (levels.get(t.index)?.max ?? -Infinity) > SILENT_DB);
+  return audible.length === 1 ? audible[0].index : undefined;
+}
