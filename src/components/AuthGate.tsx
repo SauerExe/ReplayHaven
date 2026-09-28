@@ -13,6 +13,7 @@ import {
 import { ApiError, api } from '../data/api';
 import { LANGUAGES, setLanguage, t, tx, useLanguage } from '../i18n';
 import { takeSetupKey } from './setup-link';
+import { localizeServerMessage } from '../data/server-messages';
 
 /** What the server says about this browser's sign-in (server/auth-routes.ts). */
 export interface AuthState {
@@ -89,7 +90,7 @@ function takeLoginError() {
   if (error === null) return '';
   url.searchParams.delete('login_error');
   window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
-  return error || t('auth.signInFailed');
+  return error ? localizeServerMessage(error) : t('auth.signInFailed');
 }
 
 /**

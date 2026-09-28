@@ -33,6 +33,11 @@ users` and `reset-password <name>`, which sets a new random password and signs o
 - The whole web page declares a dark colour scheme, so browser widgets such as password-manager
   keys are drawn light.
 
+### Fixed
+
+- Error messages from the server, such as a wrong password, appear in the interface language
+  instead of always in English.
+
 ### Security
 
 - A paired PC's token is created when the PC picks it up; it is no longer kept in plain text
