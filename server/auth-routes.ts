@@ -125,7 +125,13 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
   const openLocal = (req?: FastifyRequest) =>
     !config.token &&
     !accounts.hasUsers() &&
-    (!req || /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(req.headers.host ?? ''));
+    (!req ||
+      (/^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(req.headers.host ?? '') &&
+        // A reverse proxy on the same machine also connects from loopback; its forwarding
+        // headers show that the request came from elsewhere.
+        !req.headers['x-forwarded-for'] &&
+        !req.headers.forwarded &&
+        /^(?:127\.|::1$|::ffff:127\.)/.test(req.socket.remoteAddress ?? '')));
 
   /** A session only counts while its account exists and is enabled. */
   function fromSession(session: Session): Identity | undefined {
@@ -163,7 +169,8 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
    */
   function guard(req: FastifyRequest, reply: FastifyReply) {
     req.identity = identify(req, reply);
-    const path = req.url.split('?')[0];
+    // The matched route, not the raw URL: the router decodes percent-escapes before matching.
+    const path = req.routeOptions.url ?? req.url.split('?')[0];
     if (OPEN.has(path)) return false;
     if (openLocal(req)) return false;
     if (!req.identity) {
@@ -243,7 +250,12 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       throttle.fail(req.ip);
       return reply.code(401).send({ error: 'The access key from the server setup is wrong.' });
     }
-    const account = await accounts.createUser(body.name, body.password, 'admin');
+    let account;
+    try {
+      account = await accounts.createUser(body.name, body.password, 'admin', true);
+    } catch (error) {
+      return accountFailure(reply, error);
+    }
     startSession(req, reply, account.id);
     return { user: publicUser(account) };
   });
@@ -424,10 +436,10 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
       if (!account) {
         // An admin may prepare an account without password under the same name; it is claimed
         // by the first OIDC sign-in with exactly that name, as long as nothing else is linked.
-        const prepared = accounts.byName(profile.username);
+        const prepared = profile.loginName ? accounts.byName(profile.loginName) : undefined;
         if (
           prepared &&
-          prepared.name === profile.username &&
+          prepared.name === profile.loginName &&
           !prepared.hash &&
           accounts.identities(prepared.id).length === 0
         )
@@ -444,6 +456,7 @@ export function registerAuth(app: FastifyInstance, accounts: Accounts, config: S
             accounts.freeName(profile.username),
             null,
             !accounts.hasUsers() || inAdminGroup ? 'admin' : 'user',
+            !accounts.hasUsers(),
           );
         else
           return failed(

@@ -1,5 +1,6 @@
 import type { Clip, ServerInfo } from '../domain/models';
 import { t } from '../i18n';
+import { localizeServerMessage } from './server-messages';
 export const disconnectedServer: ServerInfo = {
   connected: false,
   provider: 'none',
@@ -20,18 +21,35 @@ export class ApiError extends Error {
   }
 }
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    ...options,
-    headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...options.headers,
-    },
-    signal: options.signal || AbortSignal.timeout(15000),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      ...options,
+      headers: {
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...options.headers,
+      },
+      signal: options.signal || AbortSignal.timeout(15000),
+    });
+  } catch (error) {
+    // The browser's own texts ("Failed to fetch") are neither helpful nor translated.
+    if (error instanceof DOMException && error.name === 'AbortError' && options.signal?.aborted)
+      throw error;
+    throw new ApiError(
+      t(
+        error instanceof DOMException && error.name === 'TimeoutError'
+          ? 'app.api.slow'
+          : 'app.api.offline',
+      ),
+      0,
+    );
+  }
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new ApiError(
-      data.error || t('app.api.httpError', { status: response.status }),
+      data.error
+        ? localizeServerMessage(data.error)
+        : t('app.api.httpError', { status: response.status }),
       response.status,
     );
   }
@@ -52,7 +70,12 @@ export function uploadToServer(file: File, onProgress: (progress: number) => voi
       try {
         const result = JSON.parse(request.responseText);
         if (request.status >= 200 && request.status < 300) resolve(result.clip);
-        else reject(new Error(result.error || t('app.api.uploadFailed')));
+        else
+          reject(
+            new Error(
+              result.error ? localizeServerMessage(result.error) : t('app.api.uploadFailed'),
+            ),
+          );
       } catch {
         reject(new Error(t('app.api.invalidResponse')));
       }

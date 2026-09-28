@@ -22,9 +22,11 @@
 .auth-aside {
   position: relative;
   isolation: isolate;
-  display: flex;
-  flex-direction: column;
-  gap: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto auto;
+  align-content: start;
+  gap: 40px;
   padding: clamp(32px, 6vh, 56px) clamp(32px, 5vw, 72px);
   overflow: hidden;
   border-right: 1px solid var(--auth-line);
@@ -76,8 +78,8 @@
 .auth-pitch {
   display: flex;
   flex-direction: column;
+  align-self: center;
   max-width: 520px;
-  margin-block: auto;
 }
 .auth-eyebrow {
   margin: 0 0 16px;
@@ -137,30 +139,61 @@
   color: #c4b5fd;
 }
 
-/* A sample of what the library shows: one clip with its AI title. Decorative. */
+/* A sample of what the library makes of a recording: one clip with its AI title, time marks
+   and tags, and a second card behind it for depth. Decorative. */
+.auth-showcase {
+  position: relative;
+  display: none;
+  width: min(400px, 100%);
+  padding: 18px 18px 0 0;
+}
 .auth-sample {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 16px;
-  width: min(420px, 100%);
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid rgb(255 255 255 / 8%);
-  background: rgb(20 18 34 / 72%);
-  box-shadow: 0 24px 48px -20px rgb(0 0 0 / 70%);
-  backdrop-filter: blur(8px);
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 9%);
+  background: rgb(20 18 34 / 82%);
+  box-shadow: 0 30px 60px -24px rgb(0 0 0 / 80%);
+  backdrop-filter: blur(10px);
+}
+.auth-sample-back {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 34px 18px;
+  opacity: 0.45;
+  transform: rotate(3deg);
 }
 .auth-sample-thumb {
   position: relative;
-  flex: none;
-  width: 132px;
   aspect-ratio: 16 / 9;
-  border-radius: 9px;
-  overflow: hidden;
   background:
     radial-gradient(70% 90% at 75% 30%, rgb(251 191 36 / 55%), transparent 60%),
     radial-gradient(80% 90% at 20% 90%, rgb(124 58 237 / 70%), transparent 65%),
     linear-gradient(135deg, #3b2a5c, #1b1530 60%, #2a1c12);
+}
+.auth-sample-thumb-alt {
+  height: 100%;
+  aspect-ratio: auto;
+  background:
+    radial-gradient(60% 80% at 30% 30%, rgb(56 189 248 / 40%), transparent 65%),
+    linear-gradient(135deg, #1c2a4a, #151326);
+}
+.auth-sample-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgb(15 12 28 / 72%);
+  border: 1px solid rgb(167 139 250 / 40%);
+  color: #ddd6fe;
+  font-size: 11px;
+  font-weight: 600;
 }
 .auth-sample-play {
   position: absolute;
@@ -168,20 +201,21 @@
   margin: auto;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: rgb(255 255 255 / 92%);
   color: #1b1530;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
 }
 .auth-sample-play svg {
-  margin-left: 2px;
+  margin-left: 3px;
 }
 .auth-sample-time {
   position: absolute;
-  right: 6px;
-  bottom: 5px;
-  padding: 1px 5px;
+  right: 10px;
+  bottom: 9px;
+  padding: 1px 6px;
   border-radius: 4px;
   background: rgb(0 0 0 / 60%);
   font-size: 11px;
@@ -190,7 +224,8 @@
 .auth-sample-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  padding: 14px 16px 16px;
   min-width: 0;
 }
 .auth-sample-game {
@@ -201,30 +236,79 @@
   text-transform: uppercase;
 }
 .auth-sample-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
+  letter-spacing: -0.01em;
+}
+/* Time marks the analysis sets: kills along the clip, the ace at the end. */
+.auth-sample-timeline {
+  position: relative;
+  height: 4px;
+  margin: 8px 0 6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+}
+.auth-sample-progress {
+  position: absolute;
+  inset: 0 64% 0 0;
+  border-radius: inherit;
+  background: #a78bfa;
+}
+.auth-sample-mark {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: #ddd6fe;
+  box-shadow: 0 0 0 2px #141222;
+}
+.auth-sample-mark.ace {
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  background: #fbbf24;
 }
 .auth-sample-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 4px;
 }
 .auth-sample-tags > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  padding: 2px 9px;
   border-radius: 999px;
   border: 1px solid rgb(255 255 255 / 10%);
   color: #c9c5da;
   font-size: 11px;
   font-weight: 600;
 }
-.auth-sample-tags > span:first-child {
-  border-color: rgb(167 139 250 / 35%);
-  background: rgb(124 58 237 / 18%);
-  color: #ddd6fe;
+.auth-trust {
+  margin: 0;
+  color: #7f7898;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+/* Wide screens: pitch and showcase side by side, so the violet half has no empty corner. Below
+   1700 px the left half is too narrow for both (the pitch would shrink to a word per line). */
+@media (min-width: 1700px) {
+  .auth-aside {
+    grid-template-columns: minmax(360px, 520px) minmax(280px, 400px);
+    grid-template-rows: auto 1fr auto;
+    column-gap: clamp(40px, 4vw, 72px);
+    justify-content: space-between;
+  }
+  .auth-brand,
+  .auth-trust {
+    grid-column: 1 / -1;
+  }
+  .auth-showcase {
+    display: block;
+    align-self: center;
+  }
+  .auth-headline {
+    font-size: clamp(36px, 2.6vw, 46px);
+  }
 }
 
 /* Right half: the form, centred in its column. */
@@ -534,7 +618,8 @@
     font-size: 30px;
   }
   .auth-points,
-  .auth-sample {
+  .auth-showcase,
+  .auth-trust {
     display: none;
   }
   .auth-shell {

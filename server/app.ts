@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import type { FastifyRequest } from 'fastify';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import cookie from '@fastify/cookie';
@@ -116,8 +117,27 @@ export async function buildServer(
       return false;
     }
   };
+  /**
+   * Whether a request reaches the API. The router decodes percent-escapes (`/%61pi/clips` is
+   * `/api/clips`), so the route it matched decides, not the raw text of the URL; without a match
+   * the decoded path does. Checking `req.url` alone let such requests skip the sign-in check.
+   */
+  const isApiRequest = (req: FastifyRequest) => {
+    const route = req.routeOptions.url;
+    if (route) return route.startsWith('/api/');
+    let path = req.url.split('?')[0];
+    try {
+      path = decodeURIComponent(path);
+    } catch {
+      // Undecodable: judged as sent.
+    }
+    return path
+      .replace(/\/{2,}/g, '/')
+      .toLowerCase()
+      .startsWith('/api/');
+  };
   app.addHook('onRequest', async (req, reply) => {
-    if (!req.url.startsWith('/api/')) return;
+    if (!isApiRequest(req)) return;
     reply.header('Cache-Control', 'no-store');
     reply.header('X-Content-Type-Options', 'nosniff');
     if (req.headers.origin && !origins.has(req.headers.origin) && !sameOrigin(req))
@@ -209,6 +229,7 @@ export async function buildServer(
     clientDownloadAvailable: (await localInstaller()) || !!config.clientDownloadUrl,
     gameMetadata: games.status(),
     playback: playback.status(),
+    supportBanner: config.supportBanner !== false,
   }));
   app.get('/api/downloads/windows', async (_req, reply) => {
     if (await localInstaller()) {

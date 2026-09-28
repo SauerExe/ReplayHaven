@@ -41,6 +41,8 @@ Enable **Include existing recordings** before starting for the first time if you
 
 Under **Your player names**, enter what you are called in-game. If your name differs per game, give each name its game; the game folders of your recordings are suggested so that entry and folder match. A name without a game applies everywhere. The AI only learns the names that match the clip's game and uses them to tell which side of the killfeed is yours.
 
+When your server runs a newer release than the client, the overview offers **Download update**; the installer comes from your server.
+
 The installer is currently not signed with a publisher certificate. Windows SmartScreen will therefore ask once.
 
 ## 3. Record as before
@@ -49,11 +51,11 @@ Save your clips as usual, for example the last two minutes via the NVIDIA App. A
 
 While you play, the client waits on its own (see [Pause while gaming](#pause-while-gaming)); you can also **pause** by hand in the overview or the tray menu and resume there. An FFmpeg step already running may still finish. Closing the window keeps the client running in the Windows notification area; **Quit** in the tray menu ends it. With **Start with Windows** under Settings → Behavior, the client starts after sign-in and, with **Resume work when opened**, continues where it stopped. If the server or Ollama is not up yet, it retries every 30 seconds.
 
-For a first connection test you can turn off **Analyse new clips locally before upload**. Originals are then archived without an AI result; Ollama is not required for that. Manual uploads in the browser do not call the PC's AI either.
+For a first connection test you can turn off **Analyze clips before upload**. Originals are then archived without an AI result; Ollama is not required for that. Manual uploads in the browser do not call the PC's AI either.
 
 ## Fortnite replays (optional)
 
-Fortnite stores a replay of every match under `%LOCALAPPDATA%\FortniteGame\Saved\Demos`. With **Include Fortnite replays**, the client reads your kills, knocks, your elimination and a victory, including weapon type and distance, from it instead of from on-screen messages. This produces titles like "Doppel-Kill mit der Schrotflinte" or "Snipe über 180 m".
+Fortnite stores a replay of every match under `%LOCALAPPDATA%\FortniteGame\Saved\Demos`. With **Fortnite replays**, the client reads your kills, knocks, your elimination and a victory, including weapon type and distance, from it instead of from on-screen messages. This produces titles like "Doppel-Kill mit der Schrotflinte" or "Snipe über 180 m".
 
 - The clip time is derived from the time in the NVIDIA file name and the time the file was written. Originals are only read for this.
 - A replay does not say who recorded it. The client recognises your account by the fact that it appears in almost every replay on this PC, and by the match statistics. If it stays unclear, it does not use the replay. It becomes unambiguous once you enter your **Epic account ID**; you can find it on epicgames.com in your account settings.
@@ -63,7 +65,7 @@ Fortnite stores a replay of every match under `%LOCALAPPDATA%\FortniteGame\Saved
 
 ## Text recognition: R6 map, round outcome and Valorant killfeed (optional)
 
-With **Text recognition: R6 map and round outcome, Valorant killfeed**, the client reads two frames per second in R6 clips with text recognition (PaddleOCR via ONNX Runtime, on the CPU). From these it takes the map name and round results such as "ROUND WON", making titles like "Rundensieg auf Oregon" possible.
+With **Text recognition**, the client reads two frames per second in R6 clips with text recognition (PaddleOCR via ONNX Runtime, on the CPU). From these it takes the map name and round results such as "ROUND WON", making titles like "Rundensieg auf Oregon" possible.
 
 - A map only counts once it has been read reliably in at least two frames. A title may then not name any other map.
 - In R6 the text recognition deliberately does not read kills. Who caused a killfeed line and whether it belongs to the clip could not be determined reliably this way.
@@ -73,7 +75,7 @@ With **Text recognition: R6 map and round outcome, Valorant killfeed**, the clie
 
 ## Transcribe voice chat (optional)
 
-With **Transcribe voice chat (fun clips)**, the client transcribes what is said in the clip and gives it to the AI as context. Clips without kills or round results thus get titles based on the conversation, for example "Obi-Wan oder Yoda?" instead of "Spitzhacke am Eiszaun".
+With **Transcribe voice chat**, the client transcribes what is said in the clip and gives it to the AI as context. Clips without kills or round results thus get titles based on the conversation, for example "Obi-Wan oder Yoda?" instead of "Spitzhacke am Eiszaun".
 
 - Recognition runs with Parakeet TDT 0.6B v3 via sherpa-onnx on the CPU, in its own process alongside the AI. Two minutes of audio take a few seconds.
 - The first time the option is used, the client downloads the speech models once to `%LOCALAPPDATA%\ReplayHaven\models\parakeet-v3`, about 670 MB, verifying every file against its checksum.
@@ -92,7 +94,7 @@ With **Transcribe voice chat (fun clips)**, the client transcribes what is said 
 
 ## Keep R6 replays for clips
 
-With "Match Replay" (game settings), Rainbow Six writes every round as a file but only keeps the last 30 or so matches. **Keep R6 replays for clips** is on by default: after uploading an R6 clip, the client copies the match it came from to `%LOCALAPPDATA%\ReplayHaven\r6-replays`, about 30 MB per match. The analysis does not use these files yet; they are the basis for later reading kills, headshots, ace and clutch precisely from the game ([R6-REPLAYS.md](R6-REPLAYS.md)). The files contain the names of all players in the match and stay on your PC.
+With "Match Replay" (game settings), Rainbow Six writes every round as a file but only keeps the last 30 or so matches. **Keep R6 replays with clips** is on by default: after uploading an R6 clip, the client copies the match it came from to `%LOCALAPPDATA%\ReplayHaven\r6-replays`, about 30 MB per match. The analysis does not use these files yet; they are the basis for later reading kills, headshots, ace and clutch precisely from the game ([R6-REPLAYS.md](R6-REPLAYS.md)). The files contain the names of all players in the match and stay on your PC.
 
 ## What actually happens
 

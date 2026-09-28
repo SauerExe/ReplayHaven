@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Heart, X } from 'lucide-react';
 import { t } from '../i18n';
+import { useVault } from '../data/store';
+import { useIsAdmin } from './AuthGate';
 import {
   SUPPORT_URL,
   readSupport,
@@ -18,8 +20,14 @@ const storage = () => {
   }
 };
 
-/** A small request to tip the developer, at most every four days (support-banner.ts). */
+/**
+ * A small request to tip the developer, at most every four days (support-banner.ts). Only admins
+ * of a connected server see it: they run the instance, family and friends on it are not asked.
+ * REPLAYHAVEN_SUPPORT_BANNER=false on the server switches it off.
+ */
 export function SupportBanner() {
+  const admin = useIsAdmin();
+  const { server } = useVault();
   const [state, setState] = useState<SupportState | null>(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -32,7 +40,8 @@ export function SupportBanner() {
     setState(saved);
     setVisible(supportDue(saved, now));
   }, []);
-  if (!visible || !state) return null;
+  if (!visible || !state || !admin || !server.connected || server.supportBanner === false)
+    return null;
   const answer = (next: SupportState) => {
     writeSupport(storage(), next);
     setState(next);

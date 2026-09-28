@@ -3,6 +3,8 @@
   --font-sans: 'Inter Variable', Inter, system-ui, sans-serif;
 }
 :root {
+  /* The whole page is dark: native widgets (password-manager keys, scrollbars) follow it. */
+  color-scheme: dark;
   font-family: 'Inter Variable', Inter, system-ui, sans-serif;
   color: #f2f3f7;
   background: #0e1015;

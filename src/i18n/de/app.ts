@@ -230,6 +230,9 @@ export const app: Translation<typeof source> = {
 
   // Data layer
   'app.api.httpError': 'Server antwortet mit HTTP {status}.',
+  'app.api.offline':
+    'Der Server ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.',
+  'app.api.slow': 'Der Server hat zu lange nicht geantwortet. Versuche es erneut.',
   'app.api.unreachable': 'Server nicht erreichbar. Die Datei wurde nicht bestätigt.',
   'app.api.timeout': 'Der Upload hat zu lange gedauert. Versuche es erneut.',
   'app.api.uploadFailed': 'Upload fehlgeschlagen.',

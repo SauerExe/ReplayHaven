@@ -18,3 +18,14 @@ it('writes titles in the configured language, English by default', () => {
   expect(promptFor(input, true, 'de')).toContain('auf Deutsch');
   expect(promptFor(input, true, 'de')).not.toContain('Englisch');
 });
+
+it('shows the support banner unless switched off and creates no OIDC accounts by default', () => {
+  expect(loadConfig({}).supportBanner).toBe(true);
+  expect(loadConfig({ REPLAYHAVEN_SUPPORT_BANNER: 'false' }).supportBanner).toBe(false);
+  const oidc = {
+    REPLAYHAVEN_OIDC_ISSUER: 'https://auth.example.org',
+    REPLAYHAVEN_OIDC_CLIENT_ID: 'replayhaven',
+  };
+  expect(loadConfig(oidc).oidc?.autoCreate).toBe(false);
+  expect(loadConfig({ ...oidc, REPLAYHAVEN_OIDC_AUTO_CREATE: 'true' }).oidc?.autoCreate).toBe(true);
+});

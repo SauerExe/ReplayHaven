@@ -81,6 +81,8 @@ export const en = {
   'progress.ollamaStart': 'Starting Ollama …',
   'progress.ollamaInstall': 'Installing Ollama …',
   'progress.ollamaDownload': 'Downloading Ollama: {percent} %',
+  'update.text': 'Version {version} is available on your server.',
+  'update.download': 'Download update',
   'queue.title': 'Queue',
   'queue.empty': 'All done. New clips land here automatically.',
   'queue.eta': ' · in about {time}',

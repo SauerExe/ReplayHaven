@@ -21,6 +21,8 @@ export interface Account {
   /** Empty for accounts that only sign in through OIDC. */
   salt: string;
   hash: string;
+  /** scrypt cost of hash; missing for hashes from before 1.1.3 (2^14). */
+  cost?: number;
   createdAt: string;
   role: Role;
   disabled?: boolean;
@@ -46,7 +48,9 @@ export interface Pairing {
   status: 'pending' | 'approved' | 'denied' | 'delivered';
   createdAt: string;
   expiresAt: string;
-  /** Only kept between approval and pickup by the PC, deleted afterwards. */
+  /** The admin who approved; the PC's token is only created when it picks it up. */
+  approvedBy?: string;
+  /** Token of an approval from before 1.1.3, until its pickup. */
   token?: string;
   /** Hash of the requesting address, so one address cannot fill the list. */
   source?: string;
@@ -84,10 +88,17 @@ const DEVICE_PREFIX = 'rhd_';
 
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 const token = () => randomBytes(32).toString('base64url');
-function scrypt(password: string, salt: string) {
+/** scrypt cost as OWASP recommends (N = 2^17, r = 8, p = 1); older hashes used 2^14. */
+export const SCRYPT_COST = 2 ** 17;
+const LEGACY_COST = 2 ** 14;
+function scrypt(password: string, salt: string, cost = SCRYPT_COST) {
   return new Promise<Buffer>((done, fail) =>
-    scryptCallback(password, salt, 64, { N: 16384, r: 8, p: 1 }, (error, key) =>
-      error ? fail(error) : done(key),
+    scryptCallback(
+      password,
+      salt,
+      64,
+      { N: cost, r: 8, p: 1, maxmem: 256 * 1024 * 1024 },
+      (error, key) => (error ? fail(error) : done(key)),
     ),
   );
 }
@@ -97,7 +108,7 @@ export function sameSecret(a: string, b: string) {
 async function passwordFields(password: string | null) {
   if (password === null) return { salt: '', hash: '' };
   const salt = randomBytes(16).toString('hex');
-  return { salt, hash: (await scrypt(password, salt)).toString('hex') };
+  return { salt, hash: (await scrypt(password, salt)).toString('hex'), cost: SCRYPT_COST };
 }
 
 export class Accounts {
@@ -165,13 +176,24 @@ export class Accounts {
    * Creates an account. Without a role the very first account becomes admin, every later one a
    * user. A `null` password makes an account that can only sign in through OIDC.
    */
-  async createUser(name: string, password: string | null, role?: Role) {
+  async createUser(
+    name: string,
+    password: string | null,
+    role?: Role,
+    /** For the first account: fails if another one was created while hashing. */
+    onlyIfEmpty = false,
+  ) {
     const trimmed = name.trim();
+    if (this.byName(trimmed)) throw new AccountError('An account with this name already exists.');
+    const fields = await passwordFields(password);
+    // Checked again after the slow hashing: two setups at once must not create two admins.
+    if (onlyIfEmpty && this.hasUsers())
+      throw new AccountError('An account already exists. Sign in with it.');
     if (this.byName(trimmed)) throw new AccountError('An account with this name already exists.');
     const account: Account = {
       id: randomUUID(),
       name: trimmed,
-      ...(await passwordFields(password)),
+      ...fields,
       createdAt: new Date().toISOString(),
       role: role ?? (this.hasUsers() ? 'user' : 'admin'),
     };
@@ -191,13 +213,21 @@ export class Accounts {
     if (!this.byName(base)) return base;
     for (let i = 2; ; i++) if (!this.byName(`${base}-${i}`)) return `${base}-${i}`;
   }
-  /** The account for name and password, otherwise undefined; also hashes for unknown names. */
+  /**
+   * The account for name and password, otherwise undefined; also hashes for unknown names. A hash
+   * with the former, lower cost is replaced on a successful sign-in.
+   */
   async verify(name: string, password: string) {
     const account = this.byName(name);
     const usable = account && account.hash ? account : undefined;
-    const key = await scrypt(password, usable?.salt ?? 'no-account');
+    const cost = usable ? (usable.cost ?? LEGACY_COST) : SCRYPT_COST;
+    const key = await scrypt(password, usable?.salt ?? 'no-account', cost);
     const expected = Buffer.from(usable?.hash ?? '0'.repeat(128), 'hex');
-    return usable && timingSafeEqual(key, expected) ? usable : undefined;
+    if (!usable || !timingSafeEqual(key, expected)) return undefined;
+    if (cost >= SCRYPT_COST) return usable;
+    const upgraded = { ...usable, ...(await passwordFields(password)) };
+    this.save(upgraded);
+    return upgraded;
   }
   async changePassword(userId: string, password: string) {
     const account = this.user(userId);
@@ -422,11 +452,10 @@ export class Accounts {
   approvePairing(id: string, userId: string, now = Date.now()) {
     const pairing = this.pairings(now).find((p) => p.id === id && p.status === 'pending');
     if (!pairing) return false;
-    const { secret } = this.createSession(userId, 'client', pairing.name, now);
     this.savePairing({
       ...pairing,
       status: 'approved',
-      token: secret,
+      approvedBy: userId,
       // The PC polls every few seconds; this is how long the pickup may take.
       expiresAt: new Date(now + PAIRING_MINUTES * 60000).toISOString(),
     });
@@ -443,9 +472,16 @@ export class Accounts {
     const pairing = this.pairings(now).find((p) => p.id === id);
     if (!pairing || !sameSecret(sha(secret), pairing.secretHash))
       return { status: 'expired' as const };
-    if (pairing.status === 'approved' && pairing.token) {
+    if (pairing.status === 'approved') {
+      // The token is created only now, so the database never holds it in plain text.
+      const approver = pairing.approvedBy ? this.user(pairing.approvedBy) : undefined;
+      const token =
+        pairing.token ??
+        (approver && !approver.disabled && approver.role === 'admin'
+          ? this.createSession(approver.id, 'client', pairing.name, now).secret
+          : undefined);
       this.savePairing({ ...pairing, status: 'delivered', token: undefined });
-      return { status: 'approved' as const, token: pairing.token };
+      return token ? { status: 'approved' as const, token } : { status: 'expired' as const };
     }
     return { status: pairing.status === 'delivered' ? ('expired' as const) : pairing.status };
   }
