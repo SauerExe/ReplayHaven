@@ -24,12 +24,15 @@ beforeEach(async () => {
     game: '',
     includeExisting: true,
     stableMs: 10,
-    // The content lookup has its own test; the others stand for older servers without it.
+    // The content lookup and uploads in pieces have their own tests; the others stand for older
+    // servers without them.
     lookup: false,
+    serverUploads: {},
   };
 });
 afterEach(async () => {
   vi.unstubAllGlobals();
+  FolderUploader.pieceRetryMs = 2000;
   if (
     root &&
     resolve(root).startsWith(resolve(tmpdir()) + sep) &&
@@ -600,4 +603,238 @@ it('drops a cached AI result when another PC already uploaded the same file', as
   expect(uploader.error).toBe('');
   const { readdir } = await import('node:fs/promises');
   expect(await readdir(dirname(cachePath))).toEqual([]);
+});
+
+/**
+ * A server with uploads in pieces (server/uploads.ts) in memory. `onPiece` can break a piece:
+ * `drop` fails it before the server stores it, `lose-answer` after.
+ */
+function piecesServer(
+  options: {
+    resumable?: boolean;
+    onPiece?: (offset: number) => 'drop' | 'lose-answer' | undefined;
+  } = {},
+) {
+  const uploads = new Map<string, { size: number; data: Buffer }>();
+  const calls: string[] = [];
+  const stored: Buffer[] = [];
+  let created = 0;
+  const fetcher = vi.fn(async (url: string, request: RequestInit = {}) => {
+    const { pathname, searchParams } = new URL(url);
+    const method = request.method ?? 'GET';
+    calls.push(`${method} ${pathname}${searchParams.size ? `?${searchParams}` : ''}`);
+    if (pathname === '/api/status')
+      return Response.json(
+        options.resumable === false ? {} : { uploads: { resumable: true, chunkSize: 4 } },
+      );
+    if (pathname === '/api/clips') return Response.json({ clip: { id: 'whole' } }, { status: 201 });
+    if (pathname === '/api/uploads' && method === 'POST') {
+      const id = `u${++created}`;
+      const { size } = JSON.parse(String(request.body)) as { size: number };
+      uploads.set(id, { size, data: Buffer.alloc(0) });
+      return Response.json({ id, offset: 0, chunkSize: 4 }, { status: 201 });
+    }
+    const [, , , id, action] = pathname.split('/');
+    const upload = uploads.get(id);
+    if (!upload) return Response.json({ error: 'Upload not found.' }, { status: 404 });
+    if (method === 'GET') return Response.json({ offset: upload.data.length, size: upload.size });
+    if (method === 'PUT') {
+      const offset = Number(searchParams.get('offset'));
+      if (offset !== upload.data.length)
+        return Response.json({ offset: upload.data.length }, { status: 409 });
+      const failure = options.onPiece?.(offset);
+      if (failure === 'drop') throw new TypeError('fetch failed');
+      upload.data = Buffer.concat([upload.data, Buffer.from(request.body as Uint8Array)]);
+      if (failure === 'lose-answer') throw new TypeError('fetch failed');
+      return Response.json({ offset: upload.data.length });
+    }
+    if (method === 'POST' && action === 'complete') {
+      if (upload.data.length !== upload.size)
+        return Response.json({ offset: upload.data.length }, { status: 409 });
+      uploads.delete(id);
+      stored.push(upload.data);
+      return Response.json({ clip: { id: 'clip-1' }, duplicate: false }, { status: 201 });
+    }
+    return Response.json({ removed: uploads.delete(id) });
+  });
+  vi.stubGlobal('fetch', fetcher);
+  return { uploads, calls, stored };
+}
+/** The watcher asks the server itself what it supports. */
+const PIECES = { serverUploads: undefined };
+
+it('asks the server and uploads in pieces, reporting the confirmed bytes', async () => {
+  const file = join(options.folder, 'pieces.mp4');
+  await writeFile(file, 'test-only bytes');
+  const server = piecesServer();
+  const sent: number[] = [];
+  const uploader = new FolderUploader({
+    ...options,
+    ...PIECES,
+    onQueue: (_queue, active) => {
+      if (active?.sent !== undefined && sent.at(-1) !== active.sent) sent.push(active.sent);
+    },
+  });
+  await uploader.initialize();
+  await uploader.scan(100);
+  await uploader.scan(111);
+  expect(server.calls).toEqual([
+    'GET /api/status',
+    'POST /api/uploads',
+    'PUT /api/uploads/u1?offset=0',
+    'PUT /api/uploads/u1?offset=4',
+    'PUT /api/uploads/u1?offset=8',
+    'PUT /api/uploads/u1?offset=12',
+    'POST /api/uploads/u1/complete',
+  ]);
+  expect(server.stored.map(String)).toEqual(['test-only bytes']);
+  expect(sent).toEqual([0, 4, 8, 12, 15]);
+  expect(uploader.state.receipts[file]).toMatchObject({ clipId: 'clip-1' });
+  expect(uploader.state.uploads).toEqual({});
+});
+
+it('sends the whole file in one request to a server without uploads in pieces', async () => {
+  await writeFile(join(options.folder, 'old-server.mp4'), 'test-only bytes');
+  const server = piecesServer({ resumable: false });
+  const uploader = new FolderUploader({ ...options, ...PIECES });
+  await uploader.initialize();
+  await uploader.scan(100);
+  await uploader.scan(111);
+  // The answer is kept: the next recording does not ask again.
+  await writeFile(join(options.folder, 'second.mp4'), 'more bytes');
+  await uploader.scan(200);
+  await uploader.scan(211);
+  expect(server.calls).toEqual(['GET /api/status', 'POST /api/clips', 'POST /api/clips']);
+  expect(uploader.state.uploaded).toBe(2);
+});
+
+it('continues an interrupted upload after a restart where the server stands', async () => {
+  FolderUploader.pieceRetryMs = 1;
+  const file = join(options.folder, 'interrupted.mp4');
+  await writeFile(file, 'test-only bytes');
+  let offline = true;
+  const server = piecesServer({
+    onPiece: (offset) => (offline && offset === 8 ? 'drop' : undefined),
+  });
+  const first = new FolderUploader({ ...options, ...PIECES });
+  await first.initialize();
+  await first.scan(100);
+  await first.scan(111);
+  // Four attempts at the third piece, then the usual retry later.
+  expect(server.calls.filter((c) => c.endsWith('offset=8'))).toHaveLength(4);
+  expect(first.error).toMatch(/fetch failed/);
+  expect(first.queue.map((e) => e.state)).toEqual(['retry']);
+  expect(JSON.parse(await readFile(options.statePath, 'utf8')).uploads).toMatchObject({
+    [file]: { id: 'u1' },
+  });
+  offline = false;
+  server.calls.length = 0;
+  const restarted = new FolderUploader({ ...options, ...PIECES });
+  await restarted.initialize();
+  await restarted.scan(200);
+  await restarted.scan(211);
+  expect(server.calls).toEqual([
+    'GET /api/status',
+    'GET /api/uploads/u1',
+    'PUT /api/uploads/u1?offset=8',
+    'PUT /api/uploads/u1?offset=12',
+    'POST /api/uploads/u1/complete',
+  ]);
+  expect(server.stored.map(String)).toEqual(['test-only bytes']);
+  expect(restarted.state.receipts[file]).toMatchObject({ clipId: 'clip-1' });
+});
+
+it('starts a new upload when the server no longer knows the stored one', async () => {
+  FolderUploader.pieceRetryMs = 1;
+  const file = join(options.folder, 'forgotten.mp4');
+  await writeFile(file, 'test-only bytes');
+  let offline = true;
+  const server = piecesServer({
+    onPiece: (offset) => (offline && offset === 4 ? 'drop' : undefined),
+  });
+  const first = new FolderUploader({ ...options, ...PIECES });
+  await first.initialize();
+  await first.scan(100);
+  await first.scan(111);
+  // Given up on the server, e.g. after a day without progress.
+  server.uploads.clear();
+  offline = false;
+  server.calls.length = 0;
+  await first.scan(111 + 61000);
+  expect(server.calls.slice(0, 3)).toEqual([
+    'GET /api/uploads/u1',
+    'POST /api/uploads',
+    'PUT /api/uploads/u2?offset=0',
+  ]);
+  expect(server.stored.map(String)).toEqual(['test-only bytes']);
+  expect(first.state.receipts[file]).toMatchObject({ clipId: 'clip-1' });
+});
+
+it('follows the server when a piece arrived but its answer got lost', async () => {
+  FolderUploader.pieceRetryMs = 1;
+  const file = join(options.folder, 'lost-answer.mp4');
+  await writeFile(file, 'test-only bytes');
+  let lose = true;
+  const server = piecesServer({
+    onPiece: (offset) => {
+      if (offset !== 4 || !lose) return undefined;
+      lose = false;
+      return 'lose-answer';
+    },
+  });
+  const uploader = new FolderUploader({ ...options, ...PIECES });
+  await uploader.initialize();
+  await uploader.scan(100);
+  await uploader.scan(111);
+  expect(server.calls.slice(3, 6)).toEqual([
+    'PUT /api/uploads/u1?offset=4',
+    'PUT /api/uploads/u1?offset=4',
+    'PUT /api/uploads/u1?offset=8',
+  ]);
+  expect(server.stored.map(String)).toEqual(['test-only bytes']);
+  expect(uploader.error).toBe('');
+  expect(uploader.state.receipts[file]).toMatchObject({ clipId: 'clip-1' });
+});
+
+it('pauses an upload in pieces for a game and continues it afterwards', async () => {
+  FolderUploader.pausePollMs = 10;
+  const file = join(options.folder, 'paused.mp4');
+  await writeFile(file, 'test-only bytes');
+  let gaming = false;
+  const server = piecesServer({
+    onPiece: (offset) => {
+      if (offset === 8 && !gaming) gaming = true;
+      return undefined;
+    },
+  });
+  const pieces = vi.mocked(fetch).getMockImplementation()!;
+  // While a game runs the piece hangs, as on a busy uplink, until the pause stops it.
+  vi.mocked(fetch).mockImplementation((url, request) =>
+    gaming && request?.method === 'PUT'
+      ? new Promise<Response>((_done, fail) =>
+          request.signal!.addEventListener('abort', () => fail(request.signal!.reason)),
+        )
+      : pieces(url, request),
+  );
+  const statuses: string[] = [];
+  const uploader = new FolderUploader({
+    ...options,
+    ...PIECES,
+    isPaused: () => gaming,
+    onStatus: (m) => statuses.push(m),
+  });
+  try {
+    await uploader.initialize();
+    await uploader.scan(0);
+    await uploader.scan(11);
+    expect(statuses.at(-1)).toBe('Upload paused: paused.mp4');
+    expect(uploader.error).toBe('');
+    gaming = false;
+    server.calls.length = 0;
+    await uploader.scan(20);
+    expect(server.calls[0]).toBe('GET /api/uploads/u1');
+    expect(server.stored.map(String)).toEqual(['test-only bytes']);
+  } finally {
+    FolderUploader.pausePollMs = 1000;
+  }
 });

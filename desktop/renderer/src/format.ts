@@ -126,5 +126,6 @@ export function fraction(active: Activity | null) {
   if (active.step === 'view')
     return 0.05 + 0.8 * (active.total ? active.current / active.total : 0);
   if (active.step === 'summary') return 0.9;
+  if (active.sent !== undefined && active.size) return 0.9 + 0.1 * (active.sent / active.size);
   return 0.97;
 }

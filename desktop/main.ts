@@ -18,7 +18,7 @@ import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { FolderUploader, gameLabel, listVideos, recordedGames } from '../agent/watcher';
-import type { ActiveClip, ArchivedClip, QueueEntry } from '../agent/watcher';
+import type { ActiveClip, ArchivedClip, QueueEntry, UploadSupport } from '../agent/watcher';
 import {
   LocalAnalyzer,
   checkOllama,
@@ -147,7 +147,9 @@ function updateShell() {
         ? 0.05 + 0.8 * (a.total ? a.current / a.total : 0)
         : a.step === 'summary'
           ? 0.9
-          : 0.97;
+          : a.sent !== undefined && a.size
+            ? 0.9 + 0.1 * (a.sent / a.size)
+            : 0.97;
   window.setProgressBar(fraction, { mode: waiting() && status.running ? 'paused' : 'normal' });
   if (!tray) return;
   const state = !status.running ? 'off' : gaming ? 'gaming' : paused ? 'paused' : 'running';
@@ -751,7 +753,11 @@ async function launch() {
       `The archive server answered with HTTP ${response.status}.`,
       { status: response.status },
     );
-  await checkServerVersion((await response.json().catch(() => ({}))) as { version?: string });
+  const serverInfo = (await response.json().catch(() => ({}))) as {
+    version?: string;
+    uploads?: UploadSupport;
+  };
+  await checkServerVersion(serverInfo);
   if (config.analyze) {
     const ai = await checkOllama(OLLAMA_URL, config.model);
     if (!ai.supported)
@@ -841,6 +847,8 @@ async function launch() {
       ? { analyze: (path: string, game: string) => analyzer.analyze(path, game) }
       : {}),
     isPaused: waiting,
+    // Servers that announce it take uploads in pieces (through Cloudflare Tunnel, resumable).
+    serverUploads: serverInfo.uploads ?? {},
     signal: aborter.signal,
     onStatus: (message) => emit({ message }),
     onQueued: (queued) => emit({ queued }),

@@ -4,6 +4,7 @@ import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'nod
 import type { Stats } from 'node:fs';
 import { basename, dirname, extname, join, resolve, sep } from 'node:path';
 import { hostname } from 'node:os';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { AnalysisResult } from '../server/schema';
 export interface ClientAnalysis {
   result: AnalysisResult;
@@ -25,6 +26,13 @@ export interface QueueEntry {
 export interface ActiveClip extends Omit<QueueEntry, 'state' | 'note'> {
   stage: 'analyzing' | 'uploading';
   since: number;
+  /** Bytes the server has confirmed so far; only uploads in pieces report it. */
+  sent?: number;
+}
+/** What the server offers for uploads, from `uploads` in its /api/status. */
+export interface UploadSupport {
+  resumable?: boolean;
+  chunkSize?: number;
 }
 /** A recently archived recording with the title the AI gave it. */
 export interface ArchivedClip {
@@ -61,6 +69,11 @@ export interface WatchOptions {
   onUploaded?: (path: string, game: string, savedAt: number) => void;
   /** Ask the server by content before analysing (default true); see archived(). */
   lookup?: boolean;
+  /**
+   * The server's upload support when the caller already read its /api/status; otherwise the
+   * watcher asks once itself. Without `resumable` a recording goes in one request as before.
+   */
+  serverUploads?: UploadSupport;
   signal?: AbortSignal;
 }
 /** Folders where the NVIDIA App files recordings without a detected game. */
@@ -79,7 +92,13 @@ type AgentState = {
   uploaded: number;
   /** The latest uploads, newest first, at most 30. */
   recent?: ArchivedClip[];
+  /** Uploads in pieces not finished yet, per recording, to continue after a restart. */
+  uploads?: Record<string, { id: string; fingerprint: string; chunkSize: number }>;
 };
+/** Metadata of an upload, sent as headers with one request or as JSON before the pieces. */
+type UploadInfo = { name: string; game: string; recordedAt: string; clientAnalysis: boolean };
+/** Statuses of a proxy or server that is briefly unavailable: the piece is sent again. */
+const PASSING_STATUSES = [502, 503, 504];
 export async function listVideos(folder: string): Promise<string[]> {
   const output: string[] = [];
   for (const entry of await readdir(folder, { withFileTypes: true })) {
@@ -135,6 +154,12 @@ function errorReason(error: unknown) {
 export class FolderUploader {
   /** How often an upload checks whether a game has started. */
   static pausePollMs = 1000;
+  /** How long one request of an upload in pieces may take, even on a slow uplink. */
+  static pieceTimeoutMs = 10 * 60000;
+  /** Wait before sending a piece again after a network error; doubles with every attempt. */
+  static pieceRetryMs = 2000;
+  /** Upload support the server announced, asked for once (see WatchOptions.serverUploads). */
+  private support: UploadSupport | undefined;
   state: AgentState = { id: randomUUID(), receipts: {}, uploaded: 0 };
   private observed = new Map<string, { fingerprint: string; since: number }>();
   private retryAt = new Map<string, number>();
@@ -283,6 +308,200 @@ export class FolderUploader {
       ? { Authorization: `Bearer ${this.options.token}` }
       : { Authorization: '' };
   }
+  /** Whether the server takes uploads in pieces; an unreadable answer counts as no. */
+  private async uploadSupport(): Promise<UploadSupport> {
+    if (this.options.serverUploads) return this.options.serverUploads;
+    if (this.support) return this.support;
+    const response = await fetch(`${this.options.server}/api/status`, {
+      headers: this.headers(),
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => undefined);
+    if (!response?.ok) return {};
+    const body = (await response.json().catch(() => ({}))) as { uploads?: UploadSupport };
+    this.support = body.uploads ?? {};
+    return this.support;
+  }
+  /** The whole recording in one multipart request, for servers without uploads in pieces. */
+  private async sendWhole(path: string, info: UploadInfo, signals: AbortSignal[]) {
+    const form = new FormData();
+    form.append(
+      'file',
+      await openAsBlob(path, { type: extname(path) === '.webm' ? 'video/webm' : 'video/mp4' }),
+      info.name,
+    );
+    const response = await fetch(`${this.options.server}/api/clips`, {
+      method: 'POST',
+      headers: {
+        ...this.headers(),
+        'x-device-name': encodeURIComponent(hostname()),
+        'x-game-name': encodeURIComponent(info.game),
+        'x-client-analysis': info.clientAnalysis ? '1' : '0',
+        'x-recorded-at': info.recordedAt,
+      },
+      body: form,
+      signal: AbortSignal.any([AbortSignal.timeout(30 * 60000), ...signals]),
+    });
+    if (!response.ok) throw new Error(`Upload failed (HTTP ${response.status}).`);
+    return (await response.json()) as { clip: { id: string } };
+  }
+  /**
+   * One request of an upload in pieces. A network error, a timeout or a proxy that is briefly
+   * unavailable is retried a few times with a growing wait; a pause or stop is not.
+   */
+  private async pieceRequest(url: string, init: RequestInit, signals: AbortSignal[]) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const response = await fetch(url, {
+          ...init,
+          signal: AbortSignal.any([AbortSignal.timeout(FolderUploader.pieceTimeoutMs), ...signals]),
+        });
+        if (!PASSING_STATUSES.includes(response.status) || attempt >= 3) return response;
+        await response.body?.cancel().catch(() => {});
+      } catch (error) {
+        if (signals.some((s) => s.aborted) || attempt >= 3) throw error;
+      }
+      await delay(FolderUploader.pieceRetryMs * 2 ** attempt, undefined, {
+        signal: AbortSignal.any(signals),
+      });
+    }
+  }
+  /** Drops the unfinished upload of a recording, also on the server as far as it answers. */
+  private async forgetUpload(path: string) {
+    const upload = this.state.uploads?.[path];
+    if (!upload) return;
+    delete this.state.uploads![path];
+    await fetch(`${this.options.server}/api/uploads/${upload.id}`, {
+      method: 'DELETE',
+      headers: this.headers(),
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => {});
+  }
+  /**
+   * The recording in pieces (server/uploads.ts), so a proxy with a request limit lets it through
+   * and a broken connection only costs the piece in flight. The upload id is kept in the queue
+   * file: after an error or a restart the next attempt asks the server how far it got and
+   * continues there. An upload the server no longer knows starts over once.
+   */
+  private async sendInPieces(
+    path: string,
+    fingerprint: string,
+    size: number,
+    info: UploadInfo,
+    support: UploadSupport,
+    signals: AbortSignal[],
+  ): Promise<{ clip: { id: string } }> {
+    const server = this.options.server;
+    const failed = (response: Response) => new Error(`Upload failed (HTTP ${response.status}).`);
+    for (let round = 0; ; round++) {
+      let saved = this.state.uploads?.[path];
+      // The recording was replaced since: its old upload is of no use.
+      if (saved && saved.fingerprint !== fingerprint) {
+        await this.forgetUpload(path);
+        saved = undefined;
+      }
+      let offset = 0;
+      if (saved) {
+        const response = await this.pieceRequest(
+          `${server}/api/uploads/${saved.id}`,
+          { headers: this.headers() },
+          signals,
+        );
+        if (response.status === 404) {
+          delete this.state.uploads![path];
+          saved = undefined;
+        } else if (!response.ok) throw failed(response);
+        else offset = ((await response.json()) as { offset: number }).offset;
+      }
+      if (!saved) {
+        const response = await this.pieceRequest(
+          `${server}/api/uploads`,
+          {
+            method: 'POST',
+            headers: { ...this.headers(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              size,
+              name: info.name,
+              game: info.game,
+              deviceName: hostname(),
+              recordedAt: info.recordedAt,
+              clientAnalysis: info.clientAnalysis,
+            }),
+          },
+          signals,
+        );
+        if (!response.ok) throw failed(response);
+        const created = (await response.json()) as { id: string; chunkSize?: number };
+        saved = {
+          id: created.id,
+          fingerprint,
+          chunkSize: created.chunkSize || support.chunkSize || 50 * 1024 ** 2,
+        };
+        this.state.uploads = { ...this.state.uploads, [path]: saved };
+        await this.persist();
+      }
+      const { id, chunkSize } = saved;
+      let lost = false;
+      const file = await open(path, 'r');
+      try {
+        // In a row: the server keeps naming another position, which a retry cannot fix.
+        let conflicts = 0;
+        while (offset < size) {
+          if (this.active?.path === path) {
+            this.active = { ...this.active, sent: offset };
+            this.emitQueue();
+          }
+          // One piece in memory at a time, read straight from its place in the file.
+          const piece = Buffer.alloc(Math.min(chunkSize, size - offset));
+          const { bytesRead } = await file.read(piece, 0, piece.length, offset);
+          if (bytesRead !== piece.length)
+            throw new Error('The recording changed during the upload. It will be checked again.');
+          const response = await this.pieceRequest(
+            `${server}/api/uploads/${id}?offset=${offset}`,
+            {
+              method: 'PUT',
+              headers: { ...this.headers(), 'Content-Type': 'application/octet-stream' },
+              body: piece,
+            },
+            signals,
+          );
+          if (response.status === 404) {
+            lost = true;
+            break;
+          }
+          // The server stands elsewhere, e.g. it stored a piece whose answer got lost.
+          if (response.status === 409 && ++conflicts <= 5) {
+            offset = ((await response.json()) as { offset: number }).offset;
+            continue;
+          }
+          if (!response.ok) throw failed(response);
+          offset = ((await response.json()) as { offset: number }).offset;
+          conflicts = 0;
+        }
+      } finally {
+        await file.close();
+      }
+      if (!lost) {
+        if (this.active?.path === path) {
+          this.active = { ...this.active, sent: size };
+          this.emitQueue();
+        }
+        const response = await this.pieceRequest(
+          `${server}/api/uploads/${id}/complete`,
+          { method: 'POST', headers: this.headers() },
+          signals,
+        );
+        if (response.ok) {
+          delete this.state.uploads![path];
+          await this.persist();
+          return (await response.json()) as { clip: { id: string } };
+        }
+        if (response.status !== 404) throw failed(response);
+      }
+      delete this.state.uploads![path];
+      await this.persist();
+      if (round) throw new Error('The server lost the upload. Retrying later.');
+    }
+  }
   async scan(now = Date.now()) {
     // `now` is the time of the scan's start; analysis and upload take minutes, so waits set
     // afterwards count from the time that has passed since, in whole seconds (tests pass their
@@ -393,6 +612,7 @@ export class FolderUploader {
           }
           this.state.receipts[path] = { fingerprint, clipId: archived };
           this.attempts.delete(path);
+          await this.forgetUpload(path);
           await this.persist();
           this.observed.delete(path);
           this.retryAt.delete(path);
@@ -420,38 +640,28 @@ export class FolderUploader {
         this.options.onStatus?.(`Upload: ${basename(path)}`);
         this.active = { ...this.active, stage: 'uploading' };
         this.emitQueue();
-        const form = new FormData();
-        form.append(
-          'file',
-          await openAsBlob(path, { type: extname(path) === '.webm' ? 'video/webm' : 'video/mp4' }),
-          basename(path),
-        );
+        const info: UploadInfo = {
+          name: basename(path),
+          game: shown,
+          recordedAt: new Date(before.mtimeMs).toISOString(),
+          clientAnalysis: !!analysis,
+        };
         const watchPause = setInterval(() => {
           if (this.options.isPaused?.()) pausedUpload.abort();
         }, FolderUploader.pausePollMs);
-        let response: Response;
+        let result: { clip: { id: string } };
         try {
-          response = await fetch(`${this.options.server}/api/clips`, {
-            method: 'POST',
-            headers: {
-              ...this.headers(),
-              'x-device-name': encodeURIComponent(hostname()),
-              'x-game-name': encodeURIComponent(shown),
-              'x-client-analysis': analysis ? '1' : '0',
-              'x-recorded-at': new Date(before.mtimeMs).toISOString(),
-            },
-            body: form,
-            signal: AbortSignal.any([
-              AbortSignal.timeout(30 * 60000),
-              pausedUpload.signal,
-              ...(this.options.signal ? [this.options.signal] : []),
-            ]),
-          });
+          const signals = [
+            pausedUpload.signal,
+            ...(this.options.signal ? [this.options.signal] : []),
+          ];
+          const support = await this.uploadSupport();
+          result = support.resumable
+            ? await this.sendInPieces(path, fingerprint, before.size, info, support, signals)
+            : await this.sendWhole(path, info, signals);
         } finally {
           clearInterval(watchPause);
         }
-        if (!response.ok) throw new Error(`Upload failed (HTTP ${response.status}).`);
-        const result = (await response.json()) as { clip: { id: string } };
         if (analysis) {
           const saved = await fetch(
             `${this.options.server}/api/clips/${result.clip.id}/client-analysis`,

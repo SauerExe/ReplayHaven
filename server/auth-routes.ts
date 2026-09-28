@@ -53,6 +53,10 @@ const SELF_SERVICE = new Set([
 /** What a paired recording PC may change besides reading: upload, its result, its heartbeat. */
 const CLIENT_ROUTES = new Set([
   'POST /api/clips',
+  'POST /api/uploads',
+  'PUT /api/uploads/:id',
+  'POST /api/uploads/:id/complete',
+  'DELETE /api/uploads/:id',
   'POST /api/clips/:id/client-analysis',
   'POST /api/devices/heartbeat',
 ]);

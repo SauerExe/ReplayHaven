@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Resumable uploads: the Windows client sends clips in 50 MiB pieces and continues where it
+  stopped after a dropped connection or restart, so servers behind Cloudflare Tunnel (100 MB per
+  request) accept large clips. Older servers still get the single upload. docs/SERVER.md explains
+  the forward-auth (Authelia) exception the client needs for `/api/`.
 - The web library can filter clips by who recorded them ("Recorded by"), and the clip details
   name the person. Clips uploaded from a paired PC belong to that PC's account;
   `admin.mjs assign-uploader <name> --yes` assigns older clips to one account.
