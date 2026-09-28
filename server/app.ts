@@ -54,7 +54,9 @@ export async function buildServer(
   overrides: { provider?: AnalysisProvider; media?: MediaProcessor } = {},
 ) {
   const app = Fastify({
-    logger: false,
+    logger: config.logLevel ? { level: config.logLevel } : false,
+    // One line per request would flood the log: the web app polls every few seconds.
+    disableRequestLogging: true,
     bodyLimit: 1024 * 1024,
     // Uploads of up to 2 GB over slow connections may take a while.
     requestTimeout: 30 * 60000,
@@ -149,9 +151,10 @@ export async function buildServer(
   // Accounts, roles, devices and pairing (server/auth-routes.ts).
   const auth = registerAuth(app, new Accounts(db.db), config);
   app.setErrorHandler((error, req, reply) => {
-    void req;
     const status =
       error instanceof z.ZodError ? 400 : (error as { statusCode?: number }).statusCode || 500;
+    // Users get a short message; the log gets the cause.
+    if (status >= 500) req.log.error({ err: error, url: req.url }, 'Request failed');
     reply.code(status).send({
       error:
         status === 413

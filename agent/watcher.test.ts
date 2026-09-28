@@ -306,3 +306,76 @@ it('skips analysis and upload for a recording the archive already holds', async 
   await uploader.scan(200);
   expect(calls).toHaveLength(1);
 });
+
+it('delivers a cached AI result when the video already reached the archive in an earlier attempt', async () => {
+  const file = join(options.folder, 'halb-fertig.mp4');
+  await writeFile(file, 'uploaded bytes');
+  const { createHash } = await import('node:crypto');
+  const hash = createHash('sha256').update('uploaded bytes').digest('hex');
+  const analysis = {
+    result: {
+      title: 'Ace',
+      description: 'Test',
+      game: '',
+      tags: ['Ace'],
+      confidence: 'high' as const,
+      uncertainty: '',
+      highlights: [],
+    },
+    duration: 2,
+    model: 'test-model',
+  };
+  let uploaded = false;
+  let analysisAttempts = 0;
+  const delivered: unknown[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, request: RequestInit) => {
+      if (url.includes('/lookup/'))
+        return Response.json({ clip: uploaded && url.endsWith(hash) ? { id: 'clip-1' } : null });
+      if (url.endsWith('/client-analysis')) {
+        // The first delivery fails after the video is stored, as with a dropped connection.
+        if (++analysisAttempts === 1) return new Response('{}', { status: 503 });
+        delivered.push(JSON.parse(String(request.body)));
+        return Response.json({});
+      }
+      uploaded = true;
+      return Response.json({ clip: { id: 'clip-1' } });
+    }),
+  );
+  const analyze = vi.fn().mockResolvedValue(analysis);
+  const uploader = new FolderUploader({ ...options, lookup: true, analyze });
+  await uploader.initialize();
+  await uploader.scan(100);
+  await uploader.scan(111);
+  expect(uploader.state.receipts[file]).toBeUndefined();
+  // The retry finds the video by its content and still hands over the AI result.
+  await uploader.scan(111 + 61000);
+  expect(uploader.state.receipts[file]).toMatchObject({ clipId: 'clip-1' });
+  expect(delivered).toEqual([analysis]);
+  expect(analyze).toHaveBeenCalledTimes(1);
+  const { readdir } = await import('node:fs/promises');
+  expect(await readdir(join(root, 'state', 'analysis-cache')).catch(() => [])).toEqual([]);
+});
+
+it('waits longer after every failed attempt, up to half an hour', async () => {
+  const file = join(options.folder, 'offline.mp4');
+  await writeFile(file, 'bytes');
+  const fetcher = vi.fn(async () => new Response('{}', { status: 502 }));
+  vi.stubGlobal('fetch', fetcher);
+  const uploader = new FolderUploader(options);
+  await uploader.initialize();
+  await uploader.scan(0);
+  let now = 11;
+  await uploader.scan(now);
+  const uploads = () => fetcher.mock.calls.length;
+  expect(uploads()).toBe(1);
+  // 1, 2, 4, 8, 16 minutes, then capped at 30.
+  for (const minutes of [1, 2, 4, 8, 16, 30, 30]) {
+    await uploader.scan(now + minutes * 60000 - 1000);
+    const before = uploads();
+    now += minutes * 60000;
+    await uploader.scan(now);
+    expect(uploads(), `after ${minutes} min`).toBe(before + 1);
+  }
+});

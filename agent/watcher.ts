@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream, openAsBlob } from 'node:fs';
-import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { hostname } from 'node:os';
@@ -115,6 +115,10 @@ export class FolderUploader {
   state: AgentState = { id: randomUUID(), receipts: {}, uploaded: 0 };
   private observed = new Map<string, { fingerprint: string; since: number }>();
   private retryAt = new Map<string, number>();
+  /** Failed attempts per recording; the wait before the next one doubles, up to 30 minutes. */
+  private attempts = new Map<string, number>();
+  /** Content hashes per path and fingerprint, so a retry does not read 2 GB again. */
+  private hashes = new Map<string, string>();
   /** Permanently rejected recordings with reason — per fingerprint, so a replacement counts again. */
   readonly rejected = new Map<string, { fingerprint: string; reason: string }>();
   error = '';
@@ -179,11 +183,17 @@ export class FolderUploader {
    * file, as the server computes it on upload), or undefined. Older servers without the lookup
    * answer 404; then the recording is analysed and uploaded as before.
    */
-  private async archived(path: string) {
-    const hash = createHash('sha256');
-    for await (const chunk of createReadStream(path, { signal: this.options.signal }))
-      hash.update(chunk as Buffer);
-    const response = await fetch(`${this.options.server}/api/clips/lookup/${hash.digest('hex')}`, {
+  private async archived(path: string, fingerprint: string) {
+    const key = `${path}:${fingerprint}`;
+    let digest = this.hashes.get(key);
+    if (!digest) {
+      const hash = createHash('sha256');
+      for await (const chunk of createReadStream(path, { signal: this.options.signal }))
+        hash.update(chunk as Buffer);
+      digest = hash.digest('hex');
+      this.hashes.set(key, digest);
+    }
+    const response = await fetch(`${this.options.server}/api/clips/lookup/${digest}`, {
       headers: this.headers(),
       signal: AbortSignal.any([
         AbortSignal.timeout(15000),
@@ -263,12 +273,38 @@ export class FolderUploader {
         // Already in the archive with the same content, e.g. uploaded before under another
         // server address (the queue is kept per folder and address)? Then neither the AI nor the
         // upload runs again.
+        const cachePath = join(
+          dirname(this.options.statePath),
+          'analysis-cache',
+          `${createHash('sha256').update(`${path}:${fingerprint}`).digest('hex')}.json`,
+        );
         const archived =
           this.options.lookup === false
             ? undefined
-            : await this.archived(path).catch(() => undefined);
+            : await this.archived(path, fingerprint).catch(() => undefined);
         if (archived) {
+          // A previous attempt uploaded the video but not its AI result: deliver it now, or the
+          // clip would wait for it forever. The server ignores a result it already has.
+          const cached = this.options.analyze
+            ? await readFile(cachePath, 'utf8').catch(() => undefined)
+            : undefined;
+          if (cached) {
+            const saved = await fetch(
+              `${this.options.server}/api/clips/${archived}/client-analysis`,
+              {
+                method: 'POST',
+                headers: { ...this.headers(), 'Content-Type': 'application/json' },
+                body: cached,
+                signal: AbortSignal.timeout(15000),
+              },
+            );
+            // 404: the clip was removed from the library in the meantime; nothing to deliver.
+            if (!saved.ok && saved.status !== 404)
+              throw new Error('Video saved, AI result not confirmed yet. Retrying the transfer.');
+            await rm(cachePath, { force: true });
+          }
           this.state.receipts[path] = { fingerprint, clipId: archived };
+          this.attempts.delete(path);
           await this.persist();
           this.observed.delete(path);
           this.retryAt.delete(path);
@@ -280,11 +316,6 @@ export class FolderUploader {
           continue;
         }
         let analysis: ClientAnalysis | undefined;
-        const cachePath = join(
-          dirname(this.options.statePath),
-          'analysis-cache',
-          `${createHash('sha256').update(`${path}:${fingerprint}`).digest('hex')}.json`,
-        );
         if (this.options.analyze) {
           try {
             analysis = JSON.parse(await readFile(cachePath, 'utf8'));
@@ -341,6 +372,10 @@ export class FolderUploader {
         if (`${after.size}:${after.mtimeMs}` !== fingerprint)
           throw new Error('The recording changed during the upload. It will be checked again.');
         this.state.receipts[path] = { fingerprint, clipId: result.clip.id };
+        // Delivered: the cached analysis is no longer needed.
+        await rm(cachePath, { force: true });
+        this.attempts.delete(path);
+        this.hashes.delete(`${path}:${fingerprint}`);
         this.state.uploaded++;
         this.state.recent = [
           {
@@ -369,7 +404,11 @@ export class FolderUploader {
         const deferred = error instanceof DeferredError;
         const message = error instanceof Error ? error.message : 'Upload not possible.';
         const state = deferred ? ('deferred' as const) : ('retry' as const);
-        this.retryAt.set(path, now + 60000);
+        // Waiting for a match to end keeps its steady minute; failures back off, so a server
+        // that is down or refuses a file is not asked every minute for hours.
+        const failures = deferred ? 0 : (this.attempts.get(path) ?? 0) + 1;
+        if (!deferred) this.attempts.set(path, failures);
+        this.retryAt.set(path, now + Math.min(60000 * 2 ** Math.max(0, failures - 1), 30 * 60000));
         this.notes.set(path, { state, note: message });
         this.queue = this.queue.map((e) => (e.path === path ? { ...e, state, note: message } : e));
         if (deferred) {

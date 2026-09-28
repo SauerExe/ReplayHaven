@@ -94,7 +94,7 @@ With **Transcribe voice chat**, the client transcribes what is said in the clip 
 
 ## Keep R6 replays for clips
 
-With "Match Replay" (game settings), Rainbow Six writes every round as a file but only keeps the last 30 or so matches. **Keep R6 replays with clips** is on by default: after uploading an R6 clip, the client copies the match it came from to `%LOCALAPPDATA%\ReplayHaven\r6-replays`, about 30 MB per match. The analysis does not use these files yet; they are the basis for later reading kills, headshots, ace and clutch precisely from the game ([R6-REPLAYS.md](R6-REPLAYS.md)). The files contain the names of all players in the match and stay on your PC.
+With "Match Replay" (game settings), Rainbow Six writes every round as a file but only keeps the last 30 or so matches. **Keep R6 replays with clips** is on by default: after uploading an R6 clip, the client copies the match it came from to `%LOCALAPPDATA%\ReplayHaven\r6-replays`, about 30 MB per match. The analysis does not use these files yet; they are the basis for later reading kills, headshots, ace and clutch precisely from the game ([R6-REPLAYS.md](R6-REPLAYS.md)). The files contain the names of all players in the match and stay on your PC. The archive keeps the newest 60 matches (about 1.8 GB) and deletes older ones.
 
 ## What actually happens
 

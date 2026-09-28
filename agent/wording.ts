@@ -502,6 +502,18 @@ export function cleanText(text: string, { keepOverlay = false } = {}) {
     .trim();
 }
 
+/**
+ * Drops the sentences of a description that claim something no event backs up, with the same
+ * checks as the title: an invented kill or win in the description is just as wrong.
+ */
+export function factualText(text: string, events: GameEvent[]) {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => sentence && !unsupportedClaims(sentence, events).length)
+    .join(' ')
+    .trim();
+}
+
 export interface Highlight {
   seconds: number;
   title: string;

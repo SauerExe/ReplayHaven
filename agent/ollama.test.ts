@@ -1091,3 +1091,61 @@ it('translates the checked German result into English and keeps German when that
       await rm(root, { recursive: true, force: true });
   }
 });
+
+it('keeps the analysis when the summary is unusable twice, with a title from the proven events', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'replayhaven-analysis-'));
+  try {
+    const media = new MediaProcessor({});
+    vi.spyOn(media, 'probe').mockResolvedValue({
+      duration: 20,
+      width: 1920,
+      height: 1080,
+      codec: 'h264',
+      hasAudio: true,
+      audio: [],
+    });
+    vi.spyOn(media, 'frames').mockResolvedValue(
+      Array.from({ length: 4 }, (_, i) => ({ seconds: i * 5, base64: `bild-${i}` })),
+    );
+    vi.spyOn(media, 'frameAt').mockResolvedValue('focus-image');
+    let summaries = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string);
+        if (!body.messages.length) return Response.json({ done: true });
+        if (!body.format?.properties?.frames) {
+          summaries++;
+          return Response.json({ message: { content: 'kein JSON' } });
+        }
+        return Response.json({
+          message: {
+            content: JSON.stringify({
+              frames: imagesOf(body).map((_: string, frame: number) => ({
+                frame,
+                kind: 'result',
+                observation: 'Rundenende',
+                visibleText: frame === 3 ? 'RUNDE GEWONNEN' : '',
+              })),
+            }),
+          },
+        });
+      }),
+    );
+    const output = await new LocalAnalyzer({
+      url: 'http://127.0.0.1:11434',
+      model: 'test-model',
+      frames: 24,
+      cacheDir: root,
+      media,
+      isPaused: () => false,
+    }).analyze('clip.mp4', 'VALORANT');
+    expect(summaries).toBe(2);
+    expect(output.result.title).toMatch(/Runde/);
+    expect(output.result.description.length).toBeGreaterThan(0);
+    expect(output.result.tags).toContain('Rundensieg');
+  } finally {
+    if (resolve(root).startsWith(resolve(tmpdir()) + sep) && root.includes('replayhaven-analysis-'))
+      await rm(root, { recursive: true, force: true });
+  }
+});

@@ -107,6 +107,10 @@ export class VaultDatabase {
     this.put(next);
     return next;
   }
+  /** Deletes a clip's row for good (the admin command removes its files first). */
+  remove(id: string) {
+    this.db.prepare('DELETE FROM clips WHERE id=?').run(id);
+  }
   settings(): AnalysisSettings {
     const row = this.db.prepare("SELECT data FROM settings WHERE id='analysis'").get() as
       { data: string } | undefined;

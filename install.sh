@@ -218,9 +218,20 @@ main() {
     download "$base/$file" "$tmp/$file" || fail "Could not download $base/$file"
   done
   verify_sums "$tmp" compose.yaml env.example
+  # compose.yaml belongs to the installer and follows each release; your own changes go into
+  # compose.override.yaml, which Docker Compose merges automatically. A compose.yaml that differs
+  # from the release in more than its image line has changes of your own: replacing it would
+  # silently undo them (a bind mount would fall back to an empty volume), so stop instead.
   if [[ -f compose.yaml ]] && ! cmp -s compose.yaml "$tmp/compose.yaml"; then
+    if ! cmp -s <(sed -E 's#^( *image: ).*#\1#' compose.yaml) \
+      <(sed -E 's#^( *image: ).*#\1#' "$tmp/compose.yaml"); then
+      cp "$tmp/compose.yaml" compose.yaml.new
+      fail "Your compose.yaml has changes of your own, so it was not replaced. Move them into
+  compose.override.yaml (Docker Compose merges it automatically), then take the new
+  compose.yaml.new as compose.yaml and run the installer again. See docs/SERVER.md."
+    fi
     cp compose.yaml compose.yaml.bak
-    say 'Replaced compose.yaml (your previous one is in compose.yaml.bak).'
+    say 'Updated compose.yaml to this release (the previous one is in compose.yaml.bak).'
   fi
   cp "$tmp/compose.yaml" compose.yaml
   cp "$tmp/env.example" env.example
