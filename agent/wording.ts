@@ -5,7 +5,7 @@ import type { EventKind, GameEvent, Weapon } from './events';
  * Checking and post-processing of the texts the model writes. It phrases things well but now and
  * then claims what did not happen ("Tod durch Feuerwaffe" over a clip in which the user
  * eliminates two enemies) or copies HUD readouts ("3 vs 1", "FINKA im Visier"). Both can be
- * checked against the proven events (.docs/05-experimente.md, E17).
+ * checked against the proven events (experiment E17).
  */
 
 const KILLS: EventKind[] = ['kill', 'multikill', 'headshot', 'ace'];

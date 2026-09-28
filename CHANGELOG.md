@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-28
+
 ### Added
 
 - English titles: titles, descriptions and time marks can be written in English or German
@@ -38,6 +40,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Security
 
+- `npm run dev` serves the web UI on this machine only; `npm run dev:lan` opens it to the
+  network. A server without accounts only stays open to requests addressed to this machine, also
+  behind the dev proxy.
+- Paired PCs of an admin who is demoted stop uploading.
+- Only admins see the folders of recording PCs in `/api/status`.
 - The access key only sets the server up: once the first account exists it is no longer accepted
   as a bearer token, and the key login of old versions (`/api/session`) is removed. Scripts pair
   like a PC: `npm run agent -- --pair`.
@@ -60,6 +67,13 @@ All notable changes to this project are documented here. The format follows
   `gh attestation verify` checks it until the installer is code-signed.
 - The README calls ReplayHaven source-available instead of open source, matching its
   PolyForm Noncommercial license.
+
+### Fixed
+
+- `/api/status` reports the release the image was built for (`REPLAYHAVEN_VERSION`).
+- A clip whose video is not probed yet shows no resolution instead of German placeholder text.
+- Code comments and docs no longer point to unpublished measurement notes;
+  docs/AI-RECOGNITION.md explains the experiment numbers.
 
 ## [1.0.0] - 2026-09-26
 
@@ -120,5 +134,6 @@ The first public release.
 - PolyForm Noncommercial 1.0.0: free for personal and other non-commercial use, not for sale
   or commercial use.
 
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/SauerExe/ReplayHaven/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/SauerExe/ReplayHaven/releases/tag/v1.0.0

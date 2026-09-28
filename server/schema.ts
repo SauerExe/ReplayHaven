@@ -123,7 +123,7 @@ export const frameBatchJsonSchema = z.toJSONSchema(frameBatchSchema);
  * Reads the classification of a frame batch. The model sometimes numbers frames from 1 or keeps
  * counting across batches (4–7 instead of 0–3). So if the count is right, the order applies; only
  * a wrong count is an error. Previously such answers aborted the whole analysis, in the baseline
- * run of 2026-09-23 for 4 of 20 clips (.docs/05-experimente.md, E17).
+ * run of 2026-09-23 for 4 of 20 clips (experiment E17).
  */
 export function parseFrameBatch(raw: string, expected: number) {
   const clean = raw

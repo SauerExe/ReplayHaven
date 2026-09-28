@@ -256,8 +256,8 @@ export interface OcrModels {
 
 /**
  * The PP-OCRv5 recognition model for Latin script. The detection model stays PP-OCRv4: its v5
- * counterpart is 88 MB and twice as slow but gains hardly anything (62 vs 65 of 75 names,
- * .docs/tools/ocr-vergleich.mts).
+ * counterpart is 88 MB and twice as slow but gains hardly anything (62 vs 65 of 75 names
+ * in the same measurement).
  */
 export const LATIN_REC: ModelFile = latin.rec;
 export const LATIN_KEYS: ModelFile = latin.keys;

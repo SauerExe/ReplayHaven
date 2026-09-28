@@ -217,6 +217,59 @@ it('lets a paired PC upload and report, but not edit the archive', async () => {
   await app.close();
 });
 
+it('stops the PCs of a demoted admin and hides PC folders from users', async () => {
+  const { app, admin, createUser } = await withAdmin();
+  const eve = await createUser('eve', 'admin');
+  const alice = await createUser('alice');
+  const { id, secret } = (
+    await app.inject({
+      method: 'POST',
+      url: '/api/pair/request',
+      payload: { deviceId: randomUUID(), name: 'EVE-PC' },
+    })
+  ).json();
+  await app.inject({ method: 'POST', url: `/api/pair/${id}/approve`, headers: eve.headers });
+  const { token } = (
+    await app.inject({ method: 'POST', url: '/api/pair/status', payload: { id, secret } })
+  ).json();
+  const pc = { authorization: `Bearer ${token}` };
+  const heartbeat = () =>
+    app.inject({
+      method: 'POST',
+      url: '/api/devices/heartbeat',
+      headers: pc,
+      payload: { id: randomUUID(), name: 'EVE-PC', folder: 'D:\\Clips', error: '', uploaded: 0 },
+    });
+  expect((await heartbeat()).statusCode).toBe(200);
+  const devices = async (headers: Record<string, string>) =>
+    (await app.inject({ url: '/api/status', headers })).json().devices as { folder: string }[];
+  expect((await devices(admin))[0].folder).toBe('D:\\Clips');
+  expect((await devices(alice.headers))[0].folder).toBe('');
+
+  await app.inject({
+    method: 'PATCH',
+    url: `/api/users/${eve.id}`,
+    headers: admin,
+    payload: { role: 'user' },
+  });
+  expect((await heartbeat()).statusCode).toBe(403);
+  await app.close();
+});
+
+it('stays open without setup only for requests addressed to this machine', async () => {
+  const { app } = await startServer({ token: '' });
+  const clips = (host: string) => app.inject({ url: '/api/clips', headers: { host } });
+  expect((await clips('localhost:8787')).statusCode).toBe(200);
+  expect((await clips('127.0.0.1:5173')).statusCode).toBe(200);
+  // A dev proxy on the LAN forwards from 127.0.0.1 but keeps the Host the browser used.
+  expect((await clips('192.168.1.20:5173')).statusCode).toBe(401);
+  // A broken address is a client error, never a server error.
+  expect(
+    (await app.inject({ url: '/%E0%A4%A', headers: { host: 'localhost' } })).statusCode,
+  ).toBeLessThan(500);
+  await app.close();
+});
+
 it('manages users and never loses the last admin', async () => {
   const { app, admin, login, createUser } = await withAdmin();
   const users = (await app.inject({ url: '/api/users', headers: admin })).json();

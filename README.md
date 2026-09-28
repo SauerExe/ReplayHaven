@@ -307,20 +307,21 @@ The demo artwork belongs to the game publishers and is not part of the repositor
 <details>
 <summary><b>All commands</b></summary>
 
-| Command                 | What it does                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------ |
-| `npm run dev`           | Web UI only (Vite, demo data, `/api` proxied to the server)                          |
-| `npm run server`        | Server only, loopback, no access key needed                                          |
-| `npm run client:dev`    | Windows client in Electron                                                           |
-| `npm run check`         | Typecheck, ESLint and unit tests                                                     |
-| `npm run format`        | Prettier                                                                             |
-| `npm run test:e2e`      | Playwright browser tests (`npx playwright install chromium` once)                    |
-| `npm run build`         | Production web UI into `dist/`                                                       |
-| `npm run server:bundle` | Server bundle into `server-bundle/`                                                  |
-| `npm run docker:build`  | Server image `replayhaven:local`                                                     |
-| `npm run client:build`  | Windows installer into `release/` (Windows only)                                     |
-| `npm run check:browser` | Screenshots of all views at 390–1920 px into `artifacts/visual/`                     |
-| `npm run readme:images` | Regenerates the images in `docs/images` from the real interface (needs demo artwork) |
+| Command                 | What it does                                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `npm run dev`           | Web UI only (Vite, demo data, `/api` proxied to the server), on this machine                       |
+| `npm run dev:lan`       | The same, reachable from your network (e.g. a phone); a server without accounts stays closed to it |
+| `npm run server`        | Server only, loopback, no access key needed                                                        |
+| `npm run client:dev`    | Windows client in Electron                                                                         |
+| `npm run check`         | Typecheck, ESLint and unit tests                                                                   |
+| `npm run format`        | Prettier                                                                                           |
+| `npm run test:e2e`      | Playwright browser tests (`npx playwright install chromium` once)                                  |
+| `npm run build`         | Production web UI into `dist/`                                                                     |
+| `npm run server:bundle` | Server bundle into `server-bundle/`                                                                |
+| `npm run docker:build`  | Server image `replayhaven:local`                                                                   |
+| `npm run client:build`  | Windows installer into `release/` (Windows only)                                                   |
+| `npm run check:browser` | Screenshots of all views at 390–1920 px into `artifacts/visual/`                                   |
+| `npm run readme:images` | Regenerates the images in `docs/images` from the real interface (needs demo artwork)               |
 
 </details>
 
