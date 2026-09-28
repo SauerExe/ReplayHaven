@@ -752,7 +752,7 @@ Only publish or deploy the application when explicitly asked to.
 
 Start now by reviewing the project and build ReplayHaven. First prioritize the visual quality of the home page, clip cards and player. Then carry that level consistently over to the remaining views.
 
-## 26. Source-Available Repository, Operations and Division of Work
+## 26. Public Repository, Operations and Division of Work
 
 ReplayHaven is maintained as a public repository. These rules apply to all contributions, including AI agents.
 
