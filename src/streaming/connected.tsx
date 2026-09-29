@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type { Clip } from '../domain/models';
 import { useActions } from '../components/Actions';
 import { useIsAdmin } from '../components/AuthGate';
@@ -8,7 +8,7 @@ import { canContinue } from '../data/repository';
 import { useVault } from '../data/store';
 import { ClipMenu } from './ClipMenu';
 import { DetailDialog } from './DetailDialog';
-import { nextInQueue } from './library';
+import { nextInQueue, uploaderOptions } from './library';
 import { serverStatus, toStreamLibrary, type StreamClip, type StreamLibrary } from './model';
 import { PlayerOverlay } from './PlayerOverlay';
 import { moreFromGame, nextClipAfter } from './rows';
@@ -203,8 +203,11 @@ export function StreamingHeaderContainer() {
   const devicesHref = useDevicesHref();
   const action = useActions();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const admin = useIsAdmin();
+  // Home and library share the person filter; the menu keeps it when switching between them.
+  const uploader =
+    pathname === '/' || pathname === '/library' ? new URLSearchParams(search).get('by') || '' : '';
   const active =
     pathname === '/'
       ? '/'
@@ -218,19 +221,33 @@ export function StreamingHeaderContainer() {
       onSearch={(query) => navigate(`/library?q=${encodeURIComponent(query)}`)}
       onAddClip={admin ? () => action({ kind: 'upload' }) : undefined}
       devicesHref={devicesHref}
+      uploader={uploader}
     />
   );
 }
 
 export function StreamingHomeContainer({ header = false }: { header?: boolean }) {
   const devicesHref = useDevicesHref();
-  const { server, patchClip } = useVault();
+  const { state, server, patchClip } = useVault();
   const action = useActions();
   const navigate = useNavigate();
   const now = useMinuteClock();
   const library = useStreamLibrary();
   const layers = useClipLayers();
   const admin = useIsAdmin();
+  const [params, setParams] = useSearchParams();
+  const uploaders = useMemo(() => uploaderOptions(state.clips), [state.clips]);
+
+  function selectUploader(uploader: string) {
+    setParams(
+      (p) => {
+        if (uploader) p.set('by', uploader);
+        else p.delete('by');
+        return p;
+      },
+      { replace: true },
+    );
+  }
 
   function toggleFavorite(id: string) {
     const clip = library.clips.find((c) => c.id === id);
@@ -251,6 +268,9 @@ export function StreamingHomeContainer({ header = false }: { header?: boolean })
         onAddClip={admin ? () => action({ kind: 'upload' }) : undefined}
         onCreateCollection={() => action({ kind: 'create' })}
         connectHref={devicesHref}
+        uploaders={uploaders}
+        uploader={params.get('by') || ''}
+        onSelectUploader={selectUploader}
       />
       <ClipLayers layers={layers} library={library} now={now} />
     </>

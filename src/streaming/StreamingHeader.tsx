@@ -3,12 +3,22 @@ import { House, Layers, LayoutGrid, Monitor, Search, Upload, UserRound, X } from
 import { t, type MessageKey } from '../i18n';
 import { BrandMark } from './icons';
 import { linkHandler, type Navigate } from './links';
+import { withUploader } from './rows';
 
-const nav = (devicesHref: string): { href: string; label: MessageKey; icon: typeof House }[] => [
-  { href: '/', label: 'stream.nav.home', icon: House },
-  { href: '/library', label: 'stream.nav.library', icon: LayoutGrid },
-  { href: '/collections', label: 'stream.nav.collections', icon: Layers },
-  { href: devicesHref, label: 'stream.nav.devices', icon: Monitor },
+/** `path` identifies the item (see `active`); `href` may carry the person filter. */
+const nav = (
+  devicesHref: string,
+  uploader: string,
+): { path: string; href: string; label: MessageKey; icon: typeof House }[] => [
+  { path: '/', href: withUploader('/', uploader), label: 'stream.nav.home', icon: House },
+  {
+    path: '/library',
+    href: withUploader('/library', uploader),
+    label: 'stream.nav.library',
+    icon: LayoutGrid,
+  },
+  { path: '/collections', href: '/collections', label: 'stream.nav.collections', icon: Layers },
+  { path: devicesHref, href: devicesHref, label: 'stream.nav.devices', icon: Monitor },
 ];
 
 export interface StreamingHeaderProps {
@@ -20,6 +30,8 @@ export interface StreamingHeaderProps {
   profileHref?: string;
   /** Target of the "Devices" item: recording PCs for admins, own devices for users. */
   devicesHref?: string;
+  /** Person filter (`?by=`) that "Home" and "Library" keep, so both show the same person. */
+  uploader?: string;
 }
 
 export function StreamingHeader({
@@ -29,8 +41,9 @@ export function StreamingHeader({
   onAddClip,
   profileHref = '/settings',
   devicesHref = '/settings/pcs',
+  uploader = '',
 }: StreamingHeaderProps) {
-  const NAV = nav(devicesHref);
+  const NAV = nav(devicesHref, uploader);
   const [solid, setSolid] = useState(false);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
@@ -65,9 +78,9 @@ export function StreamingHeader({
         <nav className="stream-nav" aria-label={t('stream.nav.main')}>
           {NAV.map((item) => (
             <a
-              key={item.href}
+              key={item.path}
               href={item.href}
-              aria-current={active === item.href ? 'page' : undefined}
+              aria-current={active === item.path ? 'page' : undefined}
               onClick={linkHandler(onNavigate, item.href)}
             >
               {t(item.label)}
@@ -143,9 +156,9 @@ export function StreamingHeader({
       <nav className="stream stream-tabbar" aria-label={t('stream.nav.main')}>
         {NAV.map((item) => (
           <a
-            key={item.href}
+            key={item.path}
             href={item.href}
-            aria-current={active === item.href ? 'page' : undefined}
+            aria-current={active === item.path ? 'page' : undefined}
             onClick={linkHandler(onNavigate, item.href)}
           >
             <item.icon size={24} strokeWidth={2} aria-hidden="true" />

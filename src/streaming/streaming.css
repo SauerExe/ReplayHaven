@@ -526,6 +526,32 @@
   flex-direction: column;
   gap: 44px;
 }
+/* Person filter above the rows; scrolls sideways on narrow screens instead of widening the page. */
+.stream-people {
+  position: relative;
+  z-index: 2;
+  margin-bottom: -20px;
+}
+.stream-people-track {
+  display: flex;
+  gap: 8px;
+  margin: -6px 0;
+  padding: 6px var(--stream-gutter);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: var(--stream-gutter);
+  scrollbar-width: none;
+}
+.stream-people-track::-webkit-scrollbar {
+  display: none;
+}
+.stream-people-track > li {
+  flex: none;
+}
+.stream-action.stream-people-chip {
+  height: 36px;
+  padding: 0 14px;
+}
 .stream-row {
   --row-media-h: calc(var(--stream-tile-w) * 9 / 16);
 }
@@ -1900,6 +1926,9 @@
   .stream-rows {
     margin-top: 28px;
     gap: 24px;
+  }
+  .stream-people {
+    margin-bottom: -8px;
   }
   .stream-row-head {
     margin-bottom: 10px;

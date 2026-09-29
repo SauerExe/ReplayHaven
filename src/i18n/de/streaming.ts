@@ -12,6 +12,7 @@ export const streaming: Translation<typeof source> = {
   // rows.ts and model.ts
   'stream.rows.continue': 'Weiterschauen',
   'stream.rows.new': 'Neu hinzugefügt',
+  'stream.rows.newFrom': 'Neu von {name}',
   'stream.rows.favorites': 'Favoriten',
   'stream.rows.games': 'Deine Spiele',
   'stream.rows.collections': 'Deine Sammlungen',

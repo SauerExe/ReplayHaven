@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The start page can be filtered by who recorded the clips, and under "Everyone" shows a
+  "New from <name>" row per person. The choice carries over into the library and back.
+
 ## [1.1.5] - 2026-09-28
 
 ### Added

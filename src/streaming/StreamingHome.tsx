@@ -2,6 +2,12 @@ import { useId, useMemo } from 'react';
 import { Film, Heart, Info, Play, Sparkles, Upload } from 'lucide-react';
 import { t, tagLabel } from '../i18n';
 import { confidenceLabel, formatDuration, formatWhen, isNew, titleSize } from './format';
+import {
+  clipsByUploader,
+  selectedUploader,
+  UNKNOWN_UPLOADER,
+  type UploaderOptions,
+} from './library';
 import type { Navigate } from './links';
 import type { StreamClip, StreamLibrary, StreamStatus } from './model';
 import { Picture } from './Picture';
@@ -23,6 +29,11 @@ export interface StreamingHomeProps {
   onCreateCollection?: () => void;
   /** Target of the dashed "Connect recording folder" tile, e.g. /devices. */
   connectHref?: string;
+  /** People for the "Recorded by" chips (see uploaderOptions); null hides them. */
+  uploaders?: UploaderOptions | null;
+  /** The `?by=` value: an account ID, UNKNOWN_UPLOADER or '' for everyone. */
+  uploader?: string;
+  onSelectUploader?: (uploader: string) => void;
 }
 
 export function StreamingHome({
@@ -36,9 +47,19 @@ export function StreamingHome({
   onAddClip,
   onCreateCollection,
   connectHref,
+  uploaders = null,
+  uploader = '',
+  onSelectUploader,
 }: StreamingHomeProps) {
-  const hero = useMemo(() => pickHero(library.clips), [library.clips]);
-  const rows = useMemo(() => buildRows(library, now), [library, now]);
+  const people = onSelectUploader ? uploaders : null;
+  const by = selectedUploader(people, uploader);
+  // One person's home page: hero and every row come from their clips only.
+  const clips = useMemo(() => clipsByUploader(library.clips, by), [library.clips, by]);
+  const hero = useMemo(() => pickHero(clips), [clips]);
+  const rows = useMemo(
+    () => buildRows({ clips, collections: library.collections }, now, by),
+    [clips, library.collections, now, by],
+  );
 
   function renderRow(row: StreamRow) {
     if (row.kind === 'clips')
@@ -117,7 +138,14 @@ export function StreamingHome({
           )}
         </div>
       )}
-      {rows.length > 0 && <div className="stream-rows">{rows.map(renderRow)}</div>}
+      {rows.length > 0 && (
+        <div className="stream-rows">
+          {people && onSelectUploader && (
+            <PeopleFilter options={people} value={by} onChange={onSelectUploader} />
+          )}
+          {rows.map(renderRow)}
+        </div>
+      )}
       {status && (
         <p className="stream-footer">
           <span
@@ -128,6 +156,43 @@ export function StreamingHome({
           {status.text}
         </p>
       )}
+    </div>
+  );
+}
+
+/** "Everyone" / one chip per person / "Unknown", like the game chips in the library. */
+function PeopleFilter({
+  options,
+  value,
+  onChange,
+}: {
+  options: UploaderOptions;
+  value: string;
+  onChange: (uploader: string) => void;
+}) {
+  const chips: [string, string][] = [
+    ['', t('library.filters.uploader.all')],
+    ...options.people.map((person): [string, string] => [person.id, person.name]),
+    ...(options.unknown
+      ? [[UNKNOWN_UPLOADER, t('library.filters.uploader.unknown')] as [string, string]]
+      : []),
+  ];
+  return (
+    <div className="stream-people" role="group" aria-label={t('library.filters.uploader')}>
+      <ul className="stream-people-track">
+        {chips.map(([id, name]) => (
+          <li key={id || 'all'}>
+            <button
+              type="button"
+              className="stream-action stream-people-chip"
+              aria-pressed={value === id}
+              onClick={() => onChange(id)}
+            >
+              {name}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

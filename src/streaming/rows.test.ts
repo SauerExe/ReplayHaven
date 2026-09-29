@@ -10,7 +10,17 @@ import {
   titleSize,
   DAY_MS,
 } from './format';
-import { buildRows, moreFromGame, nextClipAfter, pickHero, ROW_LIMIT } from './rows';
+import { clipsByUploader, selectedUploader, type UploaderOptions } from './library';
+import {
+  buildRows,
+  moreFromGame,
+  newestFirst,
+  nextClipAfter,
+  pickHero,
+  ROW_LIMIT,
+  uploadersByNewest,
+  type StreamRow,
+} from './rows';
 
 // These expectations use the German wording; English is covered in i18n.test.ts.
 beforeAll(() => setLanguage('de', false));
@@ -242,6 +252,101 @@ describe('buildRows', () => {
     const clips = Array.from({ length: ROW_LIMIT + 5 }, (_, i) => clip(`c${i}`));
     const neu = buildRows({ clips, collections: [] }, NOW).find((r) => r.id === 'neu');
     expect(neu?.items).toHaveLength(ROW_LIMIT);
+  });
+});
+
+describe('Startseite nach Person', () => {
+  const timo = { uploaderId: 'user-timo', uploadedBy: 'Timo' };
+  const bruder = { uploaderId: 'user-bruder', uploadedBy: 'Bruder' };
+  const clips = [
+    clip('t1', { ...timo, recordedAt: at(0, 18), favorite: true }),
+    clip('b1', { ...bruder, recordedAt: at(0, 20) }),
+    clip('t2', { ...timo, recordedAt: at(1, 18) }),
+    clip('b2', { ...bruder, game: 'Apex Legends', gameKey: 'apex', recordedAt: at(2, 18) }),
+    clip('alt', { recordedAt: at(5, 12), favorite: true }),
+  ];
+  const ids = (row: StreamRow | undefined) =>
+    row?.kind === 'clips' ? row.items.map((item) => item.clip.id) : [];
+  const options: UploaderOptions = {
+    people: [
+      { id: 'user-bruder', name: 'Bruder' },
+      { id: 'user-timo', name: 'Timo' },
+    ],
+    unknown: true,
+  };
+
+  it('zeigt unter „Alle“ je Person eine Reihe direkt nach „Neu hinzugefügt“, zuletzt Aktive zuerst', () => {
+    const rows = buildRows({ clips, collections: [] }, NOW);
+    expect(rows.map((r) => r.title).slice(0, 4)).toEqual([
+      'Neu hinzugefügt',
+      'Neu von Bruder',
+      'Neu von Timo',
+      'Favoriten',
+    ]);
+    expect(ids(rows[1])).toEqual(['b1', 'b2']);
+    expect(ids(rows[2])).toEqual(['t1', 't2']);
+    expect(rows[1].href).toBe('/library?by=user-bruder');
+    expect(uploadersByNewest(newestFirst(clips)).map((p) => p.name)).toEqual(['Bruder', 'Timo']);
+  });
+
+  it('begrenzt die Personenreihen wie „Neu hinzugefügt“', () => {
+    const many = Array.from({ length: ROW_LIMIT + 3 }, (_, i) =>
+      clip(`c${i}`, i % 2 ? timo : bruder),
+    ).concat(Array.from({ length: ROW_LIMIT }, (_, i) => clip(`t${i}`, timo)));
+    const row = buildRows({ clips: many, collections: [] }, NOW).find(
+      (r) => r.title === 'Neu von Timo',
+    );
+    expect(row?.items).toHaveLength(ROW_LIMIT);
+  });
+
+  it('lässt die Personenreihen weg, wenn nur eine Person Clips hochgeladen hat', () => {
+    const one = clips.filter((c) => c.uploaderId !== 'user-bruder');
+    const rows = buildRows({ clips: one, collections: [] }, NOW);
+    expect(rows.some((r) => r.id.startsWith('neu-von-'))).toBe(false);
+  });
+
+  it('baut Held und alle Reihen nur aus den Clips der gewählten Person', () => {
+    const by = selectedUploader(options, 'user-timo');
+    const mine = clipsByUploader(clips, by);
+    expect(pickHero(mine)?.id).toBe('t1');
+    const rows = buildRows(
+      { clips: mine, collections: [collection('k', ['b1', 't2']), collection('fremd', ['b2'])] },
+      NOW,
+      by,
+    );
+    expect(rows.map((r) => r.id)).toEqual([
+      'neu',
+      'favoriten',
+      'spiel-1-cs2',
+      'spiele',
+      'sammlungen',
+    ]);
+    expect(ids(rows[0])).toEqual(['t1', 't2']);
+    expect(ids(rows[1])).toEqual(['t1']);
+    const sammlungen = rows.find((r) => r.id === 'sammlungen');
+    expect(
+      sammlungen?.kind === 'collections' && sammlungen.items.map((c) => [c.id, c.count]),
+    ).toEqual([['k', 1]]);
+    // Die Links in die Bibliothek behalten die Auswahl.
+    expect(rows.map((r) => r.href)).toEqual([
+      '/library?by=user-timo',
+      '/library?favorite=1&by=user-timo',
+      '/library?game=cs2&by=user-timo',
+      '/library?by=user-timo',
+      '/collections',
+    ]);
+    const spiele = rows.find((r) => r.id === 'spiele');
+    expect(spiele?.kind === 'games' && spiele.items[0].href).toBe('/library?game=cs2&by=user-timo');
+  });
+
+  it('filtert „Unbekannt“ und ignoriert veraltete Auswahl', () => {
+    expect(
+      ids(buildRows({ clips: clipsByUploader(clips, 'unknown'), collections: [] }, NOW)[0]),
+    ).toEqual(['alt']);
+    expect(selectedUploader(options, 'user-weg')).toBe('');
+    expect(selectedUploader({ ...options, unknown: false }, 'unknown')).toBe('');
+    expect(selectedUploader(null, 'user-timo')).toBe('');
+    expect(clipsByUploader(clips, '')).toBe(clips);
   });
 });
 
