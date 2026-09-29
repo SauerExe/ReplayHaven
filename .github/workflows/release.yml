@@ -202,7 +202,8 @@ jobs:
             echo "## Windows client"
             echo
             echo "Install \`ReplayHaven-Client-Setup.exe\` on the gaming PC, or download it later under Settings → Recording PCs on your server."
-            echo "The installer is not code-signed yet, so Windows SmartScreen asks for confirmation."
+            echo "The installer is not code-signed yet, so Windows SmartScreen shows \"Windows protected your PC\" on the first start:"
+            echo "click **More info**, then **Run anyway**."
             echo "To check that it was built by this repository's release workflow from this tag, compare it with SHA256SUMS.txt or run:"
             echo
             echo '```bash'

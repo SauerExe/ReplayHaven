@@ -11,6 +11,7 @@ import {
   Unplug,
   X,
 } from 'lucide-react';
+import { InstallerWarning } from '../../components/InstallerWarning';
 import { api } from '../../data/api';
 import { useVault } from '../../data/store';
 import {
@@ -299,6 +300,7 @@ export function PcsSection({ pairing }: { pairing: PairingRequests }) {
             <StatusBadge tone="neutral">{t('settings.pcs.client.unavailable')}</StatusBadge>
           )}
         </SettingsRow>
+        {download && <InstallerWarning />}
       </SettingsGroup>
 
       {remove.value && (

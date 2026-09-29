@@ -236,7 +236,7 @@ export const settings = {
     'Watches your recording folder, analyzes clips with local AI and uploads them here.',
   'settings.pcs.client.name': 'ReplayHaven for Windows',
   'settings.pcs.client.platform':
-    'Windows 10/11 · 64-bit. Ollama and the model are set up in the client.',
+    'Windows 10/11 · 64-bit. AI is optional and set up in the client if you want it.',
   'settings.pcs.client.noInstaller': 'This server doesn’t provide a Windows installer yet.',
   'settings.pcs.client.offline': 'Available once your archive server is connected.',
   'settings.pcs.client.download': 'Download',

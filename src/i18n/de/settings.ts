@@ -240,7 +240,7 @@ export const settings: Translation<typeof source> = {
     'Beobachtet deinen Aufnahmeordner, analysiert Clips mit lokaler KI und lädt sie hierher hoch.',
   'settings.pcs.client.name': 'ReplayHaven für Windows',
   'settings.pcs.client.platform':
-    'Windows 10/11 · 64 Bit. Ollama und das Modell richtest du im Client ein.',
+    'Windows 10/11 · 64 Bit. Die KI ist optional und wird bei Bedarf im Client eingerichtet.',
   'settings.pcs.client.noInstaller': 'Dieser Server stellt noch keinen Windows-Installer bereit.',
   'settings.pcs.client.offline': 'Verfügbar, sobald dein Archiv-Server verbunden ist.',
   'settings.pcs.client.download': 'Herunterladen',

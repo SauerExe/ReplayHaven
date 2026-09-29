@@ -21,4 +21,11 @@ export const common = {
   'error.text':
     'Perhaps ReplayHaven was just updated. Reloading the page usually fixes it; your clips are safe.',
   'error.reload': 'Reload page',
+  'installer.warning.summary': 'Windows warns when you start the installer?',
+  'installer.warning.text':
+    'That is expected: the installer is not yet signed with a paid publisher certificate, so Windows SmartScreen shows “Windows protected your PC” the first time.',
+  'installer.warning.step1': 'Click “More info” in the blue window.',
+  'installer.warning.step2': 'Click “Run anyway”.',
+  'installer.warning.proof':
+    'Every release on GitHub lists SHA-256 checksums and a build attestation, so you can check the file was built from the published source.',
 } satisfies Messages;

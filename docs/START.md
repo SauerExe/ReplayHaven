@@ -41,9 +41,9 @@ Enable **Include existing recordings** before starting for the first time if you
 
 Under **Your player names**, enter what you are called in-game. If your name differs per game, give each name its game; the game folders of your recordings are suggested so that entry and folder match. A name without a game applies everywhere. The AI only learns the names that match the clip's game and uses them to tell which side of the killfeed is yours.
 
-When your server runs a newer release than the client, the overview offers **Download update**; the installer comes from your server.
+When your server runs a newer release than the client, the overview offers **Download update**, which opens the release page on GitHub.
 
-The installer is currently not signed with a publisher certificate. Windows SmartScreen will therefore ask once.
+The installer is currently not signed with a publisher certificate, so Windows SmartScreen shows "Windows protected your PC" (German: "Der Computer wurde durch Windows geschützt") on the first start. Click **More info** ("Weitere Informationen"), then **Run anyway** ("Trotzdem ausführen"). Each release lists SHA-256 checksums and a build attestation, so you can check the file was built from this repository.
 
 ## 3. Record as before
 

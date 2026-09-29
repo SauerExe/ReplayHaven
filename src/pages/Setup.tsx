@@ -15,6 +15,7 @@ import {
   Server,
 } from 'lucide-react';
 import { useVault } from '../data/store';
+import { InstallerWarning } from '../components/InstallerWarning';
 import { useActiveSection } from '../components/useActiveSection';
 import {
   ListRow,
@@ -363,6 +364,7 @@ export default function Setup() {
                     </Link>
                   )}
                 </SettingsRow>
+                {download && <InstallerWarning />}
               </SettingsGroup>
               <SettingsGroup
                 title={t('pages.setup.client.inClient')}

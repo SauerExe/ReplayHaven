@@ -21,4 +21,11 @@ export const common: Translation<typeof source> = {
   'error.text':
     'Vielleicht wurde ReplayHaven gerade aktualisiert. Neu laden hilft meist; deine Clips sind sicher.',
   'error.reload': 'Seite neu laden',
+  'installer.warning.summary': 'Windows warnt beim Start des Installers?',
+  'installer.warning.text':
+    'Das ist normal: Der Installer ist noch nicht mit einem kostenpflichtigen Herausgeber-Zertifikat signiert, deshalb zeigt Windows SmartScreen beim ersten Start „Der Computer wurde durch Windows geschützt“.',
+  'installer.warning.step1': 'Im blauen Fenster auf „Weitere Informationen“ klicken.',
+  'installer.warning.step2': 'Dann auf „Trotzdem ausführen“ klicken.',
+  'installer.warning.proof':
+    'Jedes Release auf GitHub nennt SHA-256-Prüfsummen und einen Herkunftsnachweis, damit du prüfen kannst, dass die Datei aus dem veröffentlichten Quellcode gebaut wurde.',
 };
