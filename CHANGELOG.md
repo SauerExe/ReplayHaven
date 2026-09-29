@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-09-29
+
 ### Added
 
 - The start page can be filtered by who recorded the clips, and under "Everyone" shows a
@@ -316,7 +318,8 @@ The first public release.
 - PolyForm Noncommercial 1.0.0: free for personal and other non-commercial use, not for sale
   or commercial use.
 
-[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.5...HEAD
+[Unreleased]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.6...HEAD
+[1.1.6]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.5...v1.1.6
 [1.1.5]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.4...v1.1.5
 [1.1.4]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/SauerExe/ReplayHaven/compare/v1.1.2...v1.1.3
