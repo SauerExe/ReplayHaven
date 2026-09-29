@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The web app explains the Windows SmartScreen warning next to every client download button ("More
+  info", then "Run anyway"), and the release notes and docs/START.md name the same two clicks.
+
 ## [1.1.6] - 2026-09-29
 
 ### Added
