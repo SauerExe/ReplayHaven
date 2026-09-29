@@ -12,6 +12,7 @@ export const streaming = {
   // rows.ts and model.ts
   'stream.rows.continue': 'Continue watching',
   'stream.rows.new': 'Recently recorded',
+  'stream.rows.newFrom': 'New from {name}',
   'stream.rows.favorites': 'Favorites',
   'stream.rows.games': 'Your games',
   'stream.rows.collections': 'Your collections',

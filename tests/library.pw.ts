@@ -339,3 +339,107 @@ test('the "Recorded by" filter stays hidden while one person recorded everything
   await expect(page.getByRole('combobox', { name: 'Filter by tag' })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Recorded by' })).toHaveCount(0);
 });
+
+/** Server that answers the clip list with `clips`; everything else is not part of the test. */
+async function serveClips(page: Page, clips: Clip[]) {
+  await page.route('**/api/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/status')
+      return route.fulfill({
+        json: {
+          connected: true,
+          provider: 'none',
+          configured: false,
+          model: '',
+          settings: { autoAnalyze: true, autoTitle: true, includeAudio: false },
+          queue: 0,
+          devices: [],
+        },
+      });
+    if (path === '/api/clips') return route.fulfill({ json: clips });
+    return route.fulfill({ status: 404, json: { error: 'Not part of the test.' } });
+  });
+}
+
+test('the home page filters by person, shows "New from" rows and keeps the choice in links', async ({
+  page,
+}) => {
+  const timo = { id: 'user-timo', name: 'Timo' };
+  const brother = { id: 'user-bruder', name: 'Bruder' };
+  await serveClips(page, [
+    { ...serverClip('von-timo', 'Ace auf Oregon', 1), uploadedBy: timo },
+    { ...serverClip('vom-bruder', 'Clutch auf Villa', 2), uploadedBy: brother },
+    { ...serverClip('vom-bruder-2', 'Entry auf Bank', 3), uploadedBy: brother },
+    serverClip('alt', 'Alter Clip', 30),
+  ]);
+
+  await page.goto('/');
+  const people = page.getByRole('group', { name: 'Recorded by' });
+  await expect(people.getByRole('button')).toHaveText(['Everyone', 'Bruder', 'Timo', 'Unknown']);
+  await expect(people.getByRole('button', { name: 'Everyone' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  // Everyone: one row per person, the most recently active first, right after "Recently recorded".
+  const titles = page.locator('.stream-row-title');
+  await expect(titles.nth(0)).toHaveText('Recently recorded');
+  await expect(titles.nth(1)).toHaveText('New from Timo');
+  await expect(titles.nth(2)).toHaveText('New from Bruder');
+  await expect(
+    page.getByRole('region', { name: 'New from Bruder' }).locator('.stream-tile--clip'),
+  ).toHaveCount(2);
+
+  const bruder = people.getByRole('button', { name: 'Bruder' });
+  await bruder.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/[?&]by=user-bruder/);
+  await expect(bruder).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Clutch auf Villa');
+  const fresh = page.getByRole('region', { name: 'Recently recorded' });
+  await expect(fresh.locator('.stream-tile--clip')).toHaveCount(2);
+  await expect(page.getByRole('region', { name: /^New from/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Ace auf Oregon', exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole('region', { name: 'Your games' }).getByRole('link').first(),
+  ).toHaveAttribute('href', /[?&]by=user-bruder/);
+
+  // "See all" opens the library with the same person selected.
+  await fresh.getByRole('link', { name: 'See all' }).click();
+  await expect(page).toHaveURL(/\/library\?by=user-bruder$/);
+  await expect(page.getByRole('combobox', { name: 'Recorded by' })).toHaveValue('user-bruder');
+  await expect(tiles(page)).toHaveCount(2);
+
+  // And "Home" in the menu leads back to the same person.
+  await page
+    .getByRole('navigation', { name: 'Main navigation' })
+    .getByRole('link', { name: 'Home' })
+    .click();
+  await expect(page).toHaveURL(/\/\?by=user-bruder$/);
+  await expect(bruder).toHaveAttribute('aria-pressed', 'true');
+
+  await people.getByRole('button', { name: 'Everyone' }).click();
+  await expect(page).not.toHaveURL(/by=/);
+  await expect(page.getByRole('region', { name: 'New from Timo' })).toBeVisible();
+
+  // On a phone the chips scroll sideways instead of widening the page.
+  await page.setViewportSize({ width: 360, height: 740 });
+  await expect(people).toBeVisible();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('the home page shows no person filter while one person recorded everything', async ({
+  page,
+}) => {
+  const timo = { id: 'user-timo', name: 'Timo' };
+  await serveClips(page, [
+    { ...serverClip('a', 'Ace auf Oregon', 1), uploadedBy: timo },
+    { ...serverClip('b', 'Clutch auf Villa', 2), uploadedBy: timo },
+  ]);
+  await page.goto('/?by=user-timo');
+  await expect(page.getByRole('region', { name: 'Recently recorded' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Recorded by' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: /^New from/ })).toHaveCount(0);
+});

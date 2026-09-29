@@ -96,6 +96,22 @@ export function uploaderOptions(raw: Clip[]): UploaderOptions | null {
   return { people, unknown };
 }
 
+/**
+ * The `?by=` value if it names one of the offered people (or "Unknown"), otherwise '' for
+ * everyone, so an outdated link does not leave the home page empty without a chip to undo it.
+ */
+export function selectedUploader(options: UploaderOptions | null, by: string): string {
+  if (!options || !by) return '';
+  if (by === UNKNOWN_UPLOADER) return options.unknown ? by : '';
+  return options.people.some((person) => person.id === by) ? by : '';
+}
+
+/** Clips of one uploader, as the library filters them; '' keeps all. */
+export function clipsByUploader(clips: StreamClip[], uploader: string): StreamClip[] {
+  if (!uploader) return clips;
+  return clips.filter((clip) => (clip.uploaderId ?? UNKNOWN_UPLOADER) === uploader);
+}
+
 function totalDuration(clips: StreamClip[]) {
   return clips.reduce((sum, clip) => sum + clip.duration, 0);
 }
