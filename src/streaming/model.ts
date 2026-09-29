@@ -45,6 +45,8 @@ export interface StreamClip {
   deviceName?: string;
   /** Name of the account whose PC uploaded the clip. */
   uploadedBy?: string;
+  /** Account ID behind uploadedBy, for the "Recorded by" filter. */
+  uploaderId?: string;
   progress?: PlaybackProgress;
 }
 
@@ -133,6 +135,7 @@ export function toStreamClip(
     provider: result ? analysis?.provider || undefined : undefined,
     deviceName: clip.deviceName || undefined,
     uploadedBy: clip.uploadedBy?.name || undefined,
+    uploaderId: clip.uploadedBy?.id || undefined,
     progress,
   };
 }

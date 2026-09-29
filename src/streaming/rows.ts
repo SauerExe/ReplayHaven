@@ -79,8 +79,14 @@ export function pickHero(clips: StreamClip[]): StreamClip | null {
   return sorted.find((c) => c.status === 'ready') ?? sorted[0] ?? null;
 }
 
-export function libraryHref(gameKey: string): string {
-  return `/library?game=${encodeURIComponent(gameKey)}`;
+/** Adds the person filter (`?by=`) to a link, so the library opens with the same choice. */
+export function withUploader(href: string, uploader = ''): string {
+  if (!uploader) return href;
+  return `${href}${href.includes('?') ? '&' : '?'}by=${encodeURIComponent(uploader)}`;
+}
+
+export function libraryHref(gameKey: string, uploader = ''): string {
+  return withUploader(`/library?game=${encodeURIComponent(gameKey)}`, uploader);
 }
 
 interface GameGroup {
@@ -127,19 +133,19 @@ export function gameCover(clips: StreamClip[]): string {
   );
 }
 
-function gameTile(group: GameGroup): GameTileData {
+function gameTile(group: GameGroup, uploader = ''): GameTileData {
   return {
     key: group.key,
     name: group.clips[0].game,
     cover: gameCover(group.clips),
     count: group.clips.length,
-    href: libraryHref(group.key),
+    href: libraryHref(group.key, uploader),
   };
 }
 
 /** "Your games" and the library's game bar: the same data in both places. */
 export function gameTiles(clips: StreamClip[]): GameTileData[] {
-  return groupByGame(newestFirst(clips)).map(gameTile);
+  return groupByGame(newestFirst(clips)).map((group) => gameTile(group));
 }
 
 export function collectionTile(
@@ -159,9 +165,39 @@ export function collectionTile(
   };
 }
 
+export interface Uploader {
+  id: string;
+  name: string;
+  /** Newest first. */
+  clips: StreamClip[];
+}
+
+/** Everyone who uploaded clips, by their newest clip; clips without an uploader are left out. */
+export function uploadersByNewest(sorted: StreamClip[]): Uploader[] {
+  const people = new Map<string, Uploader>();
+  for (const clip of sorted) {
+    if (!clip.uploaderId) continue;
+    const person = people.get(clip.uploaderId);
+    if (person) person.clips.push(clip);
+    else
+      people.set(clip.uploaderId, {
+        id: clip.uploaderId,
+        name: clip.uploadedBy || clip.uploaderId,
+        clips: [clip],
+      });
+  }
+  // `sorted` is newest first, so the order of first appearance is the order of the newest clip.
+  return [...people.values()];
+}
+
+/**
+ * The rows of the home page. `library.clips` is already narrowed to the chosen person; `uploader`
+ * (the `?by=` value) only carries that choice into the links to the library.
+ */
 export function buildRows(
   library: Pick<StreamLibrary, 'clips' | 'collections'>,
   now: number,
+  uploader = '',
 ): StreamRow[] {
   const sorted = newestFirst(library.clips);
   const when = (clip: StreamClip) => `${clip.game} · ${formatWhen(clip.recordedAt, now)}`;
@@ -193,16 +229,32 @@ export function buildRows(
     variant: 'default',
     id: 'neu',
     title: t('stream.rows.new'),
-    href: '/library',
+    href: withUploader('/library', uploader),
     items: sorted.slice(0, ROW_LIMIT).map((clip) => clipTile(clip, when(clip), now, true)),
   });
+
+  // Shared libraries: what each person uploaded lately, at a glance. Not for a single person,
+  // and not while the page already shows only one person.
+  const people = uploader ? [] : uploadersByNewest(sorted);
+  if (people.length >= 2)
+    for (const person of people)
+      rows.push({
+        kind: 'clips',
+        variant: 'default',
+        id: `neu-von-${person.id}`,
+        title: t('stream.rows.newFrom', { name: person.name }),
+        href: withUploader('/library', person.id),
+        items: person.clips
+          .slice(0, ROW_LIMIT)
+          .map((clip) => clipTile(clip, when(clip), now, true)),
+      });
 
   rows.push({
     kind: 'clips',
     variant: 'default',
     id: 'favoriten',
     title: t('stream.rows.favorites'),
-    href: '/library?favorite=1',
+    href: withUploader('/library?favorite=1', uploader),
     items: sorted
       .filter((c) => c.favorite)
       .slice(0, ROW_LIMIT)
@@ -219,7 +271,7 @@ export function buildRows(
         variant: 'default',
         id: `spiel-${index + 1}-${slug(group.key)}`,
         title: group.clips[0].game,
-        href: libraryHref(group.key),
+        href: libraryHref(group.key, uploader),
         items: group.clips
           .slice(0, ROW_LIMIT)
           .map((clip) =>
@@ -236,8 +288,8 @@ export function buildRows(
     kind: 'games',
     id: 'spiele',
     title: t('stream.rows.games'),
-    href: '/library',
-    items: groups.map(gameTile),
+    href: withUploader('/library', uploader),
+    items: groups.map((group) => gameTile(group, uploader)),
   });
 
   const byId = new Map(library.clips.map((c) => [c.id, c]));
@@ -246,7 +298,10 @@ export function buildRows(
     id: 'sammlungen',
     title: t('stream.rows.collections'),
     href: '/collections',
-    items: library.collections.map((collection) => collectionTile(collection, byId)),
+    items: library.collections
+      .map((collection) => collectionTile(collection, byId))
+      // For one person, collections without any of their clips would only show "0 clips".
+      .filter((tile) => !uploader || tile.count > 0),
   });
 
   rows.push({

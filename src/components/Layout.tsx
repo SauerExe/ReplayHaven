@@ -140,10 +140,15 @@ export function Layout() {
   useEffect(() => {
     setSearchOpen(false);
   }, [location.pathname]);
+  // Home and library share the person filter (?by=); switching between them keeps it.
+  const by = ['/', '/library'].includes(location.pathname)
+    ? new URLSearchParams(location.search).get('by')
+    : null;
+  const byPerson = by ? `?by=${encodeURIComponent(by)}` : '';
   const nav = [
-    { to: '/', name: t('app.layout.nav.home'), icon: Home },
-    { to: '/library', name: t('app.layout.nav.library'), icon: Grid2X2 },
-    { to: '/collections', name: t('app.layout.nav.collections'), icon: Folder },
+    { to: '/', search: byPerson, name: t('app.layout.nav.home'), icon: Home },
+    { to: '/library', search: byPerson, name: t('app.layout.nav.library'), icon: Grid2X2 },
+    { to: '/collections', search: '', name: t('app.layout.nav.collections'), icon: Folder },
   ];
   return (
     <>
@@ -156,7 +161,7 @@ export function Layout() {
           <Brand />
           <nav className="desktop-nav" aria-label={t('app.layout.mainNav')}>
             {nav.map((n) => (
-              <NavLink key={n.to} to={n.to} end={n.to === '/'}>
+              <NavLink key={n.to} to={{ pathname: n.to, search: n.search }} end={n.to === '/'}>
                 {n.name}
               </NavLink>
             ))}
@@ -249,7 +254,7 @@ export function Layout() {
       <SupportBanner />
       <nav className="mobile-nav" aria-label={t('app.layout.mobileNav')}>
         {nav.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.to === '/'}>
+          <NavLink key={n.to} to={{ pathname: n.to, search: n.search }} end={n.to === '/'}>
             <n.icon size={21} />
             <span>{n.name}</span>
           </NavLink>
