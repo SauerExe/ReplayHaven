@@ -11,6 +11,11 @@ All notable changes to this project are documented here. The format follows
 - The web app explains the Windows SmartScreen warning next to every client download button ("More
   info", then "Run anyway"), and the release notes and docs/START.md name the same two clicks.
 
+### Changed
+
+- The roadmap in docs/AI-RECOGNITION.md and "What's next" in the README list the planned event
+  sources per game, title improvements and library features with priorities and sources.
+
 ## [1.1.6] - 2026-09-29
 
 ### Added

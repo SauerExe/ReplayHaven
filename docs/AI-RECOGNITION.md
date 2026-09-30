@@ -133,12 +133,114 @@ Without a measurement set, every prompt change is a matter of faith. The set com
 2. Game from file name and foreground process (stage 1). Small, safe, helps all other stages.
 3. Text recognition on PP-OCRv6 and crops (stage 3, first two points). Largest gain per effort.
 4. Audio peaks for frame selection and bursts around the peaks (stages 4 and 5).
-5. Steam recording, Rocket League, LoL, CS2 as exact sources, in this order by effort.
+5. Steam recording, Rocket League, LoL, CS2 as exact sources, in this order by effort. CS2 via Game State Integration is in progress; see the roadmap below.
 6. HUD profiles for two or three shooters, with a contribution guide.
 7. Prompt changes and model comparison (stage 6), only now, because only now can they be measured.
 8. Embeddings, search, examples from corrections (stage 7).
 
 Not planned: retraining the image model, waiting for audio or video in Ollama, Overwolf, TransNetV2 or trained frame selection (AKS, Frame-Voyager), Jina CLIP.
+
+## Roadmap (2026-09-30)
+
+A look at how other clip tools find moments (Medal, Outplayed, SteelSeries Moments, NVIDIA Highlights, Steam Game Recording, Allstar, Eklipse and the open-source recorders Segra and WatchDog) adds concrete sources and ideas to the order above. None of those tools writes a title about what happened in the clip; they name the event ("Ace", "3K") or set a marker. The plan therefore stays the same in spirit: more proven facts per game, better titles built from them, and learning from what the user does. Nothing below has been measured yet; each item goes through the measurement plan before it is switched on by default.
+
+Status: _in progress_ means work has started on a branch; _planned_ means it was already in the order above; _new_ means it comes from this round of research; _to verify_ means it is only worth building if a measurement confirms an assumption.
+
+### Exact event sources per game
+
+The client already runs while you play. A small local listener can log events with wall-clock time and match them to a clip by file time, as with Fortnite. Each source stays a module that returns events with clip seconds or says `none`.
+
+| Source                          | What it provides                                                                                                                                                                  | Status                                  |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| CS2 Game State Integration      | With a `gamestate_integration_*.cfg` in the game's `cfg` folder, CS2 posts JSON snapshots to a local HTTP endpoint while you play: kills, deaths, rounds, bomb. No demo download. | in progress                             |
+| Dota 2 Game State Integration   | The same mechanism and the same listener: kills, items, match result.                                                                                                             | new                                     |
+| Rocket League SOS plugin        | The BakkesMod SOS plugin sends goals, saves, demolitions, clock and player stats over a local WebSocket, with seconds instead of frame numbers. Complements replay parsing.       | new                                     |
+| Apex Legends LiveAPI            | Built-in API enabled by launch options, events as JSON or protobuf over a local WebSocket. Whether public matches send events at all is unclear.                                  | to verify                               |
+| Valorant presence endpoint      | The local Riot client's `/chat/v4/presences` reports match phase, round phase, map and score. Would add map, score and round changes to the killfeed text recognition.            | new; same Riot rules as `match-details` |
+| deadem demo parser              | One JavaScript parser for CS2, Dota 2 and Deadlock demos. Deadlock has no source so far.                                                                                          | new (already listed for CS2 and Dota 2) |
+| Medal-compatible event endpoint | Medal documents an open local event API that games, Roblox experiences and FiveM servers already call. Offering the same endpoint in the client would accept those events too.    | new                                     |
+| NVIDIA Highlights folders       | Games with the Highlights SDK save highlights apart from Instant Replay; the event type in the file or folder name counts as a proven event.                                      | new                                     |
+| Steam recording markers         | `timeline_*.json` markers from games that use the Steam Timeline API.                                                                                                             | planned                                 |
+| Sources as JSON                 | Log paths, patterns and endpoints per game as JSON files (for example `agent/sources/*.json`), so contributors can add a source without writing TypeScript.                       | new                                     |
+
+Two cautions from the same research: for Overwatch 2, the log lines other tools parse appear to come from Workshop custom games, so normal matches stay with image and audio. A community API for Marvel Rivals has match history without timestamps; it could only help titles and would be an opt-in network source.
+
+### Image and HUD
+
+| Item                  | What it changes                                                                                                                                                                      | Status  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| PP-OCRv6              | Now published in three sizes (tiny, small, medium). Medium for killfeed and banner crops, tiny as a fast pre-filter. Input shape and dictionary still have to be checked against v5. | planned |
+| Killfeed detector     | A small detector that finds killfeed lines instead of fixed regions, so a moved or rescaled HUD still works. Public Valorant and CS:GO datasets exist; their licences come first.    | planned |
+| Vocabulary correction | Per game, a list of maps, agents, operators and weapons; text recognition output is matched to the nearest known word. Extends the existing map check in `agent/wording.ts`.         | new     |
+
+### Audio
+
+| Item          | What it changes                                                                                                                                                                                                            | Status  |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Moment score  | One score per second from loudness and pitch of the voice, YAMNet classes (laughter, shouting, gunshot, explosion) and the density of proven events. Frame bursts go to the top seconds. Gunshots are activity, not kills. | planned |
+| Voice markers | The transcript already exists. Phrases such as "clip that" or "did you see that" mark a moment with high weight.                                                                                                           | new     |
+
+### Titles
+
+Today's titles are correct but often plain ("Runde gewonnen auf Border"). The aim is more facts per title and a deliberate style, not clickbait.
+
+| Item                      | What it changes                                                                                                                                                                                                                                 | Status  |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Title recipes             | Building blocks per event class with proven numbers: map, kill count, time span ("3 kills in 4 seconds"), distance from the Fortnite replay, remaining health from game data. A block without a source is dropped.                              | new     |
+| Three candidates + rubric | The model writes three titles; fixed rules score them (names a proven event, contains a concrete number, map or name, short enough for phone cards, no generic words, no quote). The best wins, the other two stay selectable in the clip view. | new     |
+| Style presets             | Per user: plain, hype, dry, story. Implemented as a few example titles per preset in the prompt; tags stay free of style.                                                                                                                       | new     |
+| Genre prompts             | Separate prompt and tag sets for shooter, battle royale, MOBA, racing, co-op and sandbox, with the genre from the Steam or IGDB lookup the server already does.                                                                                 | new     |
+| Series context            | The server knows all clips: "third ace this week", "first win on Lotus". Purely from the database.                                                                                                                                              | new     |
+| Claim → frame check       | Every claim in the title goes back to the model as a yes/no question with its evidence frame (Woodpecker). A claim that fails is removed from the title instead of rewriting the whole title.                                                   | planned |
+
+### Learning
+
+| Item         | What it changes                                                                                                                                                                                                                              | Status  |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Hotkey prior | The save hotkey is pressed a few seconds after the moment. Per game, the client learns from confirmed events how far before the clip end the moment usually lies, and uses that for frame selection and timestamps. Statistics, no training. | new     |
+| Corrections  | Edited titles and tags, and the choice between title candidates, are stored and used as examples in the same game (see stage 7).                                                                                                             | planned |
+
+### Product
+
+| Item                   | What it changes                                                                                                                        | Status  |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Typed timeline markers | Markers in the player from all sources (kills, rounds, laughs, voice markers) with one icon per type. Today's timestamps have no type. | new     |
+| "Why this title?" view | The evidence behind a title in the web app: frame, text read, audio peak, rule that applied. Also a debugging aid for issues.          | new     |
+| Weekly recap           | A montage from tags ("all aces this week") with ffmpeg and title cards from the clip titles.                                           | new     |
+| 9:16 export            | Vertical export with a crop around the centre or the killfeed, subtitles from the voice chat transcript.                               | new     |
+| More recorder folders  | The setup suggests Discord Clips, Steam `gamerecordings` and AMD Instant Replay folders when it finds them.                            | new     |
+| Share links            | Links to single clips, with expiry.                                                                                                    | planned |
+
+### Priority
+
+- **Quick wins (days):** CS2 Game State Integration (in progress), Dota 2 on the same listener, three title candidates with the rubric, title recipes with proven numbers, voice markers, more recorder folders.
+- **Medium (weeks):** PP-OCRv6, Rocket League SOS plugin, deadem for CS2, Dota 2 and Deadlock, moment score and frame bursts, style presets and genre prompts, hotkey prior, typed timeline markers and the "why this title?" view, the Medal-compatible event endpoint.
+- **Large (months):** killfeed detector, weekly recap, 9:16 export, sources as JSON with a contribution guide, prompt optimisation per genre on the measurement set.
+- **To verify first:** Apex LiveAPI in public matches; Overwatch 2 logs outside Workshop games; whether the Marvel Rivals community API is worth an opt-in.
+
+### Rules for these sources
+
+- **Facts, not code.** Segra and WatchDog are GPL-licensed; ReplayHaven is PolyForm Noncommercial. File paths, endpoints and class numbers can be taken from them, code cannot.
+- **Riot.** Every Valorant product has to be registered, real-time overlays are prohibited, post-match analysis is allowed. The presence endpoint falls under the same rules as `match-details`.
+- **Official interfaces only.** Game State Integration, LiveAPI, Steam Timeline, replay and log files, image and sound. No reading of game memory, no hooks into game processes.
+- **Dataset licences.** Killfeed datasets and audio models are checked before anything trained on them ships.
+
+Sources for this section:
+
+- CS2 Game State Integration: https://github.com/antonpup/CounterStrike2GSI; Dota 2: https://github.com/xzion/dota2-gsi
+- Rocket League SOS plugin: https://gitlab.com/bakkesplugins/sos/sos-plugin
+- Apex LiveAPI: https://apexliveapi.com/docs/quickstart/python/
+- Valorant local API (presences): https://techchrism.github.io/valorant-api-docs/; Riot's rules: https://support-developer.riotgames.com/hc/en-us/articles/22698769097107-VALORANT
+- deadem: https://github.com/Igor-Losev/deadem; haste (Deadlock): https://github.com/deadlock-api/haste
+- Medal event API: https://docs.medal.tv/; Medal auto clipping: https://medal.tv/auto-clipping
+- NVIDIA Highlights SDK: https://developer.nvidia.com/highlights
+- Steam Timeline: https://partner.steamgames.com/doc/features/timeline
+- PP-OCRv6 sizes: https://github.com/PaddlePaddle/PaddleOCR
+- Killfeed datasets: https://universe.roboflow.com/valorant-killfeed/valorant-killfeed, https://huggingface.co/datasets/keremberke/csgo-object-detection
+- YAMNet classes as used by WatchDog: https://github.com/thrtn70/WatchDog; Segra: https://github.com/Segergren/Segra
+- Voice-triggered clipping and per-category detection: https://eklipse.gg/features/ai-highlights/
+- Typed markers in SteelSeries Moments: https://support.steelseries.com/hc/en-us/articles/360060115032-What-is-auto-clip-with-SteelSeries-Moments
+- Discord Clips: https://support.discord.com/hc/en-us/articles/16861982215703-Clips; AMD Instant Replay: https://www.amd.com/en/resources/support-articles/faqs/DH-023.html
 
 ## Sources
 
