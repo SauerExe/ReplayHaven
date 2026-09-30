@@ -225,7 +225,16 @@ Operations, backups, roles, reverse proxies, single sign-on and server-side AI a
 
 ## What's next
 
-Ideas for later: share links, and laughs and shouts from the microphone track as highlight markers. Audio cues and Rainbow Six replay events only go into the analysis once measurements on real clips show that they help.
+The main direction is more proven facts per clip and better titles built from them. Planned, roughly in this order:
+
+- **Live game data.** CS2 through Game State Integration (in progress), then Dota 2 on the same listener, Rocket League through the SOS plugin and Valorant's local presence data for map and score. Only official interfaces, files, image and sound; no memory reading.
+- **More recorders.** Discord Clips, Steam recordings and AMD Instant Replay folders, and NVIDIA Highlights as a source of proven events.
+- **Better titles.** Recipes that use proven numbers (map, kill count, time span, distance), three candidates scored by fixed rules with the others kept as alternatives, and style presets.
+- **Sharper reading.** PP-OCRv6 for the killfeed and result banners, and a list of known maps, agents and weapons to correct what text recognition reads.
+- **Moments from audio.** A score per second from voice loudness, laughs and shouts, and phrases like "clip that" in voice chat as markers.
+- **In the library.** Typed markers in the player, a "why this title?" view with the evidence, a weekly recap, a 9:16 export and share links.
+
+Each step goes into the analysis only once measurements on real clips show that it helps. The full list with priorities and sources is in [docs/AI-RECOGNITION.md](docs/AI-RECOGNITION.md#roadmap-2026-09-30).
 
 ## FAQ
 
