@@ -3,7 +3,7 @@
 
 # The build stage always runs on the host architecture. Its output is plain
 # JavaScript, so multi-arch images only have to install runtime dependencies.
-FROM --platform=$BUILDPLATFORM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS build
+FROM --platform=$BUILDPLATFORM node:26-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
@@ -11,7 +11,7 @@ COPY . .
 RUN npm run build && npm run server:bundle
 
 # Alpine keeps the runtime small: FFmpeg with its libraries is far lighter than on Debian.
-FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+FROM node:26-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80
 ARG REPLAYHAVEN_VERSION=dev
 # Baked in by the release workflow so the "Download Windows client" button works
 # out of the box. Stored under its own name so an empty REPLAYHAVEN_CLIENT_DOWNLOAD_URL
